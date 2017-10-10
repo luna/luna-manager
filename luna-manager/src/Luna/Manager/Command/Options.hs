@@ -62,6 +62,10 @@ makeLenses ''MakePackageOpts
 makeLenses ''SwitchVersionOpts
 makeLenses ''DevelopOpts
 
+-- small helpers for Options
+verboseOpt, guiInstallerOpt :: MonadState Options m => m Bool
+verboseOpt      = view (globals . verbose)      <$> get @Options
+guiInstallerOpt = view (globals . guiInstaller) <$> get @Options
 
 -- === Instances === --
 

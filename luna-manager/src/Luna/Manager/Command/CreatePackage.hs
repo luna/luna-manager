@@ -7,7 +7,8 @@ import           Control.Monad.Raise
 import           Control.Monad.State.Layered
 import           Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, decodeString, parent, splitDirectories, null, filename, dirname, splitDirectories)
 import           Luna.Manager.Archive as Archive
-import           Luna.Manager.Command.Options (MakePackageOpts)
+import           Luna.Manager.Command.Options (Options, MakePackageOpts, guiInstallerOpt)
+import qualified Luna.Manager.Logger as Logger
 import           Luna.Manager.Component.Repository as Repo
 import           Luna.Manager.Network
 import           Luna.Manager.System (makeExecutable)
@@ -52,7 +53,7 @@ data PackageConfig = PackageConfig { _defaultPackagePath     :: FilePath
 
 makeLenses ''PackageConfig
 
-type MonadCreatePackage m = (MonadStates '[EnvConfig, PackageConfig, RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m)
+type MonadCreatePackage m = (MonadStates '[Options, EnvConfig, PackageConfig, RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m)
 
 
 -- === Instances === --
@@ -90,6 +91,8 @@ data ExistingVersionException = ExistingVersionException Version deriving (Show)
 instance Exception ExistingVersionException where
   displayException (ExistingVersionException v) = "This version already exists: " <> (convert $ showPretty v)
 
+
+
 ----------------------
 -- === Appimage === --
 ----------------------
@@ -116,7 +119,7 @@ copyResourcesAppImage repoPath appName tmpAppDirPath mainAppImageFolderPath = do
 
 checkAppImageName :: MonadCreatePackage m => Text -> FilePath -> m ()
 checkAppImageName appName filePath = do
-    let fileName = filename filePath
+    let fileName      = filename filePath
         outFolderPath = parent $ filePath
     when (Text.isInfixOf appName (Shelly.toTextIgnore fileName)) $ do
         Shelly.mv filePath $ outFolderPath </> convert (appName <> ".AppImage")
@@ -130,20 +133,18 @@ getApprun :: MonadCreatePackage m => FilePath -> FilePath -> m ()
 getApprun tmpAppDirPath functions = do
     let apprun = "get_apprun"
     (exitCode, out, err) <- Process.readProcess $ Process.setWorkingDir (encodeString tmpAppDirPath) $ Process.shell $ ". " <> (encodeString functions) <> " && " <> apprun
-    case exitCode of
-        ExitSuccess   -> return ()
-        ExitFailure a -> throwM (AppimageException (toException $ Exception.StringException (BSLChar.unpack err) callStack ))
+    unless (exitCode == ExitSuccess) $ throwM (AppimageException (toException $ Exception.StringException (BSLChar.unpack err) callStack))
 
 generateAppimage :: MonadCreatePackage m => FilePath -> FilePath -> Text -> m ()
 generateAppimage tmpAppPath functions appName = do
+    Logger.log "Generating app image"
     let generateAppimage   = "generate_type2_appimage"
     (exitCode, out, err) <- Process.readProcess $ Process.setWorkingDir (encodeString tmpAppPath) $ Process.setEnv [("APP", (convert appName))] $ Process.shell $ ". " <> (encodeString functions) <> " && " <> generateAppimage
-    case exitCode of
-        ExitSuccess   -> return ()
-        ExitFailure a -> throwM (AppimageException (toException $ Exception.StringException (BSLChar.unpack err) callStack ))
+    unless (exitCode == ExitSuccess) $ throwM (AppimageException (toException $ Exception.StringException (BSLChar.unpack err) callStack))
 
 createAppimage :: MonadCreatePackage m => Text -> FilePath -> m ()
 createAppimage appName repoPath = do
+    Logger.log "Creating app image"
     let appImageFolderName = "appimage"
     pkgConfig     <- get @PackageConfig
     tmpAppPath    <- expand $ repoPath </> (pkgConfig ^. defaultPackagePath) </> appImageFolderName </> convert appName
@@ -151,8 +152,8 @@ createAppimage appName repoPath = do
 
     Shelly.mkdir_p tmpAppDirPath
 
-    putStrLn "Downloading AppImage functions.sh"
-    functions <- downloadWithProgressBarTo "https://github.com/probonopd/AppImages/raw/master/functions.sh" tmpAppPath False
+    Logger.log "Downloading AppImage functions.sh"
+    functions <- downloadWithProgressBarTo "https://github.com/probonopd/AppImages/raw/master/functions.sh" tmpAppPath
     let mainAppImageFolder     = "usr"
         mainAppImageFolderPath = tmpAppDirPath </> mainAppImageFolder
     Shelly.mkdir_p mainAppImageFolderPath
@@ -160,8 +161,8 @@ createAppimage appName repoPath = do
     getApprun tmpAppDirPath functions
     copyResourcesAppImage repoPath appName tmpAppDirPath mainAppImageFolderPath
 
-    putStrLn "Downloading AppImage desktopIntegration"
-    appWrapper <- downloadWithProgressBarTo "https://raw.githubusercontent.com/probonopd/AppImageKit/master/desktopintegration" tmpAppDirPath False
+    Logger.log "Downloading AppImage desktopIntegration"
+    appWrapper <- downloadWithProgressBarTo "https://raw.githubusercontent.com/probonopd/AppImageKit/master/desktopintegration" tmpAppDirPath
     let dstWrapperPath = mainAppImageFolderPath </> convert (appName <> ".wrapper")
     Shelly.mv appWrapper dstWrapperPath
     makeExecutable dstWrapperPath
@@ -179,20 +180,21 @@ createAppimage appName repoPath = do
 -- === Utils === --
 
 
-runPkgBuildScript :: MonadCreatePackage m => Bool -> FilePath -> m ()
-runPkgBuildScript verbose repoPath = do
+runPkgBuildScript :: MonadCreatePackage m => FilePath -> m ()
+runPkgBuildScript repoPath = do
+    Logger.log "Running package build script"
     pkgConfig <- get @PackageConfig
     buildPath <- expand $ repoPath </> (pkgConfig ^. buildScriptPath)
-    Shelly.chdir (parent buildPath) $ do
-        if verbose then Shelly.cmd buildPath "--release" else Shelly.silently $ Shelly.cmd buildPath "--release"
+    Shelly.chdir (parent buildPath) $ Shelly.switchVerbosity
+        $ Shelly.cmd buildPath "--release"
 
 copyFromDistToDistPkg :: MonadCreatePackage m => Text -> FilePath -> m ()
 copyFromDistToDistPkg appName repoPath = do
+    Logger.log "Copying from dist to dist-package"
     pkgConfig         <- get @PackageConfig
     packageRepoFolder <- case currentHost of
-        Darwin  -> expand $ repoPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
-        Linux   -> expand $ repoPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
         Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
+        _       -> expand $ repoPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
     let expandedCopmponents = repoPath </> (pkgConfig ^. componentsToCopy)
     Shelly.rm_rf packageRepoFolder
     Shelly.mkdir_p $ parent packageRepoFolder
@@ -204,21 +206,14 @@ downloadAndUnpackDependency repoPath resolvedPackage = do
     let depName          = resolvedPackage ^. header . name
         packageType      = resolvedPackage ^. resolvedAppType
         componentsFolder = pkgConfig ^. componentsToCopy
-        guiInstaller     = False
     thirdPartyFullPath <- expand $ repoPath </> componentsFolder </> (pkgConfig ^. thirdPartyPath)
     libFullPath        <- expand $ repoPath </> componentsFolder </> (pkgConfig ^. libPath)
-    downloadedPkg      <- downloadFromURL guiInstaller (resolvedPackage ^. desc . path) $ "Downloading dependency files " <> depName
-    unpacked           <- Archive.unpack guiInstaller 1.0 "unpacking_progress" downloadedPkg
+    downloadedPkg      <- downloadFromURL (resolvedPackage ^. desc . path) $ "Downloading dependency files " <> depName
+    unpacked           <- Archive.unpack 1.0 "unpacking_progress" downloadedPkg
     unpackedIsDir      <- Shelly.test_d unpacked
     Shelly.mkdir_p thirdPartyFullPath
     case packageType of
-        BatchApp -> do
-            Shelly.rm_rf $ thirdPartyFullPath </> (last $ splitDirectories unpacked)
-            Shelly.mv unpacked thirdPartyFullPath
-        GuiApp   -> do
-            Shelly.rm_rf $ thirdPartyFullPath </> (last $ splitDirectories unpacked)
-            Shelly.mv unpacked thirdPartyFullPath
-        Lib      -> do
+        Lib -> do
             Shelly.rm_rf libFullPath
             if unpackedIsDir then do
                 listed <- Shelly.ls unpacked
@@ -229,44 +224,50 @@ downloadAndUnpackDependency repoPath resolvedPackage = do
                         else Shelly.mv unpacked libFullPath
                     else Shelly.mv unpacked libFullPath
                 else Shelly.mv unpacked libFullPath
+        _ -> do
+            Shelly.rm_rf $ thirdPartyFullPath </> (last $ splitDirectories unpacked)
+            Shelly.mv unpacked thirdPartyFullPath
 
 isNewestVersion :: MonadCreatePackage m => Version -> Text -> m Bool
 isNewestVersion appVersion appName = do
-    repo <- getRepo True
+    Logger.log "Checking if the repo is at the newest version..."
+    repo        <- getRepo
     versionList <- Repo.getVersionsList repo appName
-    if (head versionList) >= appVersion then return False else return True
+    let newest  = (head versionList) >= appVersion
+    Logger.log $ if newest then "Yes" else "No"
+    return newest
 
 ------------------------------
 -- === linkingLibsMacOS === --
 ------------------------------
 
 isSubPath :: Text -> Text -> Bool
-isSubPath systemLibPath dylibPath = do
-    let dylibSplited  = splitDirectories $ convert dylibPath
-        systemSplited = splitDirectories $ convert systemLibPath
-        l             = length systemSplited
-        firstL        = take l dylibSplited
-    (firstL /= systemSplited) && (not $ Filesystem.Path.CurrentOS.null $ convert dylibPath)
+isSubPath systemLibPath dylibPath = (firstL /= systemSplited) && (not $ Filesystem.Path.CurrentOS.null $ convert dylibPath)
+    where dylibSplited  = splitDirectories $ convert dylibPath
+          systemSplited = splitDirectories $ convert systemLibPath
+          l             = length systemSplited
+          firstL        = take l dylibSplited
 
-changeExecutableLibPathToRelative :: (MonadIO m, MonadSh m, Shelly.MonadShControl m) => FilePath -> FilePath -> FilePath -> m ()
+changeExecutableLibPathToRelative :: MonadCreatePackage m => FilePath -> FilePath -> FilePath -> m ()
 changeExecutableLibPathToRelative binPath libSystemPath libLocalPath = do
     let dylibName           = filename libSystemPath
         relativeLibraryPath = "@executable_path/../../lib/" <> Shelly.toTextIgnore dylibName
         binFolder           = parent binPath
         binName             = "./"  <> (Shelly.toTextIgnore $ filename binPath)
     when (filename libLocalPath == filename libSystemPath) $ do
-        Shelly.chdir binFolder $ do
+        Shelly.chdir binFolder $ Shelly.switchVerbosity $ do
             Shelly.cmd "install_name_tool" "-change" libSystemPath relativeLibraryPath binName
 
-changeExecutablesLibPaths :: (MonadIO m, MonadSh m, Shelly.MonadShControl m) => FilePath -> FilePath -> FilePath -> m ()
+changeExecutablesLibPaths :: MonadCreatePackage m => FilePath -> FilePath -> FilePath -> m ()
 changeExecutablesLibPaths binaryPath librariesFolderPath linkedDylib = do
     listedLibrariesFolder <- Shelly.ls librariesFolderPath
     mapM_ (changeExecutableLibPathToRelative binaryPath linkedDylib) listedLibrariesFolder
 
 
-checkAndChangeExecutablesLibPaths :: (MonadIO m, MonadSh m, Shelly.MonadShControl m) => FilePath -> FilePath -> m()
+checkAndChangeExecutablesLibPaths :: MonadCreatePackage m => FilePath -> FilePath -> m()
 checkAndChangeExecutablesLibPaths libFolderPath binaryPath = do
-    deps <- Shelly.cmd "otool" "-L" binaryPath
+    Logger.log "Running otool"
+    deps <- Shelly.switchVerbosity $ Shelly.cmd "otool" "-L" binaryPath
     let splited                 = drop 1 $ Text.strip <$> Text.splitOn "\n" deps
         filePaths               = Text.takeWhile (/= ' ') <$> splited
         filtered                = convert <$> filterSystemLibraries filePaths
@@ -275,7 +276,7 @@ checkAndChangeExecutablesLibPaths libFolderPath binaryPath = do
 
     mapM_ (changeExecutablesLibPaths binaryPath libFolderPath) filtered
 
-linkLibs :: (MonadIO m, MonadSh m, Shelly.MonadShControl m) => FilePath -> FilePath -> m ()
+linkLibs :: MonadCreatePackage m => FilePath -> FilePath -> m ()
 linkLibs binPath libPath = do
     allBins <- Shelly.ls binPath
     mapM_ (checkAndChangeExecutablesLibPaths libPath) (filterGitKeepFile allBins)
@@ -287,8 +288,8 @@ filterGitKeepFile allBins = filter (\x -> filename x /= ".gitkeep") allBins
 -- === Creating package === ---
 -------------------------------
 
-createPkg :: MonadCreatePackage m => Bool -> FilePath -> ResolvedApplication -> m ()
-createPkg verbose cfgFolderPath resolvedApplication = do
+createPkg :: MonadCreatePackage m => FilePath -> ResolvedApplication -> m ()
+createPkg cfgFolderPath resolvedApplication = do
     pkgConfig <- get @PackageConfig
     let app        = resolvedApplication ^. resolvedApp
         appDesc    = app ^. desc
@@ -300,14 +301,13 @@ createPkg verbose cfgFolderPath resolvedApplication = do
         isNewest <- isNewestVersion (appHeader ^. version) appName
         if isNewest then return (appHeader ^. version) else throwM $ ExistingVersionException (appHeader ^. version)
     mapM_ (downloadAndUnpackDependency appPath) $ resolvedApplication ^. pkgsToPack
-    runPkgBuildScript verbose appPath
+    runPkgBuildScript appPath
     copyFromDistToDistPkg appName appPath
     mainAppDir <- case currentHost of
-        Linux   -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
-        Darwin  -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
         Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
+        _       -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
     let versionFile = mainAppDir </> (pkgConfig ^. configFolder) </> (pkgConfig ^. versionFileName)
-        binsFolder  = mainAppDir </> (pkgConfig ^. binFolder) </> (pkgConfig ^. binsPrivate)
+        binsFolder  = mainAppDir </> (pkgConfig ^. binFolder)    </> (pkgConfig ^. binsPrivate)
         libsFolder  = mainAppDir </> (pkgConfig ^. libPath)
 
     Shelly.mkdir_p $ parent versionFile
@@ -317,7 +317,7 @@ createPkg verbose cfgFolderPath resolvedApplication = do
     case currentHost of
         Linux   -> createAppimage appName $ appPath
         Darwin  -> void $ createTarGzUnix mainAppDir appName
-        Windows -> void $ zipFileWindows False mainAppDir appName
+        Windows -> void $ zipFileWindows mainAppDir appName
 
 updateConfig :: Repo -> ResolvedApplication -> Repo
 updateConfig config resolvedApplication =
@@ -329,22 +329,23 @@ updateConfig config resolvedApplication =
         mainPackagePath = "https://s3-us-west-2.amazonaws.com/packages-luna/"
         applicationPartPackagePath = appName <> "/" <> showPretty (view version appHeader) <> "/" <> appName
         s3Path = case currentHost of
-            Darwin -> mainPackagePath <> "darwin/" <> applicationPartPackagePath <> ".tar.gz"
-            Linux -> mainPackagePath <> "linux/" <> applicationPartPackagePath <> ".AppImage"
+            Darwin  -> mainPackagePath <> "darwin/"  <> applicationPartPackagePath <> ".tar.gz"
+            Linux   -> mainPackagePath <> "linux/"   <> applicationPartPackagePath <> ".AppImage"
             Windows -> mainPackagePath <> "windows/" <> applicationPartPackagePath <> ".tar.gz"
-        updatedConfig = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ s3Path
+        updatedConfig  = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ s3Path
         filteredConfig = updatedConfig & packages . ix appName . versions . ix (view version appHeader)  %~ Map.filterWithKey (\k _ -> k == currentSysDesc   )
     in filteredConfig
 
-run :: MonadCreatePackage m => MakePackageOpts -> Bool -> Bool -> m ()
-run opts verbose guiInstaller = do
-    config <- parseConfig $ convert (opts ^. Opts.cfgPath)
+run :: MonadCreatePackage m => MakePackageOpts -> m ()
+run opts = do
+    guiInstaller <- guiInstallerOpt
+    config       <- parseConfig $ convert (opts ^. Opts.cfgPath)
     let cfgFolderPath = parent $ convert (opts ^. Opts.cfgPath)
-        appsToPack = config ^. apps
+        appsToPack    = config ^. apps
 
     resolved <- mapM (resolvePackageApp config) appsToPack
 
-    mapM_ (createPkg verbose cfgFolderPath) resolved
-    repo <- getRepo guiInstaller
+    mapM_ (createPkg cfgFolderPath) resolved
+    repo <- getRepo
     let updatedConfig = foldl' updateConfig config resolved
     generateConfigYamlWithNewPackage repo updatedConfig $ cfgFolderPath </> "config.yaml"

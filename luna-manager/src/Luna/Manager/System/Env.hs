@@ -27,14 +27,10 @@ makeLenses ''EnvConfig
 -- === Utils === --
 
 getHomePath :: MonadIO m => m FilePath
-getHomePath = do
-    home <- liftIO $ System.getHomeDirectory
-    return $ fromText $ convert home
+getHomePath = fromText . convert <$> liftIO System.getHomeDirectory
 
 getCurrentPath :: MonadIO m => m FilePath
-getCurrentPath = do
-    current <- liftIO $ System.getCurrentDirectory
-    return $ fromText $ convert current
+getCurrentPath = fromText . convert <$> liftIO System.getCurrentDirectory
 
 getTmpPath, getDownloadPath :: (MonadIO m, MonadGetter EnvConfig m, MonadSh m) => m FilePath
 getDownloadPath = getTmpPath

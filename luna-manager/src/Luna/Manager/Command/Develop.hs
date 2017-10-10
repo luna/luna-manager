@@ -40,7 +40,7 @@ data DevelopConfig = DevelopConfig { _stackPath      :: Text
                                     }
 makeLenses ''DevelopConfig
 
-type MonadDevelop m = (MonadStates '[EnvConfig, RepoConfig, PackageConfig, DevelopConfig] m, MonadIO m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadBaseControl IO m)
+type MonadDevelop m = (MonadStates '[Options, EnvConfig, RepoConfig, PackageConfig, DevelopConfig] m, MonadIO m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadBaseControl IO m)
 
 
 instance Monad m => MonadHostConfig DevelopConfig 'Linux arch m where
@@ -68,12 +68,11 @@ downloadAndUnpackStack :: MonadDevelop m => FilePath -> m ()
 downloadAndUnpackStack path = do
     developConfig <- get @DevelopConfig
     let stackURL = developConfig ^. stackPath
-        guiInstaller = False
         totalProgress = 1.0
         progressFielsdName = ""
     putStrLn "Downloading stack"
-    stackArch <- downloadWithProgressBar stackURL guiInstaller
-    stackArch' <- Archive.unpack guiInstaller totalProgress progressFielsdName stackArch
+    stackArch <- downloadWithProgressBar stackURL
+    stackArch' <- Archive.unpack totalProgress progressFielsdName stackArch
     Shelly.mv stackArch' path
 
 cloneRepo :: MonadDevelop m => Text -> FilePath -> m Text
@@ -82,7 +81,7 @@ cloneRepo appName appPath = Shelly.run "git" ["clone", repoPath, Shelly.toTextIg
 
 downloadDeps :: MonadDevelop m => Text -> FilePath -> m ()
 downloadDeps appName appPath = do
-    repo <- getRepo False
+    repo <- getRepo
     resolvedApplication <- resolvePackageApp repo appName
     mapM_ (downloadAndUnpackDependency appPath) $ resolvedApplication ^. pkgsToPack
 

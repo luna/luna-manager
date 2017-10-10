@@ -2,6 +2,7 @@ module Luna.Manager.Network where
 
 import Prologue hiding (FilePath, fromText)
 
+import Luna.Manager.Command.Options (Options, guiInstallerOpt)
 import Luna.Manager.System.Env
 import Luna.Manager.Shell.ProgressBar
 import Luna.Manager.System.Path
@@ -41,31 +42,34 @@ takeFileNameFromURL :: URIPath -> Maybe Text
 takeFileNameFromURL url = convert <$> name where
     name = maybeLast . URI.pathSegments =<< URI.parseURI (convert url)
 
-type MonadNetwork m = (MonadIO m, MonadGetter EnvConfig m, MonadException SomeException m, MonadSh m, MonadCatch m, MonadThrow m,  MonadBaseControl IO m)
+type MonadNetwork m = (MonadIO m, MonadState Options m, MonadGetter EnvConfig m, MonadException SomeException m, MonadSh m, MonadCatch m, MonadThrow m,  MonadBaseControl IO m)
 
-downloadFromURL :: MonadNetwork m => Bool -> URIPath -> Text -> m FilePath
-downloadFromURL guiInstaller address info = go `Exception.catchAny` \e -> throwM (DownloadException address e)  where
-    go = withJust (takeFileNameFromURL address) $ \name -> do
-        unless guiInstaller $ putStrLn $ (convert info) <>" (" <> convert address <> ")"
-        dest    <- (</> (fromText name)) <$> getDownloadPath
-        manager <- newHTTPManager
-        request <- HTTP.parseUrlThrow (convert address)
-        resp    <- httpLbs request manager
-        liftIO $ ByteStringL.writeFile (encodeString dest) $ HTTP.responseBody resp
-        return dest
-
+downloadFromURL :: MonadNetwork m => URIPath -> Text -> m FilePath
+downloadFromURL address info = do
+    guiInstaller <- guiInstallerOpt
+    let go = withJust (takeFileNameFromURL address) $ \name -> do
+            unless guiInstaller $ putStrLn $ (convert info) <>" (" <> convert address <> ")"
+            dest    <- (</> (fromText name)) <$> getDownloadPath
+            manager <- newHTTPManager
+            request <- HTTP.parseUrlThrow (convert address)
+            resp    <- httpLbs request manager
+            liftIO $ ByteStringL.writeFile (encodeString dest) $ HTTP.responseBody resp
+            return dest
+    go `Exception.catchAny` \e -> throwM (DownloadException address e)  where
 
 newHTTPManager :: MonadIO m => m HTTP.Manager
 newHTTPManager = liftIO . HTTP.newManager $ HTTP.tlsManagerSettings { HTTP.managerResponseTimeout = HTTP.responseTimeoutMicro 5000000}
 
-downloadWithProgressBar  :: MonadNetwork m => URIPath -> Bool -> m FilePath
-downloadWithProgressBar address guiInstaller = do
+downloadWithProgressBar  :: MonadNetwork m => URIPath -> m FilePath
+downloadWithProgressBar address = do
+    guiInstaller <- guiInstallerOpt
     unless guiInstaller $ putStrLn $ "Downloading: " <> (convert address)
     tmp <- getTmpPath
-    downloadWithProgressBarTo address tmp guiInstaller
+    downloadWithProgressBarTo address tmp
 
-downloadWithProgressBarTo :: MonadNetwork m => URIPath -> FilePath -> Bool -> m FilePath
-downloadWithProgressBarTo address dstPath guiInstaller = Exception.handleAny (\e -> throwM (DownloadException address e)) $  do
+downloadWithProgressBarTo :: MonadNetwork m => URIPath -> FilePath -> m FilePath
+downloadWithProgressBarTo address dstPath = Exception.handleAny (\e -> throwM (DownloadException address e)) $  do
+    guiInstaller <- guiInstallerOpt
     req     <- HTTP.parseRequest (convert address)
     manager <- newHTTPManager
     runResourceT $ do

@@ -3,6 +3,7 @@ module Luna.Manager.Component.Repository where
 import Prologue hiding (FilePath)
 
 import Luna.Manager.Component.Version
+import Luna.Manager.Command.Options
 import Luna.Manager.System.Host
 import Luna.Manager.System.Path
 import Luna.Manager.System.Env
@@ -196,21 +197,22 @@ makeLenses ''RepoConfig
 
 -- === Utils === --
 
-type MonadRepo m = (MonadStates '[RepoConfig, EnvConfig] m, MonadNetwork m)
+type MonadRepo m = (MonadStates '[Options, RepoConfig, EnvConfig] m, MonadNetwork m)
 
 parseConfig :: (MonadIO m, MonadException SomeException m) => FilePath -> m Repo
 parseConfig cfgPath =  tryRight' =<< liftIO (Yaml.decodeFileEither $ encodeString cfgPath)
 
-downloadRepo :: MonadNetwork m => Bool -> URIPath -> m FilePath
-downloadRepo guiInstaller address = downloadFromURL guiInstaller address "Downloading repository configuration file"
+downloadRepo :: MonadNetwork m => URIPath -> m FilePath
+downloadRepo address = do
+    downloadFromURL address "Downloading repository configuration file"
 
-getRepo :: MonadRepo m => Bool -> m Repo
-getRepo guiInstaller = do
+getRepo :: MonadRepo m => m Repo
+getRepo = do
     cfg <- get @RepoConfig
     case cfg ^. cachedRepo of
         Just r  -> return r
         Nothing -> do
-            downloadedConfig <- downloadRepo guiInstaller . view repoPath =<< get @RepoConfig
+            downloadedConfig <- downloadRepo . view repoPath =<< get @RepoConfig
             repo <- parseConfig downloadedConfig
             put @RepoConfig $ cfg & cachedRepo .~ Just repo
             return repo

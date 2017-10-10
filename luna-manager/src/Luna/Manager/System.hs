@@ -2,27 +2,28 @@
 
 module Luna.Manager.System where
 
-import Prologue hiding (FilePath,null, filter, appendFile, toText, fromText)
-import System.Directory (executable, setPermissions, getPermissions, doesPathExist, getHomeDirectory)
-import System.Exit
-import System.Process.Typed
-import qualified System.Environment  as Environment
-import Data.List.Split (splitOn)
-import Data.ByteString.Lazy (ByteString, null)
-import Data.ByteString.Lazy.Char8 (filter)
-import Data.Text.IO (appendFile)
-import qualified Data.Text  as Text
-import Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, toText, parent)
+import           Prologue                     hiding (FilePath,null, filter, appendFile, toText, fromText)
 
-import Data.Maybe (listToMaybe)
-import Control.Monad.Raise
-import Luna.Manager.System.Env
-import Luna.Manager.System.Host
+import           Control.Monad.Raise
+import           Control.Monad.State.Layered
+import           Data.ByteString.Lazy         (ByteString, null)
+import           Data.ByteString.Lazy.Char8   (filter)
+import           Data.Maybe                   (listToMaybe)
+import           Data.List.Split              (splitOn)
+import           Data.Text.IO                 (appendFile)
+import qualified Data.Text                    as Text
+import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, toText, parent)
+import           System.Directory             (executable, setPermissions, getPermissions, doesPathExist, getHomeDirectory)
+import qualified System.Environment           as Environment
+import           System.Exit
+import           System.Process.Typed         as Process
 
-import qualified Luna.Manager.Shell.Shelly as Shelly
-import Luna.Manager.Shell.Shelly (MonadSh)
+import           Luna.Manager.Command.Options (Options)
+import qualified Luna.Manager.Shell.Shelly    as Shelly
+import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
+import           Luna.Manager.System.Env
+import           Luna.Manager.System.Host
 
-import qualified System.Process.Typed as Process
 
 data Shell = Bash | Zsh | Unknown deriving (Show)
 
@@ -39,19 +40,17 @@ callShell cmd = do
     return $ filterEnters out
 
 checkIfNotEmpty :: MonadIO m => Text -> m Bool
-checkIfNotEmpty cmd = do
-    shell <- callShell cmd
-    return $ not $ null shell
+checkIfNotEmpty cmd = not . null <$> callShell cmd
 
 checkBash :: MonadIO m => m  (Maybe Shell)
 checkBash = do
     sys <- checkIfNotEmpty "$SHELL -c 'echo $BASH_VERSION'"
-    if sys then return $ Just Bash else return Nothing
+    return $ if sys then Just Bash else Nothing
 
 checkZsh :: MonadIO m => m  (Maybe Shell)
 checkZsh = do
     sys <- checkIfNotEmpty "$SHELL -c 'echo $ZSH_VERSION'"
-    if sys then return $ Just Zsh else return Nothing
+    return $ if sys then Just Zsh else Nothing
 
 checkShell :: MonadIO m => m Shell
 checkShell = do
@@ -82,13 +81,10 @@ unrecognizedShellError = toException UnrecognizedShellException
 
 exportPath' :: MonadIO m => FilePath -> m ()
 exportPath' pathToExport = case currentHost of
-    Linux -> do
+    Windows -> exportPathWindows pathToExport
+    _       -> do
         shellType <- checkShell
         flip handleAll (exportPath (parent pathToExport) shellType) $ \_ -> print "Unrecognized shell. Please add ~/.local/bin to your exports." --"error occured, TODO[WD]"
-    Darwin -> do
-        shellType <- checkShell
-        flip handleAll (exportPath (parent pathToExport) shellType) $ \_ -> print "Unrecognized shell. Please add ~/.local/bin to your exports."--"error occured, TODO[WD]"
-    Windows -> exportPathWindows pathToExport
     -- | e == unrecognizedShellError  -> error "d"
     -- | e == bashConfigNotFoundError -> error "x"
     -- UnrecognizedShellException ->
@@ -117,33 +113,23 @@ exportPath pathToExport shellType = do
 exportPathWindows :: MonadIO m => FilePath -> m ()
 exportPathWindows path = liftIO $ do
     (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx path \"%Path%;" ++ (encodeString $ parent path) ++ "\""
-    case exitCode of
-        ExitSuccess -> return ()
-        ExitFailure a -> print $ "Path was not exported." <> err  -- TODO this should be warning not print but installation was succesfull just path was not exported
+    unless (exitCode == ExitSuccess) $ print $ "Path was not exported." <> err  -- TODO this should be warning not print but installation was succesfull just path was not exported
 
 makeExecutable :: MonadIO m => FilePath -> m ()
-makeExecutable file = case currentHost of
-    Linux -> liftIO $ do
+makeExecutable file = unless (currentHost == Windows) $ liftIO $ do
         p <- getPermissions $ encodeString file
         setPermissions (encodeString file) (p {executable = True})
-    Darwin -> liftIO $ do
-        p <- getPermissions $ encodeString file
-        setPermissions (encodeString file) (p {executable = True})
-    Windows -> return ()
 
-
-runServicesWindows :: (MonadSh m, MonadIO m, Shelly.MonadShControl m) => FilePath -> FilePath -> m ()
+runServicesWindows :: (MonadSh m, MonadIO m, Shelly.MonadShControl m, MonadState Options m, MonadCatch m) => FilePath -> FilePath -> m ()
 runServicesWindows path logsPath = Shelly.chdir path $ do
     Shelly.mkdir_p logsPath
     let installPath = path </> Shelly.fromText "installAll.bat"
     Shelly.setenv "LOGSDIR" $ Shelly.toTextIgnore logsPath
-    Shelly.silently $ Shelly.cmd installPath --TODO create proper error
+    Shelly.switchVerbosity  $ Shelly.cmd installPath --TODO create proper error
 
-stopServicesWindows :: MonadIO m => FilePath -> m ()
-stopServicesWindows path = Shelly.shelly $ do
-    Shelly.chdir path $ do
+stopServicesWindows :: (MonadSh m, MonadShControl m, MonadState Options m, MonadCatch m) => FilePath -> m ()
+stopServicesWindows path = Shelly.switchVerbosity $ Shelly.chdir path $ do
         let uninstallPath = path </> Shelly.fromText "uninstallAll.bat"
-        Shelly.silently $ Shelly.cmd uninstallPath `catch` handler where
-
+        Shelly.cmd uninstallPath `catch` handler where
             handler :: MonadSh m => SomeException -> m ()
             handler ex = return () -- Shelly.liftSh $ print ex --TODO create proper error
