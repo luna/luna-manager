@@ -8,6 +8,7 @@ import Control.Monad.State.Layered
 import qualified Luna.Manager.Shell.Shelly    as Shelly
 import           Luna.Manager.Shell.Shelly    (MonadShControl, MonadSh)
 import           Luna.Manager.Command.Options (Options)
+import           Luna.Manager.System.Env      (EnvConfig)
 
 import qualified Data.Text as Text
 default (Text.Text)
@@ -16,7 +17,7 @@ newtype CmdError = CmdError Text deriving (Show)
 instance Exception CmdError where
     displayException (CmdError t) = convert $ "External command error: " <> t
 
-type CmdContext m = (MonadSh m, MonadShControl m, MonadException SomeException m, MonadState Options m)
+type CmdContext m = (MonadIO m, MonadSh m, MonadShControl m, MonadException SomeException m, MonadGetters '[Options, EnvConfig] m)
 
 cmdEither :: CmdContext m => Shelly.FilePath -> [Text] -> m (Either CmdError Text)
 cmdEither name args = do

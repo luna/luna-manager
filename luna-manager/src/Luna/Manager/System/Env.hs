@@ -5,8 +5,8 @@ module Luna.Manager.System.Env where
 import Prologue hiding (FilePath, fromText, toText)
 
 import           Luna.Manager.System.Host
-import qualified Luna.Manager.Shell.Shelly as Shelly
-import           Luna.Manager.Shell.Shelly (MonadSh)
+import qualified Shelly.Lifted as Shelly
+import           Shelly.Lifted (MonadSh)
 import           Filesystem.Path.CurrentOS
 import           Control.Monad.State.Layered
 import qualified System.Directory as System

@@ -31,7 +31,7 @@ import           System.Exit
 import           System.IO (hFlush, stdout, hGetContents)
 default (Text.Text)
 
-type UnpackContext m = (MonadState Options m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m, MonadException SomeException m, MonadThrow m, MonadCatch m)
+type UnpackContext m = (MonadGetter Options m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m, MonadException SomeException m, MonadThrow m, MonadCatch m)
 
 plainTextPath :: FilePath -> Text
 plainTextPath = either id id . FP.toText

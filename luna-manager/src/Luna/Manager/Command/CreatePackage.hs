@@ -53,7 +53,7 @@ data PackageConfig = PackageConfig { _defaultPackagePath     :: FilePath
 
 makeLenses ''PackageConfig
 
-type MonadCreatePackage m = (MonadStates '[Options, EnvConfig, PackageConfig, RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m)
+type MonadCreatePackage m = (MonadGetter Options m, MonadStates '[EnvConfig, PackageConfig, RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m)
 
 
 -- === Instances === --

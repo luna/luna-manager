@@ -131,7 +131,7 @@ makeLenses ''UnresolvedDepsError
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
 
-type MonadInstall m = (MonadStates '[Options, EnvConfig, InstallConfig, RepoConfig] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m)
+type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m)
 
 
 -- === Utils === --

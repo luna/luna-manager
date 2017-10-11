@@ -1,20 +1,43 @@
 module Luna.Manager.Logger where
 
-import           Prologue
+import           Prologue                     hiding (FilePath)
 import           Control.Monad.State.Layered
-import           Data.Text                   (Text)
-import qualified Data.Text.IO                as Text
-import           System.IO                   (hFlush, stdout)
+import           Data.Text                    (Text)
+import qualified Data.Text.IO                 as Text
+import           Filesystem.Path.CurrentOS    (FilePath, (</>))
+import           Shelly.Lifted                (MonadSh, MonadShControl)
+import qualified Shelly.Lifted                as Sh
+import           System.IO                    (hFlush, stdout)
 
 import           Luna.Manager.Command.Options
+import           Luna.Manager.System.Env      (EnvConfig)
+import qualified Luna.Manager.System.Env      as System
 
 
-log :: (MonadIO m, MonadState Options m) => Text -> m ()
+type LoggerMonad m = (MonadIO m, MonadSh m, MonadShControl m, MonadGetters '[Options, EnvConfig] m)
+
+logFilePath :: LoggerMonad m => m FilePath
+logFilePath = do
+    tmpDir <- System.getTmpPath
+    return $ tmpDir </> "luna-manager.log"
+
+logToStdout :: Text -> IO ()
+logToStdout msg = do
+    Text.putStrLn msg
+    hFlush stdout
+
+logToFile :: FilePath -> Text -> IO ()
+logToFile fp msg = Sh.shelly $ Sh.appendfile fp msg
+
+logToTmpFile :: LoggerMonad m => Text -> m ()
+logToTmpFile msg = do
+    fp <- logFilePath
+    Sh.appendfile fp msg
+
+log :: LoggerMonad m => Text -> m ()
 log msg = do
-    -- TODO[piotrMocz] once we have a logging solution,
-    -- the prints need to be replaced with real logging
-    opts <- get @Options
-    when (opts ^. globals . verbose) $ liftIO $ do
-        Text.putStrLn msg
-        hFlush stdout
-
+    -- TODO[piotrMocz] we need a more robust logging solution in the long run
+    opts <- view globals <$> get @Options
+    let verb = opts ^. verbose
+        gui  = opts ^. guiInstaller
+    if verb && (not gui) then liftIO $ logToStdout msg else logToTmpFile msg

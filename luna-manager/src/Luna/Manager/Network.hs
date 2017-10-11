@@ -3,10 +3,11 @@ module Luna.Manager.Network where
 import Prologue hiding (FilePath, fromText)
 
 import Luna.Manager.Command.Options (Options, guiInstallerOpt)
+import qualified Luna.Manager.Logger as Logger
 import Luna.Manager.System.Env
 import Luna.Manager.Shell.ProgressBar
 import Luna.Manager.System.Path
-import Luna.Manager.Shell.Shelly (MonadSh)
+import Luna.Manager.Shell.Shelly (MonadSh, MonadShControl)
 
 import Control.Monad.Raise
 import Control.Monad.State.Layered
@@ -42,13 +43,12 @@ takeFileNameFromURL :: URIPath -> Maybe Text
 takeFileNameFromURL url = convert <$> name where
     name = maybeLast . URI.pathSegments =<< URI.parseURI (convert url)
 
-type MonadNetwork m = (MonadIO m, MonadState Options m, MonadGetter EnvConfig m, MonadException SomeException m, MonadSh m, MonadCatch m, MonadThrow m,  MonadBaseControl IO m)
+type MonadNetwork m = (MonadIO m, MonadGetters '[Options, EnvConfig] m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadThrow m,  MonadBaseControl IO m)
 
 downloadFromURL :: MonadNetwork m => URIPath -> Text -> m FilePath
 downloadFromURL address info = do
-    guiInstaller <- guiInstallerOpt
     let go = withJust (takeFileNameFromURL address) $ \name -> do
-            unless guiInstaller $ putStrLn $ (convert info) <>" (" <> convert address <> ")"
+            Logger.log $ info <>" (" <> address <> ")"
             dest    <- (</> (fromText name)) <$> getDownloadPath
             manager <- newHTTPManager
             request <- HTTP.parseUrlThrow (convert address)
@@ -62,33 +62,31 @@ newHTTPManager = liftIO . HTTP.newManager $ HTTP.tlsManagerSettings { HTTP.manag
 
 downloadWithProgressBar  :: MonadNetwork m => URIPath -> m FilePath
 downloadWithProgressBar address = do
-    guiInstaller <- guiInstallerOpt
-    unless guiInstaller $ putStrLn $ "Downloading: " <> (convert address)
+    Logger.log $ "Downloading: " <> address
     tmp <- getTmpPath
     downloadWithProgressBarTo address tmp
 
 downloadWithProgressBarTo :: MonadNetwork m => URIPath -> FilePath -> m FilePath
 downloadWithProgressBarTo address dstPath = Exception.handleAny (\e -> throwM (DownloadException address e)) $  do
     guiInstaller <- guiInstallerOpt
-    req     <- HTTP.parseRequest (convert address)
-    manager <- newHTTPManager
-    runResourceT $ do
+    req          <- HTTP.parseRequest (convert address)
+    manager      <- newHTTPManager
     -- Start the request
-        withJust (takeFileNameFromURL address) $ \name -> do
-            let dstFile = dstPath </> (fromText name)
-            res <- HTTP.http req manager
-            -- Get the Content-Length and initialize the progress bar
-            let Just cl  = lookup hContentLength (HTTP.responseHeaders res)
-                pgTotal  = read (ByteStringChar.unpack cl)
-                pg       = ProgressBar 50 0 pgTotal
-                progress = Progress 0 pgTotal
-            -- Consume the response updating the progress bar
-            if guiInstaller then
-                HTTP.responseBody res $=+ updateProgress progress $$+- sinkFile (encodeString dstFile)
-                else do
-                    HTTP.responseBody res $=+ updateProgressBar pg $$+- sinkFile (encodeString dstFile)
-                    putStrLn "Download completed!"
-            return dstFile
+    runResourceT $ withJust (takeFileNameFromURL address) $ \name -> do
+        let dstFile = dstPath </> (fromText name)
+        res <- HTTP.http req manager
+        -- Get the Content-Length and initialize the progress bar
+        let Just cl  = lookup hContentLength (HTTP.responseHeaders res)
+            pgTotal  = read (ByteStringChar.unpack cl)
+            pg       = ProgressBar 50 0 pgTotal
+            progress = Progress 0 pgTotal
+        -- Consume the response updating the progress bar
+        if guiInstaller then
+            HTTP.responseBody res $=+ updateProgress progress $$+- sinkFile (encodeString dstFile)
+        else do
+            HTTP.responseBody res $=+ updateProgressBar pg    $$+- sinkFile (encodeString dstFile)
+            putStrLn "Download completed!"
+        return dstFile
 
 -- downloadWithProgressBarAndUnpack :: (MonadIO m, MonadException SomeException m, MonadGetter EnvConfig m) => URIPath -> m FilePath
 -- downloadWithProgressBarAndUnpack address = do

@@ -40,7 +40,7 @@ data DevelopConfig = DevelopConfig { _stackPath      :: Text
                                     }
 makeLenses ''DevelopConfig
 
-type MonadDevelop m = (MonadStates '[Options, EnvConfig, RepoConfig, PackageConfig, DevelopConfig] m, MonadIO m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadBaseControl IO m)
+type MonadDevelop m = (MonadGetter Options m, MonadStates '[EnvConfig, RepoConfig, PackageConfig, DevelopConfig] m, MonadIO m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadBaseControl IO m)
 
 
 instance Monad m => MonadHostConfig DevelopConfig 'Linux arch m where

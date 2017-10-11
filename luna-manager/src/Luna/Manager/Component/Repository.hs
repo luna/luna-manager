@@ -197,7 +197,7 @@ makeLenses ''RepoConfig
 
 -- === Utils === --
 
-type MonadRepo m = (MonadStates '[Options, RepoConfig, EnvConfig] m, MonadNetwork m)
+type MonadRepo m = (MonadGetter Options m, MonadStates '[RepoConfig, EnvConfig] m, MonadNetwork m)
 
 parseConfig :: (MonadIO m, MonadException SomeException m) => FilePath -> m Repo
 parseConfig cfgPath =  tryRight' =<< liftIO (Yaml.decodeFileEither $ encodeString cfgPath)
