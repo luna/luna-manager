@@ -233,8 +233,8 @@ isNewestVersion appVersion appName = do
     Logger.log "Checking if the repo is at the newest version..."
     repo        <- getRepo
     versionList <- Repo.getVersionsList repo appName
-    let newest  = (head versionList) >= appVersion
-    Logger.log $ if newest then "Yes" else "No"
+    let newest  = (head versionList) < appVersion
+    Logger.log $ if newest then "> Yes" else "> No"
     return newest
 
 ------------------------------
