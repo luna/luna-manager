@@ -120,18 +120,16 @@ makeExecutable file = unless (currentHost == Windows) $ liftIO $ do
         p <- getPermissions $ encodeString file
         setPermissions (encodeString file) (p {executable = True})
 
-type RunWindowsCtx m = (MonadSh m, MonadShControl m, MonadIO m, MonadCatch m, MonadGetters '[Options, EnvConfig] m)
-
-runServicesWindows :: RunWindowsCtx m => FilePath -> FilePath -> m ()
+runServicesWindows :: (MonadSh m, MonadIO m, MonadShControl m) => FilePath -> FilePath -> m ()
 runServicesWindows path logsPath = Shelly.chdir path $ do
     Shelly.mkdir_p logsPath
     let installPath = path </> Shelly.fromText "installAll.bat"
     Shelly.setenv "LOGSDIR" $ Shelly.toTextIgnore logsPath
-    Shelly.switchVerbosity  $ Shelly.cmd installPath --TODO create proper error
+    Shelly.silently $ Shelly.cmd installPath --TODO create proper error
 
-stopServicesWindows :: RunWindowsCtx m => FilePath -> m ()
-stopServicesWindows path = Shelly.switchVerbosity $ Shelly.chdir path $ do
+stopServicesWindows :: MonadIO m => FilePath -> m ()
+stopServicesWindows path = Shelly.shelly $ Shelly.chdir path $ do
         let uninstallPath = path </> Shelly.fromText "uninstallAll.bat"
-        Shelly.cmd uninstallPath `catch` handler where
+        Shelly.silently $ Shelly.cmd uninstallPath `catch` handler where
             handler :: MonadSh m => SomeException -> m ()
             handler ex = return () -- Shelly.liftSh $ print ex --TODO create proper error
