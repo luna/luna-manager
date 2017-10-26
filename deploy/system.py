@@ -31,3 +31,9 @@ def unix():
 
 def windows():
     return system == systems.WINDOWS
+
+def linux():
+    return system == systems.LINUX
+
+def darwin():
+    return system == systems.DARWIN
