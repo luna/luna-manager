@@ -9,6 +9,7 @@ import           Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, decod
 import           Luna.Manager.Archive as Archive
 import           Luna.Manager.Command.Options (Options, MakePackageOpts, guiInstallerOpt)
 import qualified Luna.Manager.Logger as Logger
+import           Luna.Manager.Component.Pretty
 import           Luna.Manager.Component.Repository as Repo
 import           Luna.Manager.Network
 import           Luna.Manager.System (makeExecutable)
@@ -29,6 +30,9 @@ import System.Directory (renameDirectory)
 import Luna.Manager.Shell.Shelly (MonadSh)
 import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Lazy.Char8 as BSLChar
+
+import qualified Data.Text as T
+default (T.Text)
 
 ----------------------------
 -- === Package config === --
@@ -53,7 +57,7 @@ data PackageConfig = PackageConfig { _defaultPackagePath     :: FilePath
 
 makeLenses ''PackageConfig
 
-type MonadCreatePackage m = (MonadGetter Options m, MonadStates '[EnvConfig, PackageConfig, RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m)
+type MonadCreatePackage m = (MonadGetter Options m, MonadStates '[EnvConfig, PackageConfig, RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m)
 
 
 -- === Instances === --
@@ -290,6 +294,21 @@ filterGitKeepFile allBins = filter (\x -> filename x /= ".gitkeep") allBins
 -- === Creating package === ---
 -------------------------------
 
+prepareVersion :: MonadCreatePackage m => FilePath -> Version -> m ()
+prepareVersion appPath version = do
+    -- if a tag from this version already exists, check it out
+    -- if it doesn't, pull master and create a new tag
+    let versionTxt  = showPretty version
+        tagExists t = not . T.null <$> Shelly.cmd "git" "tag" "-l" t
+    Shelly.chdir appPath $ do
+        Shelly.cmd "git" "checkout" "master"
+        Shelly.cmd "git" "pull"
+        Shelly.unlessM (tagExists versionTxt) $ do
+            liftIO $ print "Tag does not exist!"
+            Shelly.cmd "git" "tag" versionTxt
+            Shelly.cmd "git" "push" "origin" versionTxt
+        Shelly.cmd "git" "checkout" versionTxt
+
 createPkg :: MonadCreatePackage m => FilePath -> ResolvedApplication -> m ()
 createPkg cfgFolderPath resolvedApplication = do
     pkgConfig <- get @PackageConfig
@@ -303,6 +322,7 @@ createPkg cfgFolderPath resolvedApplication = do
         isNewest <- isNewestVersion (appHeader ^. version) appName
         if isNewest then return (appHeader ^. version) else throwM $ ExistingVersionException (appHeader ^. version)
     mapM_ (downloadAndUnpackDependency appPath) $ resolvedApplication ^. pkgsToPack
+    prepareVersion appPath appVersion
     runPkgBuildScript appPath
     copyFromDistToDistPkg appName appPath
     mainAppDir <- case currentHost of
@@ -320,6 +340,8 @@ createPkg cfgFolderPath resolvedApplication = do
         Linux   -> createAppimage appName $ appPath
         Darwin  -> void $ createTarGzUnix mainAppDir appName
         Windows -> void $ zipFileWindows mainAppDir appName
+
+    Shelly.switchVerbosity $ Shelly.cmd "git" "checkout" "master"
 
 updateConfig :: Repo -> ResolvedApplication -> Repo
 updateConfig config resolvedApplication =
