@@ -295,7 +295,7 @@ filterGitKeepFile allBins = filter (\x -> filename x /= ".gitkeep") allBins
 -------------------------------
 
 prepareVersion :: MonadCreatePackage m => FilePath -> Version -> m ()
-prepareVersion appPath version = do
+prepareVersion appPath version = Shelly.switchVerbosity $ do
     -- if a tag from this version already exists, check it out
     -- if it doesn't, pull master and create a new tag
     let versionTxt  = showPretty version
