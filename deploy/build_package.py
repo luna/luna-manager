@@ -31,11 +31,14 @@ def get_repo_path(options):
 
 def build_package():
     config_path = os.path.join(luna_studio_path, 'luna-package.yaml')
+    version = application_version()
+    name = application_name()
+    s3_gui_path = '/'.join(['packages.luna-lang.org', osname, name, version, 'gui.tar.gz'])
     try:
         print('Building Luna Manager...')
         run(['stack', 'install'], check=True)
         print('Running Luna Manager (make-package)...')
-        run(['executables/luna-manager', 'make-package', config_path], check=True)
+        run(['executables/luna-manager', 'make-package', config_path, s3_gui_path], check=True)
     except:
         fail('Status: failed to build package')
     else:
@@ -101,6 +104,17 @@ def upload_config_to_s3():
         fail('Status: failed to upload the config to S3')
 
 
+def upload_gui():
+    try:
+        version = application_version()
+        name = application_name()
+        tarball_path = os.path.join(luna_studio_path,'dist-package','gui.tar.gz')
+        s3_key_path = '/'.join([osname, name, version, 'gui.tar.gz'])
+        s3.Object('packages-luna', s3_key_path).put(Body=open(tarball_path, 'rb'))
+    except:
+        fail('Status: failed to upload gui package to S3')
+
+
 def invalidate_config():
     try:
         cf = boto3.client('cloudfront')
@@ -136,6 +150,7 @@ def main():
     upload_to_s3()
     upload_config_to_s3()
     invalidate_config()
+    upload_gui()
 
     print('Status: DONE')
 
