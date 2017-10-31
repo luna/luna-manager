@@ -16,7 +16,7 @@ import           Luna.Manager.System (makeExecutable)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
-import           Luna.Manager.Component.Version (Version)
+import           Luna.Manager.Component.Version (Version, baseVersion, nextVersion)
 import           Luna.Manager.Component.Pretty
 import           Prologue hiding (FilePath)
 import qualified Data.Map as Map
@@ -239,7 +239,7 @@ isNewestVersion appVersion appName = do
     Logger.log "Checking if the repo is at the newest version..."
     repo        <- getRepo
     versionList <- Repo.getVersionsList repo appName
-    let newest  = (head versionList) < appVersion
+    let newest  = (head versionList) <= appVersion
     Logger.log $ if newest then "> Yes" else "> No"
     return newest
 
@@ -319,8 +319,10 @@ createPkg cfgFolderPath resolvedApplication = do
         appName    = appHeader ^. name
         appType    = app ^. resolvedAppType
     appVersion <- do
-        isNewest <- isNewestVersion (appHeader ^. version) appName
-        if isNewest then return (appHeader ^. version) else throwM $ ExistingVersionException (appHeader ^. version)
+        isNewest <- isNewestVersion (baseVersion $ appHeader ^. version) appName
+        if isNewest then nextVersion $ appHeader ^. version
+                    else throwM $ ExistingVersionException (appHeader ^. version)
+
     mapM_ (downloadAndUnpackDependency appPath) $ resolvedApplication ^. pkgsToPack
     prepareVersion appPath appVersion
     runPkgBuildScript appPath
