@@ -43,6 +43,7 @@ data InstallOpts = InstallOpts
 
 data MakePackageOpts = MakePackageOpts
     { _cfgPath :: Text
+    , _guiURL  :: Maybe Text
     } deriving (Show)
 
 data SwitchVersionOpts = SwitchVersionOpts
@@ -102,6 +103,7 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
                                            <*> Opts.switch (long "verbose" )
     optsMkpkg          = MakePackage       <$> optsMkpkg'
     optsMkpkg'         = MakePackageOpts   <$> strArgument (metavar "CONFIG"  <> help "Config file path")
+                                           <*> (optional . strOption $ long "gui" <> metavar "GUI_URL" <> help "Path to gui package on S3")
     optsSwitchVersion  = SwitchVersion     <$> optsSwitchVersion'
     optsSwitchVersion' = SwitchVersionOpts <$> strArgument (metavar "VERSION" <> help "Target version")
     optsDevelop        = Develop           <$> optsDevelop'
