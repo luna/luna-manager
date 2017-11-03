@@ -16,7 +16,7 @@ import           Luna.Manager.System (makeExecutable)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
-import           Luna.Manager.Component.Version (Version, baseVersion, nextVersion)
+import           Luna.Manager.Component.Version (Version)
 import           Luna.Manager.Component.Pretty
 import           Prologue hiding (FilePath)
 import qualified Data.Map as Map
@@ -239,7 +239,7 @@ isNewestVersion appVersion appName = do
     Logger.log "Checking if the repo is at the newest version..."
     repo        <- getRepo
     versionList <- Repo.getVersionsList repo appName
-    let newest  = (head versionList) <= appVersion
+    let newest  = (head versionList) < appVersion
     Logger.log $ if newest then "> Yes" else "> No"
     return newest
 
@@ -296,18 +296,11 @@ filterGitKeepFile allBins = filter (\x -> filename x /= ".gitkeep") allBins
 
 prepareVersion :: MonadCreatePackage m => FilePath -> Version -> m ()
 prepareVersion appPath version = Shelly.switchVerbosity $ do
-    -- if a tag from this version already exists, check it out
-    -- if it doesn't, pull master and create a new tag
+    -- check out to the commit pointed by the version tag, if it exists
     let versionTxt  = showPretty version
         tagExists t = not . T.null <$> Shelly.cmd "git" "tag" "-l" t
-    Shelly.chdir appPath $ do
-        Shelly.cmd "git" "checkout" "master"
-        Shelly.cmd "git" "pull"
-        Shelly.unlessM (tagExists versionTxt) $ do
-            liftIO $ print "Tag does not exist!"
-            Shelly.cmd "git" "tag" versionTxt
-            Shelly.cmd "git" "push" "origin" versionTxt
-        Shelly.cmd "git" "checkout" versionTxt
+    Shelly.chdir appPath $ Shelly.whenM (tagExists versionTxt)
+                         $ Shelly.cmd "git" "checkout" versionTxt
 
 createPkg :: MonadCreatePackage m => FilePath -> ResolvedApplication -> m ()
 createPkg cfgFolderPath resolvedApplication = do
@@ -319,9 +312,11 @@ createPkg cfgFolderPath resolvedApplication = do
         appName    = appHeader ^. name
         appType    = app ^. resolvedAppType
     appVersion <- do
-        isNewest <- isNewestVersion (baseVersion $ appHeader ^. version) appName
-        if isNewest then nextVersion $ appHeader ^. version
+        isNewest <- isNewestVersion (appHeader ^. version) appName
+        if isNewest then return $ appHeader ^. version
                     else throwM $ ExistingVersionException (appHeader ^. version)
+
+    Logger.log $ "Creating version: " <> (showPretty appVersion)
 
     mapM_ (downloadAndUnpackDependency appPath) $ resolvedApplication ^. pkgsToPack
     prepareVersion appPath appVersion
@@ -342,8 +337,6 @@ createPkg cfgFolderPath resolvedApplication = do
         Linux   -> createAppimage appName $ appPath
         Darwin  -> void $ createTarGzUnix mainAppDir appName
         Windows -> void $ zipFileWindows mainAppDir appName
-
-    Shelly.switchVerbosity $ Shelly.cmd "git" "checkout" "master"
 
 updateConfig :: Repo -> ResolvedApplication -> Repo
 updateConfig config resolvedApplication =
