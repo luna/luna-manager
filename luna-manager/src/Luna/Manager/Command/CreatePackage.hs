@@ -239,9 +239,13 @@ isNewestVersion appVersion appName = do
     Logger.log "Checking if the repo is at the newest version..."
     repo        <- getRepo
     versionList <- Repo.getVersionsList repo appName
-    let newest  = (head versionList) < appVersion
-    Logger.log $ if newest then "> Yes" else "> No"
-    return newest
+    if Prologue.null versionList then do
+        Logger.log "> Yes"
+        return True
+    else do
+        let newest  = (head versionList) < appVersion
+        Logger.log $ if newest then "> Yes" else "> No"
+        return newest
 
 ------------------------------
 -- === linkingLibsMacOS === --
@@ -319,7 +323,10 @@ createPkg cfgFolderPath resolvedApplication = do
     Logger.log $ "Creating version: " <> (showPretty appVersion)
 
     mapM_ (downloadAndUnpackDependency appPath) $ resolvedApplication ^. pkgsToPack
+    -- Save the current branch to return from the detached head state after switching to the tag
+    currBranch <- Shelly.silently $ Text.strip <$> Shelly.cmd "git" "rev-parse" "--abbrev-ref" "HEAD"
     prepareVersion appPath appVersion
+
     runPkgBuildScript appPath
     copyFromDistToDistPkg appName appPath
     mainAppDir <- case currentHost of
@@ -337,6 +344,9 @@ createPkg cfgFolderPath resolvedApplication = do
         Linux   -> createAppimage appName $ appPath
         Darwin  -> void $ createTarGzUnix mainAppDir appName
         Windows -> void $ zipFileWindows mainAppDir appName
+
+    Shelly.switchVerbosity $ Shelly.chdir appPath
+                           $ Shelly.cmd "git" "checkout" currBranch
 
 updateConfig :: Repo -> ResolvedApplication -> Repo
 updateConfig config resolvedApplication =
