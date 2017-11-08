@@ -8,6 +8,7 @@ import           Data.Aeson          (FromJSON, ToJSON, FromJSONKey, ToJSONKey, 
 import qualified Data.Aeson          as JSON
 import qualified Data.Aeson.Types    as JSON
 import qualified Data.Aeson.Encoding as JSON
+import           Data.Maybe          (isNothing)
 import qualified Data.Text           as Text
 import Control.Error.Util (hush)
 
@@ -35,6 +36,30 @@ isDev       = isJust . preview (info . traverse . buildNumber . traverse)
 isNightly v = (not $ isRelease v) && (not $ isDev v)
 
 cShow = convert . show
+
+isBuild, isNightly, isRelease :: Version -> Bool
+isBuild   v = case v ^. info of Just (VersionInfo _ Build)   -> True; _ -> False
+isNightly v = case v ^. info of Just (VersionInfo _ Nightly) -> True; _ -> False
+isRelease v = isNothing $ v ^. info
+
+nextBuild :: Version -> Version
+nextBuild = info %~ nextInfo
+    where nextInfo i = case i of
+            Just (VersionInfo b _) -> Just (VersionInfo (b + 1) Build)
+            Nothing                -> Just (VersionInfo       1 Build)
+
+promoteToNightly :: Version -> Either Text Version
+promoteToNightly v = case v ^? info . traverse . tag of
+    Nothing      -> Left "Cannot promote a release to nightly"
+    Just Nightly -> Left "Cannot promote nightly to nightly"
+    Just Build   -> Right (v & info . traverse . tag .~ Nightly)
+
+promoteToRelease :: Version -> Either Text Version
+promoteToRelease v = case v ^? info . traverse . tag of
+    Nothing      -> Left "Cannot promote a release to release"
+    Just Build   -> Left "Cannot promote build to release (need nightly first)"
+    Just Nightly -> Right (v & info .~ Nothing & minor %~ (+1))
+
 
 -- === Instances === --
 
@@ -64,3 +89,7 @@ instance ToJSONKey   Version     where
     toJSONKey = JSON.ToJSONKeyText f g
         where f = showPretty
               g = JSON.text . showPretty
+
+
+instance Default Version where
+    def = Version 0 0 (Just $ VersionInfo 0 Build)

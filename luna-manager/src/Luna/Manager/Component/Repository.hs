@@ -158,8 +158,11 @@ repoUnion r1 r2 = r1 & packages .~ Map.unionWith packageUnion (r1 ^. packages) (
     packageUnion :: Package -> Package -> Package
     packageUnion p1 p2 = p1 & versions .~ Map.unionWith Map.union (p1 ^. versions) (p2 ^. versions)
 
+saveYamlToFile :: (MonadIO m) => Repo -> FilePath -> m ()
+saveYamlToFile repo configFile = liftIO $ BS.writeFile (encodeString configFile) $ Yaml.encode $ repo
+
 generateConfigYamlWithNewPackage :: (MonadIO m, MonadException SomeException m) => Repo -> Repo -> FilePath-> m ()
-generateConfigYamlWithNewPackage repo packageYaml configFile = liftIO $ BS.writeFile (encodeString configFile) $ Yaml.encode $ repoUnion repo packageYaml
+generateConfigYamlWithNewPackage repo packageYaml = saveYamlToFile $ repoUnion repo packageYaml
 
 -- === Instances === --
 
@@ -221,6 +224,6 @@ getRepo = do
 -- === Instances === --
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig RepoConfig sys arch m where
-    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://packages.luna-lang.org/config.yaml"
+    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://localhost:8000/config.yaml"
                                             , _cachedRepo = Nothing
                                             }

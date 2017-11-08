@@ -13,6 +13,7 @@ import           Luna.Manager.Command.Install       (InstallConfig)
 import qualified Luna.Manager.Command.CreatePackage as CreatePackage
 import           Luna.Manager.Command.CreatePackage (PackageConfig)
 import qualified Luna.Manager.Command.Develop       as Develop
+import qualified Luna.Manager.Command.NextVersion   as NextVersion
 import qualified Luna.Manager.Shell.Shelly          as Shelly
 import           Luna.Manager.Shell.Shelly          (MonadSh, MonadShControl)
 import Control.Monad.Trans.Resource ( MonadBaseControl)
@@ -25,4 +26,5 @@ chooseCommand = do
         Install     opt -> evalDefHostConfigs @'[InstallConfig, EnvConfig, RepoConfig]                        $ Install.run       opt
         MakePackage opt -> evalDefHostConfigs @'[PackageConfig, EnvConfig, RepoConfig]                        $ CreatePackage.run opt
         Develop     opt -> evalDefHostConfigs @'[Develop.DevelopConfig, EnvConfig, PackageConfig, RepoConfig] $ Develop.run       opt
+        NextVersion opt -> evalDefHostConfigs @'[EnvConfig, RepoConfig]                                       $ NextVersion.run   opt
         -- TODO: other commands

@@ -31,6 +31,7 @@ data Command = Install       InstallOpts
              | SwitchVersion SwitchVersionOpts
              | Develop       DevelopOpts
              | MakePackage   MakePackageOpts
+             | NextVersion   NextVersionOpts
              | Info
              deriving (Show)
 
@@ -55,12 +56,19 @@ data DevelopOpts = DevelopOpts
     , _downloadDependencies :: Bool
     } deriving (Show)
 
+data NextVersionOpts = NextVersionOpts
+    { _configFilePath :: Text
+    , _nightly        :: Bool
+    , _release        :: Bool
+    } deriving (Show)
+
 makeLenses ''GlobalOpts
 makeLenses ''Options
 makeLenses ''InstallOpts
 makeLenses ''MakePackageOpts
 makeLenses ''SwitchVersionOpts
 makeLenses ''DevelopOpts
+makeLenses ''NextVersionOpts
 
 -- small helpers for Options
 verboseOpt, guiInstallerOpt :: MonadGetter Options m => m Bool
@@ -84,7 +92,7 @@ evalOptionsParserT m = evalStateT m =<< parseOptions
 
 parseOptions :: MonadIO m => m Options
 parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser where
-    commands           = mconcat [cmdInstall, cmdMkpkg, cmdUpdate, cmdDevelop, cmdSwitchVersion, cmdInfo]
+    commands           = mconcat [cmdInstall, cmdMkpkg, cmdUpdate, cmdDevelop, cmdSwitchVersion, cmdNextVer, cmdInfo]
     optsParser         = info (helper <*> optsProgram) (fullDesc <> header ("Luna ecosystem manager (" <> Info.version <> ")") <> progDesc Info.synopsis)
 
     -- Commands
@@ -93,6 +101,7 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
     cmdSwitchVersion   = Opts.command "switch-version" . info optsSwitchVersion $ progDesc "Switch installed component version"
     cmdDevelop         = Opts.command "develop"        . info optsDevelop       $ progDesc "Setup development environment"
     cmdMkpkg           = Opts.command "make-package"   . info optsMkpkg         $ progDesc "Prepare installation package"
+    cmdNextVer         = Opts.command "next-version"   . info optsNextVersion   $ progDesc "Create a newer version of a package"
     cmdInfo            = Opts.command "info"           . info (pure Info)       $ progDesc "Shows environment information"
 
     -- Options
@@ -113,3 +122,7 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
                                            <*> (optional . strOption $ long "version"   <> metavar "VERSION"   <> help "Version to install"  )
                                            <*> (optional . strOption $ long "path"      <> metavar "PATH"      <> help "Installation path"   )
                                            <*> Opts.switch (long "nightly")
+    optsNextVersion    = NextVersion       <$> optsNextVersion'
+    optsNextVersion'   = NextVersionOpts   <$> strArgument (metavar "CONFIG" <> help "Config file path")
+                                           <*> Opts.switch (long "nightly")
+                                           <*> Opts.switch (long "release")
