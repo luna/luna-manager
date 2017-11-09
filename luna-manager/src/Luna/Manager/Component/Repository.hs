@@ -224,6 +224,6 @@ getRepo = do
 -- === Instances === --
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig RepoConfig sys arch m where
-    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://localhost:8000/config.yaml"
+    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://packages.luna-lang.org/config.yaml"
                                             , _cachedRepo = Nothing
                                             }

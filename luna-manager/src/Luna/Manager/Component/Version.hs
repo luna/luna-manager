@@ -37,29 +37,25 @@ isNightly v = (not $ isRelease v) && (not $ isDev v)
 
 cShow = convert . show
 
-isBuild, isNightly, isRelease :: Version -> Bool
-isBuild   v = case v ^. info of Just (VersionInfo _ Build)   -> True; _ -> False
-isNightly v = case v ^. info of Just (VersionInfo _ Nightly) -> True; _ -> False
-isRelease v = isNothing $ v ^. info
-
 nextBuild :: Version -> Version
 nextBuild = info %~ nextInfo
-    where nextInfo i = case i of
-            Just (VersionInfo b _) -> Just (VersionInfo (b + 1) Build)
-            Nothing                -> Just (VersionInfo       1 Build)
+    where  nextInfo i = Just (baseInfo i & buildNumber . traverse %~ (+1))
+           baseInfo i = case i of
+               Nothing                         -> def :: VersionInfo
+               Just (VersionInfo nn Nothing)   -> VersionInfo nn $ Just 0
+               Just (VersionInfo nn (Just bn)) -> VersionInfo nn $ Just bn
 
 promoteToNightly :: Version -> Either Text Version
-promoteToNightly v = case v ^? info . traverse . tag of
-    Nothing      -> Left "Cannot promote a release to nightly"
-    Just Nightly -> Left "Cannot promote nightly to nightly"
-    Just Build   -> Right (v & info . traverse . tag .~ Nightly)
+promoteToNightly v = if not (isDev v)
+    then Left  "Cannot promote to nightly if the build is not a dev build"
+    else Right $ nextNightly v
+    where nextNightly = (info . traverse . buildNumber .~ Nothing) . (info . traverse . nightlyNumber %~ (+1))
 
 promoteToRelease :: Version -> Either Text Version
-promoteToRelease v = case v ^? info . traverse . tag of
-    Nothing      -> Left "Cannot promote a release to release"
-    Just Build   -> Left "Cannot promote build to release (need nightly first)"
-    Just Nightly -> Right (v & info .~ Nothing & minor %~ (+1))
-
+promoteToRelease v = if not (isNightly v)
+    then Left  "Cannot promote to release if the build is not a nightly build"
+    else Right $ nextRelease v
+    where nextRelease = (info .~ Nothing) . (minor %~ (+1))
 
 -- === Instances === --
 
@@ -90,6 +86,8 @@ instance ToJSONKey   Version     where
         where f = showPretty
               g = JSON.text . showPretty
 
+instance Default VersionInfo where
+    def = VersionInfo 0 $ Just 0
 
 instance Default Version where
-    def = Version 0 0 (Just $ VersionInfo 0 Build)
+    def = Version 0 0 $ Just (def :: VersionInfo)

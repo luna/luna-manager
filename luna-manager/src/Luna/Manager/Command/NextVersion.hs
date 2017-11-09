@@ -35,7 +35,7 @@ currentVersion mTag = do
         filterFunc = case mTag of
             Just "release" -> Version.isRelease
             Just "nightly" -> Version.isNightly
-            Just "build"   -> Version.isBuild
+            Just "dev"     -> Version.isDev
             _              -> const True
     repo     <- Repo.getRepo
     versions <- Repo.getVersionsList repo appName
