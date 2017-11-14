@@ -70,7 +70,7 @@ instance Exception PathException where
 
 downloadAndUnpackStack :: MonadDevelop m => FilePath -> m ()
 downloadAndUnpackStack path = do
-    stackPresent <- not . null <$> Shelly.ls path
+    stackPresent <- Shelly.test_d path
     if stackPresent
         then liftIO $ putStrLn "Stack is already installed, skipping"
         else do

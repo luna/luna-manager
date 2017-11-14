@@ -9,6 +9,7 @@ import           Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, decod
 import           Luna.Manager.Archive as Archive
 import           Luna.Manager.Command.Options (Options, MakePackageOpts, guiInstallerOpt)
 import qualified Luna.Manager.Logger as Logger
+import           Luna.Manager.Component.Pretty
 import           Luna.Manager.Component.Repository as Repo
 import           Luna.Manager.Network
 import           Luna.Manager.System (makeExecutable)
@@ -29,6 +30,9 @@ import System.Directory (renameDirectory)
 import Luna.Manager.Shell.Shelly (MonadSh)
 import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Lazy.Char8 as BSLChar
+
+import qualified Data.Text as T
+default (T.Text)
 
 ----------------------------
 -- === Package config === --
@@ -53,7 +57,7 @@ data PackageConfig = PackageConfig { _defaultPackagePath     :: FilePath
 
 makeLenses ''PackageConfig
 
-type MonadCreatePackage m = (MonadGetter Options m, MonadStates '[EnvConfig, PackageConfig, RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m)
+type MonadCreatePackage m = (MonadGetter Options m, MonadStates '[EnvConfig, PackageConfig, RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m)
 
 
 -- === Instances === --
@@ -235,9 +239,13 @@ isNewestVersion appVersion appName = do
     Logger.log "Checking if the repo is at the newest version..."
     repo        <- getRepo
     versionList <- Repo.getVersionsList repo appName
-    let newest  = (head versionList) < appVersion
-    Logger.log $ if newest then "> Yes" else "> No"
-    return newest
+    if Prologue.null versionList then do
+        Logger.log "> Yes"
+        return True
+    else do
+        let newest  = (head versionList) < appVersion
+        Logger.log $ if newest then "> Yes" else "> No"
+        return newest
 
 ------------------------------
 -- === linkingLibsMacOS === --
@@ -290,8 +298,16 @@ filterGitKeepFile allBins = filter (\x -> filename x /= ".gitkeep") allBins
 -- === Creating package === ---
 -------------------------------
 
-createPkg :: MonadCreatePackage m => FilePath -> Maybe Text -> ResolvedApplication -> m ()
-createPkg cfgFolderPath s3GuiURL resolvedApplication = do
+prepareVersion :: MonadCreatePackage m => FilePath -> Version -> m ()
+prepareVersion appPath version = Shelly.switchVerbosity $ do
+    -- check out to the commit pointed by the version tag, if it exists
+    let versionTxt  = showPretty version
+        tagExists t = not . T.null <$> Shelly.cmd "git" "tag" "-l" t
+    Shelly.chdir appPath $ Shelly.whenM (tagExists versionTxt)
+                         $ Shelly.cmd "git" "checkout" versionTxt
+
+ createPkg :: MonadCreatePackage m => FilePath -> Maybe Text -> ResolvedApplication -> m ()
+ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     pkgConfig <- get @PackageConfig
     let app        = resolvedApplication ^. resolvedApp
         appDesc    = app ^. desc
@@ -301,8 +317,16 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
         appType    = app ^. resolvedAppType
     appVersion <- do
         isNewest <- isNewestVersion (appHeader ^. version) appName
-        if isNewest then return (appHeader ^. version) else throwM $ ExistingVersionException (appHeader ^. version)
+        if isNewest then return $ appHeader ^. version
+                    else throwM $ ExistingVersionException (appHeader ^. version)
+
+    Logger.log $ "Creating version: " <> (showPretty appVersion)
+
     mapM_ (downloadAndUnpackDependency appPath) $ resolvedApplication ^. pkgsToPack
+    -- Save the current branch to return from the detached head state after switching to the tag
+    currBranch <- Shelly.silently $ Text.strip <$> Shelly.cmd "git" "rev-parse" "--abbrev-ref" "HEAD"
+    prepareVersion appPath appVersion
+
     runPkgBuildScript appPath s3GuiURL
     copyFromDistToDistPkg appName appPath
     mainAppDir <- case currentHost of
@@ -320,6 +344,9 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
         Linux   -> createAppimage appName $ appPath
         Darwin  -> void $ createTarGzUnix mainAppDir appName
         Windows -> void $ zipFileWindows mainAppDir appName
+
+    Shelly.switchVerbosity $ Shelly.chdir appPath
+                           $ Shelly.cmd "git" "checkout" currBranch
 
 updateConfig :: Repo -> ResolvedApplication -> Repo
 updateConfig config resolvedApplication =

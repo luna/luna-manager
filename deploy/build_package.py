@@ -11,25 +11,16 @@ import time
 import yaml
 
 from deploy.system import osname, linux, windows, darwin
-from deploy.common import fail
+from deploy.common import (
+    fail, get_repo_path, application_version, application_name,
+    package_name, package_path
+)
 
 
-luna_studio_path = None
 s3 = boto3.resource('s3')
 
 
-def get_repo_path(options):
-    if options.luna_studio_path:
-        return options.luna_studio_path
-
-    try:
-        return os.environ['LUNA_STUDIO_PATH']
-    except KeyError:
-        fail('Status: failed to locate the Luna Studio repo.'
-              ' Set the LUNA_STUDIO_PATH or supply the --luna-studio-path option')
-
-
-def build_package():
+def build_package(luna_studio_path):
     config_path = os.path.join(luna_studio_path, 'luna-package.yaml')
     version = application_version()
     name = application_name()
@@ -45,61 +36,22 @@ def build_package():
         print('Successfully built a Luna package.')
 
 
-def application_version():
-    luna_yaml_path = os.path.join(luna_studio_path, 'luna-package.yaml')
-    with open(luna_yaml_path, 'r') as f:
-        try:
-            conf = yaml.load(f)
-            name = application_name()
-            versions = list(conf['packages'][name]['versions'])
-            return versions[0]
-        except:
-            fail('Status: failed to determine the version to upload')
-
-
-def application_name():
-    luna_yaml_path = os.path.join(luna_studio_path, 'luna-package.yaml')
-    with open(luna_yaml_path, 'r') as f:
-        try:
-            conf = yaml.load(f)
-            name = list(conf['apps'])
-            return name[0]
-        except:
-            fail('Status: failed to determine the application to upload')
-
-
-def package_name():
-    name = application_name()
-    extension = '.AppImage' if linux() else '.tar.gz'
-    return name + extension
-
-
-def package_path():
-    name = package_name()
-    if darwin():
-        return os.path.join(luna_studio_path, 'dist-package', name)
-    elif linux():
-        return os.path.join(luna_studio_path, 'dist-package', 'appimage', 'out', name)
-    else:
-        return os.path.join('c', 'tmp', 'luna-package', name)
-
-
-def upload_to_s3():
+def upload_to_s3(luna_studio_path):
     try:
-        version = application_version()
-        name = application_name()
-        package = package_name()
-        tarball_path = package_path()
+        version = application_version(luna_studio_path)
+        name = application_name(luna_studio_path)
+        package = package_name(luna_studio_path)
+        tarball_path = package_path(luna_studio_path)
         s3_key_path = '/'.join([osname, name, version, package])
-        s3.Object('packages-luna', s3_key_path).put(Body=open(tarball_path, 'rb'))
+        s3.Object('packages-luna', s3_key_path).put(Body=open(tarball_path, 'rb'), ACL='public-read')
     except:
         fail('Status: failed to upload the tarball to S3')
 
 
-def upload_config_to_s3():
+def upload_config_to_s3(luna_studio_path):
     try:
         config_path = os.path.join(luna_studio_path, 'config.yaml')
-        s3.Object('packages-luna', 'config.yaml').put(Body=open(config_path, 'rb'))
+        s3.Object('packages-luna', 'config.yaml').put(Body=open(config_path, 'rb'), ACL='public-read')
     except:
         fail('Status: failed to upload the config to S3')
 
@@ -109,13 +61,13 @@ def upload_gui():
         version = application_version()
         name = application_name()
         tarball_path = os.path.join(luna_studio_path,'dist-package','gui.tar.gz')
-        s3_key_path = '/'.join([osname, name, version, 'gui.tar.gz'])
+        s3_key_path = '/'.join([name, version, 'gui.tar.gz'])
         s3.Object('packages-luna', s3_key_path).put(Body=open(tarball_path, 'rb'))
     except:
         fail('Status: failed to upload gui package to S3')
 
 
-def invalidate_config():
+def invalidate_config(luna_studio_path):
     try:
         cf = boto3.client('cloudfront')
         cf.create_invalidation(
@@ -127,6 +79,11 @@ def invalidate_config():
     except:
         fail('Status: failed to invalidate the config on S3')
 
+def deploy_to_s3(luna_studio_path):
+    upload_to_s3(luna_studio_path)
+    upload_config_to_s3(luna_studio_path)
+    invalidate_config(luna_studio_path)
+    upload_gui()
 
 def main():
     global luna_studio_path
@@ -144,13 +101,10 @@ def main():
 
     # rebuild package if needed:
     if not deploy_only:
-        build_package()
+        build_package(luna_studio_path)
 
     # handle all the S3 deployment:
-    upload_to_s3()
-    upload_config_to_s3()
-    invalidate_config()
-    upload_gui()
+    deploy_to_s3(luna_studio_path)
 
     print('Status: DONE')
 
