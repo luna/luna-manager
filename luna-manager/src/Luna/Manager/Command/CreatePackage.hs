@@ -20,6 +20,7 @@ import           Luna.Manager.Component.Version (Version)
 import           Luna.Manager.Component.Pretty
 import           Prologue hiding (FilePath)
 import qualified Data.Map as Map
+import           Data.Maybe (maybeToList)
 import qualified Data.Text as Text
 import qualified Data.Yaml as Yaml
 import qualified Luna.Manager.Command.Options as Opts
@@ -189,10 +190,8 @@ runPkgBuildScript repoPath s3GuiURL = do
     pkgConfig <- get @PackageConfig
     buildPath <- expand $ repoPath </> (pkgConfig ^. buildScriptPath)
 
-    Shelly.chdir (parent buildPath) $ Shelly.switchVerbosity $ do
-        case s3GuiURL of
-            Just url -> Shelly.cmd "python" buildPath "--release" url
-            Nothing  -> Shelly.cmd "python" buildPath "--release"
+    Shelly.chdir (parent buildPath) $ Shelly.switchVerbosity $
+        Shelly.run_ "python" $ [(Shelly.toTextIgnore buildPath), "--release"] ++ (maybeToList s3GuiURL)
 
 copyFromDistToDistPkg :: MonadCreatePackage m => Text -> FilePath -> m ()
 copyFromDistToDistPkg appName repoPath = do
