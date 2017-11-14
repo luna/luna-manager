@@ -306,8 +306,8 @@ prepareVersion appPath version = Shelly.switchVerbosity $ do
     Shelly.chdir appPath $ Shelly.whenM (tagExists versionTxt)
                          $ Shelly.cmd "git" "checkout" versionTxt
 
- createPkg :: MonadCreatePackage m => FilePath -> Maybe Text -> ResolvedApplication -> m ()
- createPkg cfgFolderPath s3GuiURL resolvedApplication = do
+createPkg :: MonadCreatePackage m => FilePath -> Maybe Text -> ResolvedApplication -> m ()
+createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     pkgConfig <- get @PackageConfig
     let app        = resolvedApplication ^. resolvedApp
         appDesc    = app ^. desc
