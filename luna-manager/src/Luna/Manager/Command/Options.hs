@@ -62,6 +62,7 @@ data NextVersionOpts = NextVersionOpts
     { _configFilePath :: Text
     , _nightly        :: Bool
     , _release        :: Bool
+    , _commit         :: Maybe Text
     } deriving (Show)
 
 makeLenses ''GlobalOpts
@@ -130,3 +131,4 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
     optsNextVersion'   = NextVersionOpts   <$> strArgument (metavar "CONFIG" <> help "Config (luna-package.yaml) file path, usually found in the Luna Studio repo")
                                            <*> Opts.switch (long "nightly"   <> help "Get a new nightly version number (x.y.z).")
                                            <*> Opts.switch (long "release"   <> help "Get a new release version number (x.y).")
+                                           <*> (optional . strOption $ long "commit" <> metavar "COMMIT" <> help "Commit hash to use as the basis for the new version")
