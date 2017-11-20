@@ -206,19 +206,10 @@ parseConfig :: (MonadIO m, MonadException SomeException m) => FilePath -> m Repo
 parseConfig cfgPath =  tryRight' =<< liftIO (Yaml.decodeFileEither $ encodeString cfgPath)
 
 downloadRepo :: MonadNetwork m => URIPath -> m FilePath
-downloadRepo address = do
-    downloadFromURL address "Downloading repository configuration file"
+downloadRepo address = downloadFromURL address "Downloading repository configuration file"
 
 getRepo :: MonadRepo m => m Repo
-getRepo = do
-    cfg <- get @RepoConfig
-    case cfg ^. cachedRepo of
-        Just r  -> return r
-        Nothing -> do
-            downloadedConfig <- downloadRepo . view repoPath =<< get @RepoConfig
-            repo <- parseConfig downloadedConfig
-            put @RepoConfig $ cfg & cachedRepo .~ Just repo
-            return repo
+getRepo = gets @RepoConfig repoPath >>= downloadRepo >>= parseConfig
 
 
 -- === Instances === --

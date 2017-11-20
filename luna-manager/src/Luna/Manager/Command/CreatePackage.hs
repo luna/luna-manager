@@ -54,6 +54,7 @@ data PackageConfig = PackageConfig { _defaultPackagePath     :: FilePath
                                    , _logoFileName           :: Text
                                    , _desktopFileName        :: Text
                                    , _versionFileName        :: FilePath
+                                   , _permitNoTags           :: Bool
                                    }
 
 makeLenses ''PackageConfig
@@ -78,6 +79,7 @@ instance Monad m => MonadHostConfig PackageConfig 'Linux arch m where
         , _logoFileName       = "logo.svg"
         , _desktopFileName    = "app.desktop"
         , _versionFileName    = "version.txt"
+        , _permitNoTags       = False
         }
 
 instance Monad m => MonadHostConfig PackageConfig 'Darwin arch m where
@@ -302,6 +304,7 @@ filterGitKeepFile allBins = filter (\x -> filename x /= ".gitkeep") allBins
 prepareVersion :: MonadCreatePackage m => FilePath -> Version -> m ()
 prepareVersion appPath version = Shelly.switchVerbosity $ do
     -- check out to the commit pointed by the version tag, if it exists
+    permitNoTagsFlag <- gets @PackageConfig permitNoTags
     let versionTxt  = showPretty version
         tagExists t = not . T.null <$> Shelly.cmd "git" "tag" "-l" t
     Shelly.chdir appPath $ do
@@ -309,7 +312,10 @@ prepareVersion appPath version = Shelly.switchVerbosity $ do
         Logger.log $ "Tag " <> versionTxt <> " " <> (if exists then "exists" else "does not exist.")
         if exists then do
             Logger.log "Checking out the tag..."
+            Shelly.cmd "git" "stash"
             Shelly.cmd "git" "checkout" versionTxt
+            Shelly.cmd "git" "stash" "pop"
+        else if permitNoTagsFlag then Logger.log "[WARNING] No tag, building the package from head"
         else throwM $ NoTagException versionTxt
 
         commitHash <- Shelly.cmd "git" "rev-parse" "--short" "HEAD"
@@ -354,8 +360,10 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
         Darwin  -> void $ createTarGzUnix mainAppDir appName
         Windows -> void $ zipFileWindows mainAppDir appName
 
-    Shelly.switchVerbosity $ Shelly.chdir appPath
-                           $ Shelly.cmd "git" "checkout" currBranch
+    Shelly.switchVerbosity $ Shelly.chdir appPath $ do
+        Shelly.cmd "git" "stash"
+        Shelly.cmd "git" "checkout" currBranch
+        Shelly.cmd "git" "stash" "pop"
 
 updateConfig :: Repo -> ResolvedApplication -> Repo
 updateConfig config resolvedApplication =
@@ -378,6 +386,7 @@ run :: MonadCreatePackage m => MakePackageOpts -> m ()
 run opts = do
     guiInstaller <- guiInstallerOpt
     config       <- parseConfig $ convert (opts ^. Opts.cfgPath)
+    modify_ @PackageConfig (permitNoTags .~ True)
 
     let cfgFolderPath = parent $ convert (opts ^. Opts.cfgPath)
         appsToPack    = config ^. apps

@@ -44,8 +44,9 @@ data InstallOpts = InstallOpts
     } deriving (Show)
 
 data MakePackageOpts = MakePackageOpts
-    { _cfgPath :: Text
-    , _guiURL  :: Maybe Text
+    { _cfgPath      :: Text
+    , _guiURL       :: Maybe Text
+    , _permitNoTags :: Bool
     } deriving (Show)
 
 data SwitchVersionOpts = SwitchVersionOpts
@@ -114,6 +115,7 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
     optsMkpkg          = MakePackage       <$> optsMkpkg'
     optsMkpkg'         = MakePackageOpts   <$> strArgument (metavar "CONFIG"  <> help "Config (luna-package.yaml) file path, usually found in the Luna Studio repo")
                                            <*> (optional . strOption $ long "gui" <> metavar "GUI_URL" <> help "Path to gui package on S3")
+                                           <*> Opts.switch (long "permit-no-tags" <> help "Do not throw an error if there is no tag for this version. Use with care.")
     optsSwitchVersion  = SwitchVersion     <$> optsSwitchVersion'
     optsSwitchVersion' = SwitchVersionOpts <$> strArgument (metavar "VERSION" <> help "Target version to switch to")
     optsDevelop        = Develop           <$> optsDevelop'
