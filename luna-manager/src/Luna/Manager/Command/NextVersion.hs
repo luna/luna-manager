@@ -57,10 +57,9 @@ getNewVersion prInfo = case prInfo ^. newVersion of
 wrapException :: MonadNextVersion m => Either Text Version -> m (Either VersionUpgradeException Version)
 wrapException = return . first VersionUpgradeException
 
-latestVersion :: MonadNextVersion m => TargetVersionType -> m Version
-latestVersion targetVersionType = do
-    let appName    = "luna-studio"
-        filterFunc = case targetVersionType of
+latestVersion :: MonadNextVersion m => Text -> TargetVersionType -> m Version
+latestVersion appName targetVersionType = do
+    let filterFunc = case targetVersionType of
             Release -> Version.isNightly
             Nightly -> Version.isDev
             Dev     -> const True
@@ -84,10 +83,9 @@ getAppName cfg = case cfg ^? apps . ix 0 of
     Just app -> Right app
     Nothing  -> Left $ VersionUpgradeException "Unable to determine the app to upgrade."
 
-saveVersion :: MonadNextVersion m => Text -> PromotionInfo -> m ()
-saveVersion cfgFile prInfo = do
+saveVersion :: MonadNextVersion m => Text -> Text -> PromotionInfo -> m ()
+saveVersion cfgFile appName prInfo = do
     config  <- Repo.parseConfig $ convert cfgFile
-    appName <- tryRight' $ getAppName config
     version <- tryRight' $ getNewVersion prInfo
     let newConfig = config & packages . ix appName . versions %~ Map.mapKeys (\_ -> version)
     Repo.saveYamlToFile newConfig $ convert cfgFile
@@ -110,7 +108,9 @@ run opts = do
         appPath = parent $ convert cfgPath
         verType = if opts ^. Opts.release then Release else if opts ^. Opts.nightly then Nightly else Dev
 
-    latestVer <- latestVersion verType
+    config    <- Repo.parseConfig $ convert cfgPath
+    appName   <- tryRight' $ getAppName config
+    latestVer <- latestVersion appName verType
     liftIO $ Text.putStrLn $ "The latest version is: " <> (showPretty latestVer)
     let promotionInfo = PromotionInfo { _versionType = verType
                                       , _oldVersion  = latestVer
@@ -121,6 +121,6 @@ run opts = do
     newInfo <- nextVersion promotionInfo >>= tryRight'
     liftIO $ print newInfo
 
-    saveVersion cfgPath newInfo
+    saveVersion cfgPath appName newInfo
     tagVersion  appPath newInfo
 
