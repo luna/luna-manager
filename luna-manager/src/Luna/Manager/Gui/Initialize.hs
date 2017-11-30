@@ -18,17 +18,20 @@ import Control.Lens.Aeson
 -- === Definition === --
 
 data Initialize = Initialize { initialize :: Applications
+                             , email      :: Bool
                              } deriving (Show, Generic, Eq)
 
 data Applications = Applications {applications :: [Apps]} deriving (Show, Generic, Eq)
 
-data Apps = Apps { name     :: Text
+data Apps = Apps { name    :: Text
                  , version :: [Version]} deriving (Show, Generic, Eq)
 
 data Option = Option { install :: Install} deriving (Show, Generic, Eq)
 
 data Install = Install { application :: Text
-                       , version     :: Version} deriving (Show, Generic, Eq)
+                       , version     :: Version
+                       , userEmail   :: Text
+                       } deriving (Show, Generic, Eq)
 
 -- makeLenses ''Apps
 
@@ -49,7 +52,7 @@ resolveAppToInitialize repo name = do
     versions <- getVersionsList repo name
     return $ Apps name versions
 
-generateInitialJSON :: (MonadIO m, MonadException SomeException m) => Repo -> m ()
-generateInitialJSON repo = do
+generateInitialJSON :: (MonadIO m, MonadException SomeException m) => Repo -> Bool -> m ()
+generateInitialJSON repo userInfoExists = do
     resolved <- mapM (resolveAppToInitialize repo) (repo ^. apps)
-    print $ encode $ Initialize $ Applications resolved
+    print $ encode $ Initialize (Applications resolved) userInfoExists
