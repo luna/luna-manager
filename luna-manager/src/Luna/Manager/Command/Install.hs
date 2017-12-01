@@ -476,7 +476,11 @@ run opts = do
             liftIO $ hFlush stdout
 
         else do
-            Shelly.unlessM userInfoExists $ processUserEmail =<< askUserEmail
+            Shelly.unlessM userInfoExists $ do
+                email <- case (opts ^. Opts.selectedUserEmail) of
+                    Just e  -> return e
+                    Nothing -> askUserEmail
+                processUserEmail email
 
             (appName, appPkg) <- askOrUse (opts ^. Opts.selectedComponent)
                 $ question "Select component to be installed" (\t -> choiceValidator' "component" t $ (t,) <$> Map.lookup t (repo ^. packages))
