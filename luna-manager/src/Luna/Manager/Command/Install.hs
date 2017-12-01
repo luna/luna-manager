@@ -30,7 +30,7 @@ import qualified Data.Text.IO as Text
 import qualified Data.Yaml as Yaml
 
 import Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, decodeString, toText, basename, hasExtension, parent)
-import Luna.Manager.Shell.Shelly (toTextIgnore, MonadSh)
+import Luna.Manager.Shell.Shelly (toTextIgnore, MonadSh, MonadShControl)
 import qualified Luna.Manager.Shell.Shelly as Shelly
 import System.Exit (exitSuccess, exitFailure)
 import System.IO (hFlush, stdout, stderr, hPutStrLn)
@@ -74,6 +74,7 @@ default(Text.Text)
 data InstallConfig = InstallConfig { _defaultConfPath        :: FilePath
                                    , _defaultBinPathBatchApp :: FilePath
                                    , _defaultBinPathGuiApp   :: FilePath
+                                   , _userInfoFile           :: FilePath
                                    , _localName              :: Text
                                    , _selectedVersionPath    :: FilePath
                                    , _mainBinPath            :: FilePath
@@ -98,6 +99,7 @@ instance Monad m => MonadHostConfig InstallConfig 'Linux arch m where
         { _defaultConfPath         = "~/.luna"
         , _defaultBinPathBatchApp  = "~/.luna/bin"
         , _defaultBinPathGuiApp    = "~/.luna/bin"
+        , _userInfoFile            = "~/.luna/user_info.json"
         , _localName               = "local"
         , _selectedVersionPath     = "current"
         , _mainBinPath             = "bin/main"
@@ -400,8 +402,8 @@ readVersion v = case readPretty v of
     Left e  -> throwM $ VersionException v
     Right v -> return $ v
 
-osVersion :: MonadSh m => m Text
-osVersion = case currentHost of
+osVersion :: (MonadShControl m, MonadSh m) => m Text
+osVersion = Shelly.silently $ case currentHost of
         Windows ->   Text.strip . (!! 1) . Text.splitOn ":" . head
                  .   filter ("OS Name" `Text.isPrefixOf`) . Text.lines
                  <$> Shelly.cmd "systeminfo"
@@ -409,15 +411,15 @@ osVersion = case currentHost of
                    Shelly.cmd "awk" "-F'='" "'{ print tolower($2) }'"
         Darwin  -> Text.strip <$> Shelly.cmd "sw_vers" "-productVersion"
 
-osName :: MonadSh m => m Text
-osName = case currentHost of
+osName :: (MonadShControl m, MonadSh m) => m Text
+osName = Shelly.silently $ case currentHost of
         Windows -> return "Windows"
         Linux   -> Shelly.cmd "awk" "'/^ID=/'" "/etc/*-release" >>=
                    Shelly.cmd "awk" "-F'='" "'{ print tolower($2) }'"
         Darwin  -> return "MacOS"
 
 -- Gets basic info about the operating system the installer is running on.
-userInfo :: (MonadBaseControl IO m, MonadSh m) => Text -> m UserInfo
+userInfo :: (MonadBaseControl IO m, MonadSh m, MonadShControl m) => Text -> m UserInfo
 userInfo email = do
     let safeGet item = Shelly.catchany item (const $ return "unknown")
     ver  <- safeGet osVersion
@@ -427,8 +429,7 @@ userInfo email = do
 -- Checks whether we already have the user info saved in ~/.luna/user_info.json
 userInfoExists :: (MonadSh m, MonadIO m, MonadGetter InstallConfig m) => m Bool
 userInfoExists = do
-    relPath <- (</> "user_info.json") <$> gets @InstallConfig defaultConfPath
-    path    <- expand relPath
+    path <- gets @InstallConfig userInfoFile >>= expand
     Shelly.test_f path
 
 -- Prompt user for the email, unless we already have it.
@@ -439,10 +440,9 @@ askUserEmail = liftIO $ do
     Text.getLine
 
 -- Saves the email, along with some OS info, to a file user_info.json.
-processUserEmail :: (MonadSh m, MonadIO m, MonadBaseControl IO m, MonadGetter InstallConfig m) => Text -> m ()
+processUserEmail :: (MonadSh m, MonadShControl m, MonadIO m, MonadBaseControl IO m, MonadGetter InstallConfig m) => Text -> m ()
 processUserEmail email = do
-    relPath <- (</> "user_info.json") <$> gets @InstallConfig defaultConfPath
-    path    <- expand relPath
+    path <- gets @InstallConfig userInfoFile >>= expand
     Shelly.unlessM userInfoExists $ do
         info  <- userInfo email
         Shelly.touchfile path
