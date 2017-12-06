@@ -8,6 +8,7 @@ import Luna.Manager.System.Host
 import Luna.Manager.System.Env
 import Luna.Manager.Component.Repository as Repo
 import Luna.Manager.Component.Version    as Version
+import Luna.Manager.Component.Analytics  as Analytics
 import Luna.Manager.Network
 import Luna.Manager.Component.Pretty
 import Luna.Manager.Shell.Question
@@ -135,20 +136,6 @@ instance Monad m => MonadHostConfig InstallConfig 'Windows arch m where
 -- === Installer === --
 -----------------------
 
--- === Misc data structs === --
-data UserInfo = UserInfo
-              { _userInfoUUID  :: Text
-              , _userInfoEmail :: Text
-              , _userInfoOs    :: Text
-              , _userInfoOsVer :: Text
-              , _userInfoArch  :: Text
-              } deriving (Show, Generic)
-makeLenses ''UserInfo
-
-instance ToJSON UserInfo where
-    toEncoding = lensJSONToEncoding
-    toJSON     = lensJSONToJSON
-
 -- === Errors === --
 
 newtype UnresolvedDepsError = UnresolvedDepsError [PackageHeader] deriving (Show)
@@ -157,7 +144,7 @@ makeLenses ''UnresolvedDepsError
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
 
-type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m)
+type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m)
 
 
 -- === Utils === --
@@ -432,13 +419,13 @@ osName = Shelly.silently $ case currentHost of
         Darwin  -> return "MacOS"
 
 -- Gets basic info about the operating system the installer is running on.
-userInfo :: (MonadIO m, MonadBaseControl IO m, MonadSh m, MonadShControl m) => Text -> m UserInfo
+userInfo :: (MonadIO m, MonadBaseControl IO m, MonadSh m, MonadShControl m) => Text -> m MPUserData
 userInfo email = do
     let safeGet item = Shelly.catchany item (const $ return "unknown")
     uuid <- UUID.toText <$> newUuid
     ver  <- safeGet osVersion
     name <- safeGet osName
-    return $ UserInfo uuid email name ver (convert arch)
+    return $ MPUserData uuid email name ver (convert arch)
 
 -- Checks whether we already have the user info saved in ~/.luna/user_info.json
 userInfoExists :: (MonadSh m, MonadIO m, MonadGetter InstallConfig m) => m Bool
@@ -454,7 +441,7 @@ askUserEmail = liftIO $ do
     Text.getLine
 
 -- Saves the email, along with some OS info, to a file user_info.json.
-processUserEmail :: (MonadSh m, MonadShControl m, MonadIO m, MonadBaseControl IO m, MonadGetter InstallConfig m) => Text -> m ()
+processUserEmail :: MonadInstall m => Text -> m ()
 processUserEmail email = do
     path <- gets @InstallConfig userInfoFile >>= expand
     Shelly.unlessM userInfoExists $ do
@@ -462,6 +449,7 @@ processUserEmail email = do
         Shelly.mkdir_p $ parent path
         Shelly.touchfile path
         liftIO $ BS.writeFile (encodeString path) (BSL.toStrict $ JSON.encode info)
+        Analytics.mpRegisterUser info
 
 -- === Running === --
 

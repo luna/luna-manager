@@ -5,6 +5,7 @@ import Prologue
 import Control.Monad.Raise
 import Control.Monad.State.Layered
 import Luna.Manager.Command.Options
+import Luna.Manager.Component.Analytics (MPUserData)
 import Luna.Manager.Component.Repository
 import Luna.Manager.System.Host
 import Luna.Manager.System.Env
@@ -23,7 +24,7 @@ chooseCommand = do
     opts <- get @Options
 
     case opts ^. command of
-        Install     opt -> evalDefHostConfigs @'[InstallConfig, EnvConfig, RepoConfig]                        $ Install.run       opt
+        Install     opt -> evalDefHostConfigs @'[InstallConfig, EnvConfig, RepoConfig] $ evalStateT @MPUserData (Install.run opt) def
         MakePackage opt -> evalDefHostConfigs @'[PackageConfig, EnvConfig, RepoConfig]                        $ CreatePackage.run opt
         Develop     opt -> evalDefHostConfigs @'[Develop.DevelopConfig, EnvConfig, PackageConfig, RepoConfig] $ Develop.run       opt
         NextVersion opt -> evalDefHostConfigs @'[EnvConfig, RepoConfig]                                       $ NextVersion.run   opt

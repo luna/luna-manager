@@ -7,6 +7,7 @@ dependencies:
   - prologue
   - ansi-terminal
   - ascii-progress
+  - base64-bytestring
   - io-streams
   - path
   - network
