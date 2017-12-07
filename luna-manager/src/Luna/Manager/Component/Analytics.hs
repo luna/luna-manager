@@ -52,8 +52,8 @@ default(Text)
 ----------------------------------------------------------------------------
 
 data MPEvent = MPEvent
-             { _event      :: Text         -- A name for the event
-             , _properties :: MPEventProps -- Event properties used to filter and segment events in MP
+             { _event      :: Text          -- A name for the event
+             , _properties :: MPEventProps  -- Event properties used to filter and segment events in MP
              } deriving (Show, Eq, Generic)
 
 data MPEventProps = MPEventProps
@@ -62,9 +62,9 @@ data MPEventProps = MPEventProps
                   } deriving (Show, Eq, Generic)
 
 data MPUserUpdate = MPUserUpdate
-                  { _tkn :: Text       -- MP token associated with the project
-                  , _did :: Text       -- Same as distinct_id. Used to identify users who triggered the event. Optional within MP, mandatory here.
-                  , _set :: MPUserData -- Data to set in the user profile
+                  { _tkn :: Text            -- MP token associated with the project
+                  , _did :: Text            -- Same as distinct_id. Used to identify users who triggered the event. Optional within MP, mandatory here.
+                  , _set :: MPUserData      -- Data to set in the user profile
                   } deriving (Show, Eq)
 
 data MPUserData = MPUserData
@@ -108,6 +108,7 @@ instance Default MPUserData where
 -- User machine discovery and identification --
 -----------------------------------------------
 
+-- Generate a fresh UUID, using V1 by default.
 newUuid :: MonadIO m => m UUID
 newUuid = liftIO $ do
     v1 <- UUID.nextUUID
@@ -125,7 +126,7 @@ lookupSysVar :: (MonadShControl m, MonadSh m) => Text -> m Text
 lookupSysVar varName = do
     let awkClause = "'/^" <> varName <> "=/'"
     line <- Shelly.escaping False $ Shelly.cmd "awk" awkClause "/etc/*-release"
-    return $ stripVarName varName line
+    return $ stripVarName (varName <> "=") line
 
 osVersion :: (MonadShControl m, MonadSh m) => m Text
 osVersion = do
@@ -158,6 +159,7 @@ userInfo email = do
                         , _userInfoArch   = currentArch
                         }
 
+-- Write to a file, ensuring that the handle is flushed afterwards.
 strictWrite :: ToJSON s => FilePath -> s -> IO ()
 strictWrite filePath s = do
     let serialized = toStrict $ JSON.encode s
@@ -206,6 +208,7 @@ userUpdateEndpoint = "http://api.mixpanel.com/engage/"
 serialize :: ToJSON s => s -> ByteString
 serialize = Base64.encode . toStrict . JSON.encode
 
+-- Generic wrapper around Mixpanel requests.
 sendMpRequest :: (ToJSON s, MonadIO m, MonadThrow m) => s -> m ()
 sendMpRequest s = do
     let payload = serialize s
@@ -213,6 +216,7 @@ sendMpRequest s = do
                HTTP.parseRequest userUpdateEndpoint
     liftIO $ void $ HTTP.httpNoBody request
 
+-- Register a new user within Mixpanel.
 mpRegisterUser :: (MonadIO m, MonadSetter MPUserData m, MonadThrow m,
                    MonadShControl m, MonadSh m, MonadBaseControl IO m) =>
                    FilePath -> Text -> m ()
@@ -228,6 +232,7 @@ mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath)
     sendMpRequest mpData
     return ()
 
+-- Send a single event to Mixpanel.
 mpTrackEvent :: (MonadIO m, MonadGetters '[MPUserData, Options, EnvConfig] m,
                  MonadThrow m, MonadSh m, MonadShControl m) => Text -> m ()
 mpTrackEvent eventName = do
