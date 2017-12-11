@@ -103,3 +103,9 @@ target/
 build/dist/
 build/.stack-work/
 bin/luna
+
+# Mac:
+.DS_Store
+
+# Vim:
+*.swp

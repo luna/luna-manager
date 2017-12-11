@@ -2,7 +2,7 @@
 
 module Luna.Manager.System where
 
-import           Prologue                     hiding (FilePath,null, filter, appendFile, toText, fromText)
+import           Prologue                     hiding (FilePath,null, filter, appendFile, readFile, toText, fromText)
 
 import           Control.Monad.Raise
 import           Control.Monad.State.Layered
@@ -11,7 +11,7 @@ import           Data.ByteString.Lazy         (ByteString, null)
 import           Data.ByteString.Lazy.Char8   (filter)
 import           Data.Maybe                   (listToMaybe)
 import           Data.List.Split              (splitOn)
-import           Data.Text.IO                 (appendFile)
+import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text                    as Text
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, toText, parent)
 import           System.Directory             (executable, setPermissions, getPermissions, doesPathExist, getHomeDirectory)
@@ -92,24 +92,29 @@ unrecognizedShellError = toException UnrecognizedShellException
     -- `catches` [Handler (\ (ex :: UnrecognizedShellException) -> liftIO $ putStrLn $ displayException ex),
     --                                                                               Handler (\ (ex :: BashConfigNotFoundError) -> liftIO $ putStrLn $ displayException ex)]
 
-getShExportFile :: MonadIO m => [FilePath] -> m (Maybe FilePath)
-getShExportFile files = do
+getShExportFile :: MonadIO m => m (Maybe FilePath)
+getShExportFile = do
+    shellType <- checkShell
+    let files = case shellType of
+             Bash -> [".bashrc", ".bash_profile", ".profile"]
+             Zsh  -> [".zshrc",  ".zprofile",     ".profile"]
+             _    -> [".profile"]
     checkedFiles <- mapM runControlCheck files
     return $ listToMaybe $ catMaybes checkedFiles
 
 --TODO wyextrachowac wspolna logike dla poszczególnych terminali
 exportPathUnix :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
 exportPathUnix pathToExport = do
-    shellType <- checkShell
-    file      <- getShExportFile $ case shellType of
-                Bash -> [".bashrc", ".bash_profile", ".profile"]
-                Zsh  -> [".zshrc",  ".zprofile",     ".profile"]
-                _    -> [".profile"]
+    file <- getShExportFile
     let pathToExportText = convert $ encodeString pathToExport
         exportToAppend   = Text.concat ["\nexport PATH=", pathToExportText, ":$PATH\n"]
         warn             = Logger.warning "Unable to export Luna path. Please add ~/.local/bin to your PATH"
     case file of
-        Just f  -> (liftIO $ appendFile (encodeString f) exportToAppend) `Shelly.catchany` (const warn)
+        Just f  -> do
+            let path = encodeString f
+            exportExists <- Text.isInfixOf exportToAppend <$> liftIO (readFile path)
+            unless exportExists $
+                (liftIO $ appendFile path exportToAppend) `Shelly.catchany` (const warn)
         Nothing -> warn
 
 exportPathWindows :: MonadIO m => FilePath -> m ()
