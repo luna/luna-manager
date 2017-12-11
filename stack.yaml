@@ -1,4 +1,4 @@
-extra-deps: [directory-1.3.1.1, cond-0.4.1.1, aeson-1.2.1.0, optparse-applicative-0.14.0.0]
+extra-deps: [directory-1.3.1.1, cond-0.4.1.1, aeson-1.2.1.0, optparse-applicative-0.14.0.0, base64-bytestring-1.0.0.1]
 ghc-options: {'*': -threaded}
 local-bin-path:
   ./executables
