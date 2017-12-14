@@ -347,17 +347,23 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     currBranch <- Shelly.silently $ Shelly.chdir appPath $ Text.strip <$> Shelly.cmd "git" "rev-parse" "--abbrev-ref" "HEAD"
     unless buildHead $ prepareVersion appPath appVersion
 
+    repo <- expand $ appPath
+    let componentsFolder = pkgConfig ^. componentsToCopy
+        versionFile = repo </> componentsFolder </> (pkgConfig ^. configFolder) </> (pkgConfig ^. versionFileName)
+
+    Shelly.mkdir_p $ parent versionFile
+    print versionFile
+    liftIO $ writeFile (encodeString versionFile) $ convert $ showPretty appVersion
+
     runPkgBuildScript appPath s3GuiURL
     copyFromDistToDistPkg appName appPath
     mainAppDir <- case currentHost of
         Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
         _       -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
-    let versionFile = mainAppDir </> (pkgConfig ^. configFolder) </> (pkgConfig ^. versionFileName)
-        binsFolder  = mainAppDir </> (pkgConfig ^. binFolder)    </> (pkgConfig ^. binsPrivate)
+    let binsFolder  = mainAppDir </> (pkgConfig ^. binFolder)    </> (pkgConfig ^. binsPrivate)
         libsFolder  = mainAppDir </> (pkgConfig ^. libPath)
 
-    Shelly.mkdir_p $ parent versionFile
-    liftIO $ writeFile (encodeString versionFile) $ convert $ showPretty appVersion
+
     when (currentHost == Darwin) $ Shelly.silently $ linkLibs binsFolder libsFolder
 
     case currentHost of
@@ -398,7 +404,7 @@ run opts = do
 
     resolved <- mapM (resolvePackageApp config) appsToPack
 
-    mapM_ (createPkg cfgFolderPath s3GuiUrl) resolved
     repo <- getRepo
+    mapM_ (createPkg cfgFolderPath s3GuiUrl) resolved
     let updatedConfig = foldl' updateConfig config resolved
     generateConfigYamlWithNewPackage repo updatedConfig $ cfgFolderPath </> "config.yaml"
