@@ -403,7 +403,7 @@ run opts = do
 
     resolved <- mapM (resolvePackageApp config) appsToPack
 
-    repo <- getRepo
     mapM_ (createPkg cfgFolderPath s3GuiUrl) resolved
+    repo <- getRepo
     let updatedConfig = foldl' updateConfig config resolved
     generateConfigYamlWithNewPackage repo updatedConfig $ cfgFolderPath </> "config.yaml"
