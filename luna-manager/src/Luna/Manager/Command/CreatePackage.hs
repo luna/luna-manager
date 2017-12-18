@@ -352,7 +352,6 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
         versionFile = repo </> componentsFolder </> (pkgConfig ^. configFolder) </> (pkgConfig ^. versionFileName)
 
     Shelly.mkdir_p $ parent versionFile
-    print versionFile
     liftIO $ writeFile (encodeString versionFile) $ convert $ showPretty appVersion
 
     runPkgBuildScript appPath s3GuiURL
