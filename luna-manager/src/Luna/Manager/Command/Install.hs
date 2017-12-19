@@ -236,8 +236,7 @@ postInstallation appType installPath binPath appName version = do
             BatchApp -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> convert (appName <> ".exe")
             GuiApp   -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> (installConfig ^. mainBinPath) </> convert (appName <> ".exe")
     makeExecutable packageBin
-    unless (currentHost == Windows) $ do
-        when (currentHost == Darwin && appType == GuiApp) $ linking packageBin currentBin
+    when (currentHost == Darwin && appType == GuiApp) $ linking packageBin currentBin
     linkingLocalBin currentBin appName
 
     copyResources appType installPath appName
