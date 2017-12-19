@@ -89,7 +89,7 @@ instance Monad m => MonadHostConfig PackageConfig 'Darwin arch m where
 
 instance Monad m => MonadHostConfig PackageConfig 'Windows arch m where
     defaultHostConfig = reconfig <$> defaultHostConfigFor @Linux where
-        reconfig cfg = cfg & defaultPackagePath .~ "C:\\tmp\\luna-package"
+        reconfig cfg = cfg & defaultPackagePath .~ "C:\\lp"
                            & buildScriptPath    .~ "scripts_build\\build.py"
 
 data AppimageException = AppimageException SomeException deriving (Show)
