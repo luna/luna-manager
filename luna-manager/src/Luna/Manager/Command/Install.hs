@@ -217,7 +217,6 @@ makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
     userProfile <- liftIO $ Environment.getEnv "userprofile"
     let menuPrograms = (decodeString userProfile) </> "AppData" </> "Roaming" </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
     liftIO $ Process.runProcess_ $ Process.shell ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"" )
-    exportPathWindows packageBinPath
 
 postInstallation :: MonadInstall m => AppType -> FilePath -> Text -> Text -> Text -> m ()
 postInstallation appType installPath binPath appName version = do
@@ -235,11 +234,11 @@ postInstallation appType installPath binPath appName version = do
             BatchApp -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> (installConfig ^. mainBinPath) </> convert appName
         Windows -> case appType of
             BatchApp -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> convert (appName <> ".exe")
-            GuiApp   -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> convert (mkSystemPkgName appName) </> (installConfig ^. selectedVersionPath) </> convert (appName <> ".exe")
+            GuiApp   -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> (installConfig ^. mainBinPath) </> convert (appName <> ".exe")
     makeExecutable packageBin
     unless (currentHost == Windows) $ do
         when (currentHost == Darwin && appType == GuiApp) $ linking packageBin currentBin
-        linkingLocalBin currentBin appName
+    linkingLocalBin currentBin appName
 
     copyResources appType installPath appName
     runServices installPath appType appName version
@@ -370,7 +369,7 @@ installApp' binPath package = do
         appType    = package ^. resolvedAppType
         pkgVersion = showPretty $ package ^. header . version
     installPath <- prepareInstallPath appType (convert binPath) pkgName $ pkgVersion
-    -- stopServices installPath appType
+    stopServices installPath appType
     downloadAndUnpackApp (package ^. desc . path) installPath pkgName appType $ package ^. header . version
     prepareWindowsPkgForRunning installPath
     postInstallation appType installPath binPath pkgName pkgVersion

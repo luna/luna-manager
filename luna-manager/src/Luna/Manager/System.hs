@@ -119,7 +119,7 @@ exportPathUnix pathToExport = do
 
 exportPathWindows :: MonadIO m => FilePath -> m ()
 exportPathWindows path = liftIO $ do
-    (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx path \"%Path%;" ++ (encodeString $ parent path) ++ "\""
+    (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx Path \"" ++ (encodeString $ parent path) ++ "\""
     unless (exitCode == ExitSuccess) $ print $ "Path was not exported." <> err  -- TODO this should be warning not print but installation was succesfull just path was not exported
 
 makeExecutable :: MonadIO m => FilePath -> m ()
