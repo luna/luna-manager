@@ -368,7 +368,6 @@ installApp' binPath package = do
         appType    = package ^. resolvedAppType
         pkgVersion = showPretty $ package ^. header . version
     installPath <- prepareInstallPath appType (convert binPath) pkgName $ pkgVersion
-    stopServices installPath appType
     downloadAndUnpackApp (package ^. desc . path) installPath pkgName appType $ package ^. header . version
     prepareWindowsPkgForRunning installPath
     postInstallation appType installPath binPath pkgName pkgVersion
