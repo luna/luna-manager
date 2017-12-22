@@ -1,0 +1,24 @@
+---
+- hosts: all
+  vars:
+    http_port: 80
+    max_clients: 200
+  remote_user: vagrant
+  become_user: root
+  vars:
+    luna_dir: '{{ ansible_env.HOME }}/luna-develop'
+    luna_tools_dir: '{{ luna_dir }}/tools'
+    luna_apps_dir: '{{ luna_dir }}/apps'
+    luna_libs_dir: '{{ luna_dir }}/libs'
+    luna_manager_dir: '{{ luna_apps_dir }}/luna-manager'
+    luna_studio_dir: '{{ luna_apps_dir }}/luna-studio'
+  environment:
+    LD_LIBRARY_PATH: '{{ luna_libs_dir }}:{{ ansible_env.LD_LIBRARY_PATH }}'
+    PYENV_ROOT: '{{ luna_tools_dir }}/python/pyenv'
+    PATH: '{{ luna_manager_dir}}/executables:{{ luna_tools_dir }}/stack/:{{ ansible_env.PYENV_ROOT }}/shims:{{ ansible_env.PYENV_ROOT }}/bin:{{ luna_tools_dir }}/node/6.11.3/bin:{{ ansible_env.HOME }}/.stack/snapshots/x86_64-linux/lts-8.2/8.0.2/bin:{{ ansible_env.HOME }}/.stack/programs/x86_64-linux/ghc-8.0.2/bin:{{ luna_tools_dir }}/node/6.11.3/bin:{{ luna_tools_dir }}/python/pyenv/shims:{{ luna_tools_dir }}/python/pyenv/bin:{{ ansible_env.HOME }}/.stack/global-project/.stack-work/install/x86_64-linux/lts-8.2/8.0.2/bin:{{ ansible_env.HOME }}/.stack/snapshots/x86_64-linux/lts-8.2/8.0.2/bin:{{ ansible_env.HOME }}/.stack/programs/x86_64-linux/ghc-8.0.2/bin:{{ luna_tools_dir }}/stack:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:{{ ansible_env.PATH }}'
+
+  tasks:
+  - name: build luna luna package
+    command: luna-manager make-package {{ luna_studio_dir }}/luna-package.yaml
+    args:
+      chdir: {{ luna_manager_dir }}

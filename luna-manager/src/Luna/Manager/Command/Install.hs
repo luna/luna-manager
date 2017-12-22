@@ -409,6 +409,7 @@ run opts = do
         let install = JSON.decode $ BSL.fromStrict options :: Maybe Initilize.Option
         forM_ install $ \(Initilize.Option (Initilize.Install appName appVersion emailM)) -> do
             Analytics.mpRegisterUser userInfoPath $ fromMaybe "" emailM
+            Analytics.mpTrackEvent "LunaInstaller.Started"
             appPkg           <- tryJust undefinedPackageError $ Map.lookup appName (repo ^. packages)
             evaluatedVersion <- tryJust (toException $ VersionException $ convert $ show appVersion) $ Map.lookup appVersion $ appPkg ^. versions --tryJust missingPackageDescriptionError $ Map.lookup currentSysDesc $ snd $ Map.lookup appVersion $ appPkg ^. versions
             appDesc          <- tryJust (toException $ MissingPackageDescriptionError appVersion) $ Map.lookup currentSysDesc evaluatedVersion
@@ -421,6 +422,7 @@ run opts = do
             mapM_ (installApp opts) $ allApps
             print $ encode $ InstallationProgress 1
             liftIO $ hFlush stdout
+            Analytics.mpTrackEvent "LunaInstaller.Finished"
 
         else do
             Shelly.unlessM (userInfoExists userInfoPath) $ do

@@ -1,0 +1,171 @@
+---
+- hosts: all
+  vars:
+    http_port: 80
+    max_clients: 200
+  remote_user: vagrant
+  become_user: root
+  vars:
+    luna_dir: '{{ ansible_env.HOME }}/luna-develop'
+    luna_tools_dir: '{{ luna_dir }}/tools'
+    luna_apps_dir: '{{ luna_dir }}/apps'
+    luna_libs_dir: '{{ luna_dir }}/libs'
+    luna_manager_dir: '{{ luna_apps_dir }}/luna-manager'
+    luna_studio_dir: '{{ luna_apps_dir }}/luna-studio'
+    luna_manager_url: '{{ http://packages.luna-lang.org/linux/manager/luna-manager }}'
+  environment:
+    LD_LIBRARY_PATH: '{{ luna_libs_dir }}:{{ ansible_env.LD_LIBRARY_PATH }}'
+    PYENV_ROOT: '{{ luna_tools_dir }}/python/pyenv'
+    PATH: '{{ luna_manager_dir}}/executables:{{ luna_tools_dir }}/stack/:{{ ansible_env.PYENV_ROOT }}/shims:{{ ansible_env.PYENV_ROOT }}/bin:{{ luna_tools_dir }}/node/6.11.3/bin:{{ ansible_env.HOME }}/.stack/snapshots/x86_64-linux/lts-8.2/8.0.2/bin:{{ ansible_env.HOME }}/.stack/programs/x86_64-linux/ghc-8.0.2/bin:{{ luna_tools_dir }}/node/6.11.3/bin:{{ luna_tools_dir }}/python/pyenv/shims:{{ luna_tools_dir }}/python/pyenv/bin:{{ ansible_env.HOME }}/.stack/global-project/.stack-work/install/x86_64-linux/lts-8.2/8.0.2/bin:{{ ansible_env.HOME }}/.stack/snapshots/x86_64-linux/lts-8.2/8.0.2/bin:{{ ansible_env.HOME }}/.stack/programs/x86_64-linux/ghc-8.0.2/bin:{{ luna_tools_dir }}/stack:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:{{ ansible_env.PATH }}'
+
+
+  tasks:
+  - name: install wget
+    become: true
+    apt:
+      name: wget
+      state: present
+
+  - name: install gcc
+    become: true
+    apt:
+      name: gcc
+      state: present
+
+  - name: install g++
+    become: true
+    apt:
+      name: g++
+      state: present
+
+  - name: install libc6-dev
+    become: true
+    apt:
+      name: libc6-dev
+      state: present
+
+  - name: install libffi-dev
+    become: true
+    apt:
+      name: libffi-dev
+      state: present
+
+  - name: install libgmp-dev
+    become: true
+    apt:
+      name: libgmp-dev
+      state: present
+ 
+  - name: install make
+    become: true
+    apt:
+      name: make
+      state: present
+     
+  - name: install xz-utils
+    become: true
+    apt:
+      name: xz-utils
+      state: present
+
+  - name: install zlib1g-dev
+    become: true
+    apt:
+      name: zlib1g-dev
+      state: present
+
+  - name: install git
+    become: true
+    apt:
+      name: git
+      state: present
+
+  - name: install gnupg
+    become: true
+    apt:
+      name: gnupg
+      state: present
+
+  - name: install libzmq3-dev
+    become: true
+    apt:
+      name: libzmq3-dev
+      state: present
+ 
+  - name: install libpng-dev
+    become: true
+    apt:
+      name: libpng-dev
+      state: present
+
+  - name: install openssl
+    become: true
+    apt:
+      name: openssl
+      state: present
+
+  - name: install python-setuptools
+    become: true
+    apt:
+      name: python-setuptools
+      state: present
+
+  - name: install libssl-dev
+    become: true
+    apt:
+      name: libssl-dev
+      state: present
+ 
+  - name: install libtinfo-dev
+    become: true
+    apt:
+      name: libtinfo-dev
+      state: present
+
+  - name: install pkg-config
+    become: true
+    apt:
+      name: pkg-config
+      state: present
+ 
+  - name: install alex
+    become: true
+    apt:
+      name: alex
+      state: present
+
+  - name: install pip
+    become: true
+    easy_install:
+      name: pip
+      state: latest
+
+  - name: download luna manager
+    get_url:
+      url: {{ luna_manager_url }}
+      dest: {{ ansible_env.HOME }}
+      mode: 0777
+
+  - name: run luna manager to download LS
+    command: ./luna-manager develop luna-studio --verbose
+
+  - name: clone luna manager
+    git:
+      repo: ssh://git@github.com/luna/luna-manager
+      dest: {{ luna_manager_dir }}
+      clone: yes
+
+  - name: ensure execute permissions on luna-shell.sh
+    file:
+      path: {{ luna_studio_dir }}/luna-shell.sh
+      mode: 0777
+
+  - name: set python version with pyenv
+    command: pyenv local 3.6.2
+      
+
+  - name: build luna manager
+    command: stack install
+    args:
+      chdir: {{ luna_manager_dir }}
+
