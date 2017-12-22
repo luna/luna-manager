@@ -52,7 +52,7 @@ rm_rf path = case currentHost of
             list <- Sh.ls path 
             mapM_ Sh.rm_rf list
             Sh.rm_rf path
-            else Sh.rm_rf path
+            else Sh.rm_rf path 
 
 switchVerbosity :: Logger.LoggerMonad m => m a -> m a
 switchVerbosity act = do
