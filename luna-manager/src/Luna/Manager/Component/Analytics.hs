@@ -213,7 +213,7 @@ sendMpRequest :: (ToJSON s, MonadIO m, MonadThrow m) => String -> s -> m ()
 sendMpRequest endpoint s = do
     let payload = serialize s
     request <- HTTP.setRequestQueryString [("data", Just payload)] <$>
-               HTTP.parseRequest userUpdateEndpoint
+               HTTP.parseRequest endpoint
     liftIO $ void $ HTTP.httpNoBody request
 
 -- Register a new user within Mixpanel.
