@@ -209,8 +209,8 @@ serialize :: ToJSON s => s -> ByteString
 serialize = Base64.encode . toStrict . JSON.encode
 
 -- Generic wrapper around Mixpanel requests.
-sendMpRequest :: (ToJSON s, MonadIO m, MonadThrow m) => s -> m ()
-sendMpRequest s = do
+sendMpRequest :: (ToJSON s, MonadIO m, MonadThrow m) => String -> s -> m ()
+sendMpRequest endpoint s = do
     let payload = serialize s
     request <- HTTP.setRequestQueryString [("data", Just payload)] <$>
                HTTP.parseRequest userUpdateEndpoint
@@ -229,7 +229,7 @@ mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath)
                               , _set = userData
                               }
     put @MPUserData userData
-    sendMpRequest mpData
+    sendMpRequest userUpdateEndpoint mpData
     return ()
 
 -- Send a single event to Mixpanel.
@@ -243,4 +243,4 @@ mpTrackEvent eventName = do
         mpData  = MPEvent  { _event      = eventName
                            , _properties = mpProps
                            }
-    sendMpRequest mpData
+    sendMpRequest eventEndpoint mpData
