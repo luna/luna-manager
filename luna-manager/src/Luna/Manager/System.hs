@@ -119,7 +119,7 @@ exportPathUnix pathToExport = do
 
 exportPathWindows :: MonadIO m => FilePath -> m ()
 exportPathWindows path = liftIO $ do
-    (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx Path \"" ++ (encodeString $ parent path) ++ "\""
+    (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx PATH \"%PATH%;" ++ (encodeString $ parent path) ++ "\""
     unless (exitCode == ExitSuccess) $ print $ "Path was not exported." <> err  -- TODO this should be warning not print but installation was succesfull just path was not exported
 
 makeExecutable :: MonadIO m => FilePath -> m ()
@@ -131,7 +131,7 @@ runServicesWindows :: (MonadSh m, MonadIO m, MonadShControl m) => FilePath -> Fi
 runServicesWindows path logsPath = Shelly.chdir path $ do
     Shelly.mkdir_p logsPath
     let installPath = path </> Shelly.fromText "installAll.bat"
-    Shelly.setenv "LOGSDIR" $ Shelly.toTextIgnore logsPath
+    Shelly.setenv "LUNA_STUDIO_LOG_PATH" $ Shelly.toTextIgnore logsPath
     Shelly.silently $ Shelly.cmd installPath --TODO create proper error
 
 stopServicesWindows :: MonadIO m => FilePath -> m ()
