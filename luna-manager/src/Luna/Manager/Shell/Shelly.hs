@@ -7,7 +7,7 @@ import qualified Control.Exception.Safe       as Exception
 import           Control.Monad.Raise          (MonadException, raise)
 import           Control.Monad.State.Layered  as State
 import qualified Control.Monad.State.Lazy     as S
-import           Shelly.Lifted                as X hiding (mv, run, run_)
+import           Shelly.Lifted                as X hiding (mv, run, run_, rm_rf)
 import qualified Shelly.Lifted                as Sh
 import           Unsafe.Coerce
 
@@ -16,6 +16,10 @@ import qualified Luna.Manager.Logger          as Logger
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Env      (EnvConfig)
 import qualified Luna.Manager.System.Env      as System
+
+import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, decodeString, toText, parent)
+import           System.Process.Typed         as Process
+import           System.Exit
 
 deriving instance MonadSh   m => MonadSh (StateT s m)
 instance          Exception e => MonadException e Sh.Sh where raise = Exception.throwM
@@ -31,11 +35,24 @@ instance MonadShControl m => MonadShControl (StateT s m) where
             h' s = fmap StateTShM $ h (unwrap s)
 
 
-mv :: (MonadIO m, MonadSh m) => FilePath -> FilePath -> m ()
+mv :: (MonadIO m, MonadSh m, MonadCatch m) => FilePath -> FilePath -> m ()
 mv src dst = case currentHost of
     Linux   -> cmd "mv" src dst
     Darwin  -> cmd "mv" src dst
-    Windows -> Sh.mv src dst
+    Windows -> Sh.mv src dst 
+
+
+rm_rf :: (MonadIO m, MonadSh m, MonadCatch m) => FilePath -> m ()
+rm_rf path = case currentHost of
+    Linux -> Sh.rm_rf path
+    Darwin -> Sh.rm_rf path
+    Windows -> do 
+        isDirectory <- Sh.test_d path
+        if isDirectory then do
+            list <- Sh.ls path 
+            mapM_ Sh.rm_rf list
+            Sh.rm_rf path
+            else Sh.rm_rf path
 
 switchVerbosity :: Logger.LoggerMonad m => m a -> m a
 switchVerbosity act = do
