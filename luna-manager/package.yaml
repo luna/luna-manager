@@ -51,40 +51,19 @@ dependencies:
 
 default-extensions:
     - AllowAmbiguousTypes
-    - ApplicativeDo
-    - Arrows
-    - BangPatterns
-    - BinaryLiterals
     - ConstraintKinds
     - DataKinds
     - DefaultSignatures
-    - DeriveDataTypeable
-    - DeriveFoldable
-    - DeriveFunctor
     - DeriveGeneric
-    - DeriveTraversable
-    - DoAndIfThenElse
     - DuplicateRecordFields
-    - EmptyDataDecls
     - FlexibleContexts
     - FlexibleInstances
     - FunctionalDependencies
     - GeneralizedNewtypeDeriving
-    - InstanceSigs
     - LambdaCase
-    - MonadComprehensions
-    - MultiWayIf
-    - NamedWildCards
-    - NegativeLiterals
     - NoImplicitPrelude
-    - NumDecimals
-    - OverloadedLabels
     - OverloadedStrings
-    - PackageImports
-    - PolyKinds
-    - QuasiQuotes
     - RankNTypes
-    - RecursiveDo
     - ScopedTypeVariables
     - StandaloneDeriving
     - TemplateHaskell
@@ -92,10 +71,7 @@ default-extensions:
     - TypeApplications
     - TypeFamilies
     - TypeOperators
-    - ViewPatterns
 
-    - LiberalTypeSynonyms
-    - RelaxedPolyRec
 
 executables:
   luna-manager:
