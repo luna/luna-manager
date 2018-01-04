@@ -18,28 +18,28 @@ import Control.Lens.Aeson
 -- === Definition === --
 
 data Initialize = Initialize { initialize :: Applications
-                             } deriving (Show, Generic, Eq)
+                             } deriving (Generic, Eq)
 
 data Applications = Applications { askEmail     :: Bool
                                  , versionTypes :: [Text]
                                  , applications :: [Apps]
-                                 } deriving (Show, Generic, Eq)
+                                 } deriving (Generic, Eq)
 
 data Apps = Apps { name     :: Text
                  , versions :: Versions
-                 } deriving (Show, Generic, Eq)
+                 } deriving (Generic, Eq)
 
 data Versions = Versions { developer :: [Version]
                          , nightly   :: [Version]
                          , release   :: [Version]
-                         } deriving (Show, Generic, Eq)
+                         } deriving Eq
 
-data Option = Option { install :: Install} deriving (Show, Generic, Eq)
+data Option = Option { install :: Install} deriving (Generic, Eq)
 
 data Install = Install { application :: Text
                        , version     :: Version
                        , email       :: Maybe Text
-                       } deriving (Show, Generic, Eq)
+                       } deriving (Generic, Eq)
 
 -- makeLenses ''Apps
 
@@ -48,6 +48,8 @@ instance ToJSON Install
 instance ToJSON Initialize
 instance ToJSON Applications
 instance ToJSON Apps      --  where toEncoding = lensJSONToEncoding; toJSON = lensJSONToJSON
+
+-- Fields prefixed with a dot will be hidden in the Installer.
 instance ToJSON Versions where
     toJSON (Versions d n r) =
         JSON.object ["release" .= r, "nightly" .= n, ".developer" .= d]
@@ -59,6 +61,8 @@ instance FromJSON Install
 instance FromJSON Initialize   where parseJSON = lensJSONParse
 instance FromJSON Applications where parseJSON = lensJSONParse
 instance FromJSON Apps         where parseJSON = lensJSONParse
+
+-- Fields prefixed with a dot will be hidden in the installer
 instance FromJSON Versions where
     parseJSON = JSON.withObject "Versions" $ \v -> Versions
         <$> v .: ".developer"
