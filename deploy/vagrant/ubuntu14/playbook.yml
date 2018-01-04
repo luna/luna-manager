@@ -6,7 +6,7 @@
   remote_user: vagrant
   become_user: root
   vars:
-    home: '{{ lookup("env", "HOME")}}'
+    home: '{{ ansible_env.HOME }}'
     luna_repo_path: 'ssh://git@github.com/luna/luna-manager'
     luna_dir: '{{ home }}/luna-develop'
     luna_tools_dir: '{{ luna_dir }}/tools'
@@ -18,7 +18,7 @@
     pyenv_root: '{{ luna_tools_dir }}/python/pyenv'
     pyenv_bin: '{{ pyenv_root }}/bin/pyenv'
   environment:
-    LD_LIBRARY_PATH: '{{ luna_libs_dir }}:{{ lookup("env", "LD_LIBRARY_PATH") }}'
+    LD_LIBRARY_PATH: '{{ luna_libs_dir }}:{{ ansible_env.LD_LIBRARY_PATH | default("") }}'
     PYENV_ROOT: '{{ pyenv_root }}'
 
   tasks:
@@ -48,6 +48,8 @@
     easy_install:
       name: pip
       state: latest
+
+  - debug: msg={{ home }}
 
   - name: download luna manager
     get_url:
