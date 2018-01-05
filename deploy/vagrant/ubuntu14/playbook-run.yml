@@ -1,36 +1,35 @@
 ---
 - hosts: all
-  vars:
-    http_port: 80
-    max_clients: 200
+  any_errors_fatal: true
   remote_user: vagrant
   become_user: root
-  vars:
-    home: '{{ ansible_env.HOME }}'
-    luna_repo_path: 'ssh://git@github.com/luna/luna-manager'
-    luna_dir: '{{ home }}/luna-develop'
-    luna_tools_dir: '{{ luna_dir }}/tools'
-    luna_apps_dir: '{{ luna_dir }}/apps'
-    luna_libs_dir: '{{ luna_dir }}/libs'
-    luna_manager_dir: '{{ luna_apps_dir }}/luna-manager'
-    luna_studio_dir: '{{ luna_apps_dir }}/luna-studio'
-    luna_manager_url: 'http://packages.luna-lang.org/linux/manager/luna-manager'
-    pyenv_root: '{{ luna_tools_dir }}/python/pyenv'
-    pyenv_bin: '{{ pyenv_root }}/bin/pyenv'
+  vars_files:
+    - common-vars.yml
   environment:
     LD_LIBRARY_PATH: '{{ luna_libs_dir }}:{{ ansible_env.LD_LIBRARY_PATH | default("") }}'
     PYENV_ROOT: '{{ pyenv_root }}'
 
-
   tasks:
+  - name: fetch the new repo
+    shell: 'git checkout production && git pull origin production'
+    args:
+      executable: /bin/bash
+      chdir: '{{ luna_studio_dir }}'
+
   - name: create the next luna studio version
-    shell: 'source {{ luna_studio_dir }}/luna-shell.sh && luna-manager next-version {{ luna_studio_dir }}/luna-package.yaml'
+    shell: '{{ source_env }} && {{ luna_manager_bin}} next-version {{ luna_studio_dir }}/luna-package.yaml'
     args:
       executable: /bin/bash
       chdir: '{{ luna_manager_dir }}'
 
-  - name: build luna luna package
-    shell: 'source {{ luna_studio_dir }}/luna-shell.sh && python deploy/build_package.py -p {{ luna_studio_dir }}'
+  - name: build luna package
+    shell: '{{ source_env }} && {{ luna_manager_bin }} make-package {{ luna_studio_dir }}/luna-package.yaml --build-from-head'
+    args:
+      executable: /bin/bash
+      chdir: '{{ luna_manager_dir }}'
+
+  - name: upload luna package to S3
+    shell: '{{ source_env }} && python deploy/build_package -p {{ luna_studio_dir }} --deploy-only'
     args:
       executable: /bin/bash
       chdir: '{{ luna_manager_dir }}'

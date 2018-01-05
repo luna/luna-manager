@@ -109,3 +109,9 @@ bin/luna
 
 # Vim:
 *.swp
+
+
+# Vagrant
+.vagrant/
+*.retry
+
