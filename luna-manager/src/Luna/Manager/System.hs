@@ -8,9 +8,9 @@ import           Control.Monad.Raise
 import           Control.Monad.State.Layered
 import           Control.Monad.Trans.Resource (MonadBaseControl)
 import           Data.ByteString.Lazy         (ByteString, null)
-import           Data.List                    (isInfixOf)
 import           Data.ByteString.Lazy.Char8   (filter, unpack)
 import           Data.Maybe                   (listToMaybe)
+import           Data.List                    (isInfixOf)
 import           Data.List.Split              (splitOn)
 import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text                    as Text
@@ -124,8 +124,8 @@ exportPathWindows path = do
     (exitCode1, pathenv, err1) <- Process.readProcess $ "echo %PATH%"
     let pathToexport = Path.dropTrailingPathSeparator $ encodeString $ parent path 
         systemPath   = unpack pathenv
-    if (isInfixOf pathToexport systemPath) then return () else do 
-        (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx PATH \"%PATH%:" ++ pathToexport ++ "\""
+    unless (isInfixOf pathToexport systemPath) $ do 
+        (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx PATH \"%PATH%;" ++ pathToexport ++ "\""
         unless (exitCode == ExitSuccess) $ Logger.warning $ "Path was not exported."
 
 makeExecutable :: MonadIO m => FilePath -> m ()

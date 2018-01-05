@@ -48,11 +48,10 @@ rm_rf path = case currentHost of
     Darwin -> Sh.rm_rf path
     Windows -> do 
         isDirectory <- Sh.test_d path
-        if isDirectory then do
+        Prologue.whenM (Sh.test_d path) $ do
             list <- Sh.ls path 
-            mapM_ Sh.rm_rf list
-            Sh.rm_rf path
-            else Sh.rm_rf path 
+            mapM_ rm_rf list
+        Sh.rm_rf path
 
 switchVerbosity :: Logger.LoggerMonad m => m a -> m a
 switchVerbosity act = do
