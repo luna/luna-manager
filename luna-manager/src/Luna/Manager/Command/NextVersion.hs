@@ -90,11 +90,11 @@ saveVersion cfgFile appName prInfo = do
     let newConfig = config & packages . ix appName . versions %~ Map.mapKeys (\_ -> version)
     Repo.saveYamlToFile newConfig $ convert cfgFile
 
-commitVersion :: MonadNextVersion m => PromotionInfo -> m ()
-commitVersion prInfo = do
+commitVersion :: MonadNextVersion m => Text -> PromotionInfo -> m ()
+commitVersion cfgFile prInfo = do
     version <- tryRight' $ getNewVersion prInfo
     let msg = "New version: " <> (showPretty version)
-    Shelly.cmd "git" "commit" ("-am " <> msg)
+    Shelly.chdir (parent $ fromText cfgFile) $ Shelly.cmd "git" "commit" "-am" msg
 
 tagVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
 tagVersion appPath prInfo = do
@@ -126,7 +126,7 @@ run opts = do
 
     newInfo <- nextVersion promotionInfo >>= tryRight'
     liftIO $ print newInfo
-    saveVersion cfgPath appName newInfo
-    commitVersion newInfo
-    tagVersion  appPath newInfo
+    saveVersion   cfgPath appName newInfo
+    commitVersion cfgPath newInfo
+    tagVersion    appPath newInfo
 

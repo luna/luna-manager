@@ -11,7 +11,7 @@
 
   tasks:
   - name: fetch the new repo
-    shell: 'git checkout production && git pull origin production'
+    shell: 'git checkout master && git pull origin master'
     args:
       executable: /bin/bash
       chdir: '{{ luna_studio_dir }}'
