@@ -97,26 +97,26 @@ resolveSingleLevel repo desc = partitionEithers $ zipWith combine directSubDeps 
 
 resolve :: Repo -> PackageDesc -> ([PackageHeader], [ResolvedPackage])
 resolve repo pkg = (errs <> subErrs, oks <> subOks) where
-    (errs, oks) = resolveSingleLevel repo pkg
-    subDescs    = view desc <$> oks
-    subRes      = resolve repo <$> subDescs
-    subErrs     = concat $ fst <$> subRes
-    subOks      = concat $ snd <$> subRes
+    (errs, oks)  = resolveSingleLevel repo pkg
+    subDescs     = view desc <$> oks
+    subRes       = resolve repo <$> subDescs
+    subErrs      = concat $ fst <$> subRes
+    subOks       = concat $ snd <$> subRes
 
 versionsMap :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m VersionMap
 versionsMap repo appName = do
-    appPkg   <- tryJust unresolvedDepError $ Map.lookup appName $ repo ^. packages
+    appPkg <- tryJust unresolvedDepError $ Map.lookup appName $ repo ^. packages
     return $ appPkg ^. versions
 
 getFullVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
 getFullVersionsList repo appName = do
-    vmap   <- versionsMap repo appName
+    vmap <- versionsMap repo appName
     return $ reverse . sort . Map.keys $ vmap
 
 getVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
 getVersionsList repo appName = do
     vmap <- versionsMap repo appName
-    let filteredVmap   = Map.mapMaybe (Map.lookup currentSysDesc) $ vmap
+    let filteredVmap = Map.filter (Map.member currentSysDesc) vmap
     return $ reverse . sort . Map.keys $ filteredVmap
 
 -- Gets versions grouped by type (dev, nightly, release)
@@ -126,15 +126,15 @@ getGroupedVersionsList repo appName = do
     let appendVersion (ds, ns, rs) v = if isDev v then (v:ds, ns, rs)
                                        else if isNightly v then (ds, v:ns, rs)
                                        else (ds, ns, v:rs)
-        groupedVersions = foldl appendVersion ([], [], []) versions
+        groupedVersions = foldl' appendVersion ([], [], []) versions
         reversed = groupedVersions & over _1 reverse . over _2 reverse . over _3 reverse
     return reversed
 
 resolvePackageApp :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m ResolvedApplication
 resolvePackageApp repo appName = do
-    appPkg <- tryJust undefinedPackageError $ Map.lookup appName (repo ^. packages)
-    versionsList  <- getVersionsList repo appName
-    let version = head versionsList
+    appPkg       <- tryJust undefinedPackageError $ Map.lookup appName (repo ^. packages)
+    versionsList <- getVersionsList repo appName
+    let version         = head versionsList
         applicationType = appPkg ^. appType
     desc <- tryJust (toException UnresolvedDepError) $ Map.lookup version $ appPkg ^. versions
     appDesc <- tryJust (toException $ MissingPackageDescriptionError version) $ Map.lookup currentSysDesc desc
