@@ -380,7 +380,7 @@ updateConfig config resolvedApplication =
         -- appPath    = convert (appDesc ^. path)
         appHeader  = app ^. header
         appName    = appHeader ^. name
-        mainPackagePath = "https://s3-us-west-2.amazonaws.com/packages-luna/"
+        mainPackagePath = "https://d1uis3r8vv41jj.cloudfront.net/"
         applicationPartPackagePath = appName <> "/" <> showPretty (view version appHeader) <> "/" <> appName
         s3Path = case currentHost of
             Darwin  -> mainPackagePath <> "darwin/"  <> applicationPartPackagePath <> ".tar.gz"
