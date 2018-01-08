@@ -13,6 +13,17 @@
     PYENV_ROOT: '{{ pyenv_root }}'
 
   tasks:
+  - name: make the partition script executable
+    file:
+      path: "{{ ansible_env.HOME }}/make_partition.sh"
+      mode: 0777
+
+  - name: add a bigger home partition
+    become: true
+    shell: ./make_partition.sh
+    args:
+      executable: /bin/bash
+
   - name: install apt packages
     become: true
     apt: name={{item}} state=present
@@ -39,6 +50,16 @@
     easy_install:
       name: pip
       state: latest
+
+  - name: set git user name
+    shell: git config --global user.name lunalangCI
+    args:
+      executable: /bin/bash
+
+  - name: set git user email
+    shell: git config --global user.email ci@luna-lang.org
+    args:
+      executable: /bin/bash
 
   - name: download luna manager
     get_url:

@@ -37,6 +37,8 @@ Vagrant.configure("2") do |config|
     # Libvirt storage pool name, where box image and instance snapshots will be stored.
     libvirt.storage_pool_name = "default"
 
+    libvirt.storage :file, :size => '40G'
+
     # Set a prefix for the machines that's different than the project dir name.
     #libvirt.default_prefix = ''
   end
@@ -45,6 +47,7 @@ Vagrant.configure("2") do |config|
    config.vm.provision "file", source: "~/.ssh/id_rsa.pub", destination: "$HOME/.ssh/id_rsa.pub"
    config.vm.provision "file", source: "~/.ssh/known_hosts", destination: "$HOME/.ssh/known_hosts"
    config.vm.provision "file", source: "~/.aws", destination: "$HOME/.aws"
+   config.vm.provision "file", source: "make_partition.sh", destination: "$HOME/make_partition.sh"
 
   config.vm.provision "ansible" do |ansible|
     ansible.verbose = "v"
