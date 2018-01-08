@@ -299,7 +299,7 @@ runServices installPath appType appName version = when (currentHost == Windows &
 copyDllFilesOnWindows :: MonadInstall m => FilePath -> m ()
 copyDllFilesOnWindows installPath = when (currentHost == Windows) $ do
     installConfig <- get @InstallConfig
-    let libFolderPath = installPath </> (installConfig ^. libPath)
+    let libFolderPath  = installPath </> (installConfig ^. libPath)
         binsFolderPath = installPath </> (installConfig ^. privateBinPath)
     do
         listedLibs <- Shelly.ls libFolderPath
@@ -326,6 +326,7 @@ copyUserConfig installPath package = do
     homeUserConfigPath <- expand $ (installConfig ^. defaultConfPath) </> (installConfig ^. configPath) </> convert pkgName </> convert pkgVersion
     userConfigExists   <- Shelly.test_d packageUserConfigPath
     when userConfigExists $ do
+        Shelly.rm_rf homeUserConfigPath
         Shelly.mkdir_p homeUserConfigPath
         listedPackageUserConfig <- Shelly.ls packageUserConfigPath
         mapM_ (flip Shelly.cp_r homeUserConfigPath) $ map (packageUserConfigPath </>) listedPackageUserConfig

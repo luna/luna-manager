@@ -8,8 +8,9 @@ import           Control.Monad.Raise
 import           Control.Monad.State.Layered
 import           Control.Monad.Trans.Resource (MonadBaseControl)
 import           Data.ByteString.Lazy         (ByteString, null)
-import           Data.ByteString.Lazy.Char8   (filter)
+import           Data.ByteString.Lazy.Char8   (filter, unpack)
 import           Data.Maybe                   (listToMaybe)
+import           Data.List                    (isInfixOf)
 import           Data.List.Split              (splitOn)
 import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text                    as Text
@@ -17,6 +18,7 @@ import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, to
 import           System.Directory             (executable, setPermissions, getPermissions, doesPathExist, getHomeDirectory)
 import qualified System.Environment           as Environment
 import           System.Exit
+import qualified System.FilePath              as Path
 import           System.Process.Typed         as Process
 
 import           Luna.Manager.Command.Options (Options)
@@ -117,10 +119,14 @@ exportPathUnix pathToExport = do
                 (liftIO $ appendFile path exportToAppend) `Shelly.catchany` (const warn)
         Nothing -> warn
 
-exportPathWindows :: MonadIO m => FilePath -> m ()
-exportPathWindows path = liftIO $ do
-    (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx Path \"" ++ (encodeString $ parent path) ++ "\""
-    unless (exitCode == ExitSuccess) $ print $ "Path was not exported." <> err  -- TODO this should be warning not print but installation was succesfull just path was not exported
+exportPathWindows :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
+exportPathWindows path = do
+    (exitCode1, pathenv, err1) <- Process.readProcess $ "echo %PATH%"
+    let pathToexport = Path.dropTrailingPathSeparator $ encodeString $ parent path 
+        systemPath   = unpack pathenv
+    unless (isInfixOf pathToexport systemPath) $ do 
+        (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx PATH \"%PATH%;" ++ pathToexport ++ "\""
+        unless (exitCode == ExitSuccess) $ Logger.warning $ "Path was not exported."
 
 makeExecutable :: MonadIO m => FilePath -> m ()
 makeExecutable file = unless (currentHost == Windows) $ liftIO $ do
@@ -131,7 +137,7 @@ runServicesWindows :: (MonadSh m, MonadIO m, MonadShControl m) => FilePath -> Fi
 runServicesWindows path logsPath = Shelly.chdir path $ do
     Shelly.mkdir_p logsPath
     let installPath = path </> Shelly.fromText "installAll.bat"
-    Shelly.setenv "LOGSDIR" $ Shelly.toTextIgnore logsPath
+    Shelly.setenv "LUNA_STUDIO_LOG_PATH" $ Shelly.toTextIgnore logsPath
     Shelly.silently $ Shelly.cmd installPath --TODO create proper error
 
 stopServicesWindows :: MonadIO m => FilePath -> m ()
