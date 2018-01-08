@@ -106,7 +106,6 @@ resolve repo pkg = (errs <> subErrs, oks <> subOks) where
 versionsMap :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m VersionMap
 versionsMap repo appName = do
     appPkg   <- tryJust unresolvedDepError $ Map.lookup appName $ repo ^. packages
-    -- let vmap = appPkg ^. versions
     return $ appPkg ^. versions
 
 getFullVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
