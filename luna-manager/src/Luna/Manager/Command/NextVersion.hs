@@ -64,7 +64,7 @@ latestVersion appName targetVersionType = do
             Nightly -> Version.isDev
             Dev     -> const True
     repo     <- Repo.getRepo
-    versions <- Repo.getVersionsList repo appName
+    versions <- Repo.getFullVersionsList repo appName
     return $ case filter filterFunc versions of
             (v:_) -> v
             _     -> def :: Version
@@ -129,4 +129,3 @@ run opts = do
     saveVersion   cfgPath appName newInfo
     commitVersion cfgPath newInfo
     tagVersion    appPath newInfo
-

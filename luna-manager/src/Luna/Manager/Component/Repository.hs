@@ -103,11 +103,22 @@ resolve repo pkg = (errs <> subErrs, oks <> subOks) where
     subErrs     = concat $ fst <$> subRes
     subOks      = concat $ snd <$> subRes
 
+versionsMap :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m VersionMap
+versionsMap repo appName = do
+    appPkg   <- tryJust unresolvedDepError $ Map.lookup appName $ repo ^. packages
+    let vmap = appPkg ^. versions
+    return vmap
+
+getFullVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
+getFullVersionsList repo appName = do
+    vmap   <- versionsMap repo appName
+    return $ reverse . sort . Map.keys $ vmap
+
 getVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
 getVersionsList repo appName = do
-    appPkg <- tryJust unresolvedDepError $ Map.lookup appName $ repo ^. packages
-    let vmap   = Map.mapMaybe (Map.lookup currentSysDesc) $ appPkg ^. versions
-    return $ reverse . sort . Map.keys $ vmap
+    vmap <- versionsMap repo appName
+    let filteredVmap   = Map.mapMaybe (Map.lookup currentSysDesc) $ vmap
+    return $ reverse . sort . Map.keys $ filteredVmap
 
 -- Gets versions grouped by type (dev, nightly, release)
 getGroupedVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m ([Version], [Version], [Version])
