@@ -90,14 +90,16 @@ saveVersion cfgFile appName prInfo = do
     let newConfig = config & packages . ix appName . versions %~ Map.mapKeys (\_ -> version)
     Repo.saveYamlToFile newConfig $ convert cfgFile
 
-commitVersion :: MonadNextVersion m => Text -> PromotionInfo -> m ()
-commitVersion cfgFile prInfo = do
+commitVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
+commitVersion appPath prInfo = do
     version <- tryRight' $ getNewVersion prInfo
     let msg = "New version: " <> (showPretty version)
-    Shelly.chdir (parent $ fromText cfgFile) $ Shelly.cmd "git" "commit" "-am" msg
+    Shelly.chdir appPath $ do
+        Shelly.cmd "git" "add" "luna-package.yaml"
+        Shelly.cmd "git" "commit" "-m" msg
 
-tagVersion :: MonadNextVersion m => Text -> FilePath -> PromotionInfo -> m ()
-tagVersion cfgFile appPath prInfo = do
+tagVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
+tagVersion appPath prInfo = do
     version <- tryRight' $ getNewVersion prInfo
     let versionTxt  = showPretty version
         tagExists t = not . Text.null <$> Shelly.cmd "git" "tag" "-l" t
@@ -106,7 +108,7 @@ tagVersion cfgFile appPath prInfo = do
                       else [showPretty $ prInfo ^. oldVersion]
 
     Shelly.chdir appPath $ Shelly.unlessM (tagExists versionTxt) $ do
-        commitVersion cfgFile prInfo
+        commitVersion appPath prInfo
         Shelly.run_ "git" (["tag", versionTxt] ++ tagSource)
 
 run :: MonadNextVersion m => NextVersionOpts -> m ()
@@ -127,5 +129,5 @@ run opts = do
 
     newInfo <- nextVersion promotionInfo >>= tryRight'
     liftIO $ print newInfo
-    saveVersion   cfgPath appName newInfo
-    tagVersion    cfgPath appPath newInfo
+    saveVersion cfgPath appName newInfo
+    tagVersion  appPath newInfo
