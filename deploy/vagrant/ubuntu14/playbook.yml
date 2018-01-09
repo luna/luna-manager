@@ -97,3 +97,19 @@
       executable: /bin/bash
       chdir: '{{ luna_manager_dir }}'
 
+  - name: ensure the make-package.sh file exists
+    file:
+      path: '{{ luna_manager_dir }}/make-package.sh'
+      state: touch
+      mode: 0777
+
+  - name: create a helper runner script
+    blockinfile:
+      path: '{{ luna_manager_dir }}/make-package.sh'
+      marker: ''
+      block: |
+        #!/bin/bash
+        {{ source_env }}
+        pushd {{ luna_manager_dir }}
+        python deploy/main.py {{ luna_studio_dir }}
+        pushd
