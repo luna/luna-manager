@@ -23,7 +23,7 @@
       chdir: '{{ luna_manager_dir }}'
 
   - name: build luna package
-    shell: '{{ source_env }} && {{ luna_manager_bin }} make-package {{ luna_studio_dir }}/luna-package.yaml --build-from-head'
+    shell: '{{ source_env }} && {{ luna_manager_bin }} make-package {{ luna_studio_dir }}/luna-package.yaml --verbose'
     args:
       executable: /bin/bash
       chdir: '{{ luna_manager_dir }}'

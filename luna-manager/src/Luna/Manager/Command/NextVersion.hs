@@ -96,8 +96,8 @@ commitVersion cfgFile prInfo = do
     let msg = "New version: " <> (showPretty version)
     Shelly.chdir (parent $ fromText cfgFile) $ Shelly.cmd "git" "commit" "-am" msg
 
-tagVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
-tagVersion appPath prInfo = do
+tagVersion :: MonadNextVersion m => Text -> FilePath -> PromotionInfo -> m ()
+tagVersion cfgFile appPath prInfo = do
     version <- tryRight' $ getNewVersion prInfo
     let versionTxt  = showPretty version
         tagExists t = not . Text.null <$> Shelly.cmd "git" "tag" "-l" t
@@ -105,8 +105,9 @@ tagVersion appPath prInfo = do
                       then maybeToList $ prInfo ^. commit
                       else [showPretty $ prInfo ^. oldVersion]
 
-    Shelly.chdir appPath $ Shelly.unlessM (tagExists versionTxt)
-                         $ Shelly.run_ "git" (["tag", versionTxt] ++ tagSource)
+    Shelly.chdir appPath $ Shelly.unlessM (tagExists versionTxt) $ do
+        commitVersion cfgFile prInfo
+        Shelly.run_ "git" (["tag", versionTxt] ++ tagSource)
 
 run :: MonadNextVersion m => NextVersionOpts -> m ()
 run opts = do
@@ -127,5 +128,4 @@ run opts = do
     newInfo <- nextVersion promotionInfo >>= tryRight'
     liftIO $ print newInfo
     saveVersion   cfgPath appName newInfo
-    commitVersion cfgPath newInfo
-    tagVersion    appPath newInfo
+    tagVersion    cfgPath appPath newInfo
