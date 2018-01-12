@@ -2,13 +2,13 @@
 
 module Luna.Manager.Gui.Initialize where
 
-import Prologue hiding (FilePath, (.=), (.:))
+import Prologue hiding (FilePath)
 import qualified Data.Map as Map
 import Luna.Manager.Component.Repository
 import Luna.Manager.Component.Version
 import Luna.Manager.System.Host
 import Control.Monad.Raise
-import Data.Aeson                         (FromJSON, ToJSON, FromJSONKey, ToJSONKey, parseJSON, encode, (.=), (.:))
+import Data.Aeson                         (FromJSON, ToJSON, FromJSONKey, ToJSONKey, parseJSON, encode)
 import qualified Data.Aeson               as JSON
 import qualified Data.Aeson.Types         as JSON
 import qualified Data.Aeson.Encoding      as JSON
@@ -32,7 +32,7 @@ data Apps = Apps { name     :: Text
 data Versions = Versions { developer :: [Version]
                          , nightly   :: [Version]
                          , release   :: [Version]
-                         } deriving Eq
+                         } deriving (Generic, Eq)
 
 data Option = Option { install :: Install} deriving (Generic, Eq)
 
@@ -48,26 +48,14 @@ instance ToJSON Install
 instance ToJSON Initialize
 instance ToJSON Applications
 instance ToJSON Apps      --  where toEncoding = lensJSONToEncoding; toJSON = lensJSONToJSON
-
--- Fields prefixed with a dot will be hidden in the Installer.
-instance ToJSON Versions where
-    toJSON (Versions d n r) =
-        JSON.object ["release" .= r, "nightly" .= n, ".developer" .= d]
-    toEncoding (Versions d n r) =
-        JSON.pairs  ("release" .= r <> "nightly" .= n <> ".developer" .= d)
+instance ToJSON Versions
 
 instance FromJSON Option
 instance FromJSON Install
 instance FromJSON Initialize   where parseJSON = lensJSONParse
 instance FromJSON Applications where parseJSON = lensJSONParse
 instance FromJSON Apps         where parseJSON = lensJSONParse
-
--- Fields prefixed with a dot will be hidden in the installer
-instance FromJSON Versions where
-    parseJSON = JSON.withObject "Versions" $ \v -> Versions
-        <$> v .: ".developer"
-        <*> v .: "nightly"
-        <*> v .: "release"
+instance FromJSON Versions     where parseJSON = lensJSONParse
 
 resolveAppToInitialize :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m Apps
 resolveAppToInitialize repo name = do
@@ -76,6 +64,7 @@ resolveAppToInitialize repo name = do
 
 generateInitialJSON :: (MonadIO m, MonadException SomeException m) => Repo -> Bool -> m ()
 generateInitialJSON repo userInfoExists = do
-    let verTypes = ["release", "nightly", "developer"]
+    -- Version types prefixed with a dot will be hidden in the GUI:
+    let verTypes = ["release", "nightly", ".developer"]
     resolved <- mapM (resolveAppToInitialize repo) (repo ^. apps)
     print $ encode $ Initialize $ Applications (not userInfoExists) verTypes resolved
