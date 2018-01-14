@@ -66,3 +66,8 @@ To build Luna Manager all you need is `stack` installed on your machine. Then yo
 stack install
 ```
 The resulting `luna-manager` binary will be created in the `executables` directory in the repo; you may choose to add it to your path or invoke it directly.
+
+One other prerequisite that will not be installed by `stack` as a dependency is the `happy` executable, which you can obtain by typing:
+```
+stack install happy
+```
