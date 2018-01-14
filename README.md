@@ -61,13 +61,15 @@ luna-manager next-version ${LUNA_STUDIO_REPO}/luna-package.yaml
 You will get the repo ready to create a next developer build (the number will be set automatically, and a new commit with the appropriate tag containing the version bump will be made). If you want to create a nightly or a release build, you can supply the `--nightly` and `--release` options, respectively.
 
 ## Building
-To build Luna Manager all you need is `stack` installed on your machine. Then you can clone the repository and simply run:
+To build Luna Manager all you need is `stack` installed on your machine. To install stack, simply follow the instructions at https://docs.haskellstack.org/en/stable/README/. Remember that in order to run stack-installed executables, you need to add `${HOME}/.local/bin` to your `${PATH}`.
+
+One prerequisite that will not be installed by `stack` as a dependency is the `happy` executable, which you can obtain by typing (inside your home directory):
+```
+stack install happy
+```
+
+Then you can clone the repository and simply run:
 ```
 stack install
 ```
 The resulting `luna-manager` binary will be created in the `executables` directory in the repo; you may choose to add it to your path or invoke it directly.
-
-One other prerequisite that will not be installed by `stack` as a dependency is the `happy` executable, which you can obtain by typing:
-```
-stack install happy
-```
