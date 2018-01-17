@@ -9,6 +9,8 @@ import Luna.Manager.System.Path
 import Luna.Manager.System.Env
 import Luna.Manager.Component.Pretty
 import Luna.Manager.Network
+import qualified Luna.Manager.Logger as Logger
+import Luna.Manager.Shell.Shelly (toTextIgnore, MonadSh, MonadShControl)
 
 import Control.Lens.Aeson
 import Control.Monad.Raise
@@ -113,14 +115,18 @@ getFullVersionsList repo appName = do
     vmap <- versionsMap repo appName
     return $ reverse . sort . Map.keys $ vmap
 
-getVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
+getVersionsList :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m [Version]
 getVersionsList repo appName = do
     vmap <- versionsMap repo appName
+    Logger.log "vmap"
+    Logger.log . convert $ show vmap
     let filteredVmap = Map.filter (Map.member currentSysDesc) vmap
+    Logger.log "filteredVmap"
+    Logger.log . convert $ show filteredVmap
     return $ reverse . sort . Map.keys $ filteredVmap
 
 -- Gets versions grouped by type (dev, nightly, release)
-getGroupedVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m ([Version], [Version], [Version])
+getGroupedVersionsList :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m ([Version], [Version], [Version])
 getGroupedVersionsList repo appName = do
     versions <- getVersionsList repo appName
     let appendVersion (ds, ns, rs) v = if isDev v then (v:ds, ns, rs)
@@ -130,14 +136,22 @@ getGroupedVersionsList repo appName = do
         reversed = groupedVersions & over _1 reverse . over _2 reverse . over _3 reverse
     return reversed
 
-resolvePackageApp :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m ResolvedApplication
+resolvePackageApp :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m ResolvedApplication
 resolvePackageApp repo appName = do
     appPkg       <- tryJust undefinedPackageError $ Map.lookup appName (repo ^. packages)
     versionsList <- getVersionsList repo appName
+    Logger.log "versionsList"
+    Logger.log . convert $ show versionsList
     let version         = head versionsList
         applicationType = appPkg ^. appType
+    Logger.log "version"
+    Logger.log . convert $ show version
     desc <- tryJust (toException UnresolvedDepError) $ Map.lookup version $ appPkg ^. versions
+    Logger.log "desc"
+    Logger.log . convert $ show desc
     appDesc <- tryJust (toException $ MissingPackageDescriptionError version) $ Map.lookup currentSysDesc desc
+    Logger.log "appDesc"
+    Logger.log . convert $ show appDesc
     return $ ResolvedApplication (ResolvedPackage (PackageHeader appName version) appDesc applicationType) (snd $ resolve repo appDesc)
 
 getSynopis :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m Text
@@ -236,6 +250,6 @@ getRepo = gets @RepoConfig repoPath >>= downloadRepo >>= parseConfig
 -- === Instances === --
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig RepoConfig sys arch m where
-    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://packages.luna-lang.org/config.yaml"
+    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://10.62.1.34:8000/config.yaml"
                                             , _cachedRepo = Nothing
                                             }

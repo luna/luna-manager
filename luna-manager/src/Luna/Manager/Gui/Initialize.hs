@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 import Luna.Manager.Component.Repository
 import Luna.Manager.Component.Version
 import Luna.Manager.System.Host
+import qualified Luna.Manager.Logger as Logger
 import Control.Monad.Raise
 import Data.Aeson                         (FromJSON, ToJSON, FromJSONKey, ToJSONKey, parseJSON, encode)
 import qualified Data.Aeson               as JSON
@@ -57,12 +58,12 @@ instance FromJSON Applications where parseJSON = lensJSONParse
 instance FromJSON Apps         where parseJSON = lensJSONParse
 instance FromJSON Versions     where parseJSON = lensJSONParse
 
-resolveAppToInitialize :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m Apps
+resolveAppToInitialize :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m Apps
 resolveAppToInitialize repo name = do
     (devs, nightlies, releases) <- getGroupedVersionsList repo name
     return $ Apps name $ Versions devs nightlies releases
 
-generateInitialJSON :: (MonadIO m, MonadException SomeException m) => Repo -> Bool -> m ()
+generateInitialJSON :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Bool -> m ()
 generateInitialJSON repo userInfoExists = do
     -- Version types prefixed with a dot will be hidden in the GUI:
     let verTypes = ["release", "nightly", ".developer"]
