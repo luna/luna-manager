@@ -4,10 +4,11 @@ import           Prologue                     hiding (FilePath)
 import           Control.Monad.State.Layered
 import           Data.Text                    (Text)
 import qualified Data.Text.IO                 as Text
-import           Filesystem.Path.CurrentOS    (FilePath, (</>))
+import           Filesystem.Path.CurrentOS    (FilePath, (</>), decodeString)
 import           Shelly.Lifted                (MonadSh, MonadShControl)
 import qualified Shelly.Lifted                as Sh
 import           System.IO                    (hFlush, stdout)
+import qualified System.Directory     as SystemDirectory
 
 import           Data.Aeson           (FromJSON, ToJSON, FromJSONKey, ToJSONKey, parseJSON, encode)
 import qualified Data.Aeson           as JSON
@@ -32,8 +33,8 @@ type LoggerMonad m = (MonadIO m, MonadSh m, MonadShControl m, MonadGetters '[Opt
 
 logFilePath :: LoggerMonad m => m FilePath
 logFilePath = do
-    tmpDir <- System.getTmpPath
-    return $ tmpDir </> "luna-manager.log"
+    tmpDir <- liftIO $ SystemDirectory.getTemporaryDirectory
+    return $ (decodeString tmpDir) </> "luna-manager.log"
 
 logToStdout :: Text -> IO ()
 logToStdout msg = do
