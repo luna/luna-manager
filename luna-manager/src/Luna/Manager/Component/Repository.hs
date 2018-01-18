@@ -250,6 +250,6 @@ getRepo = gets @RepoConfig repoPath >>= downloadRepo >>= parseConfig
 -- === Instances === --
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig RepoConfig sys arch m where
-    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://10.62.1.34:8000/config.yaml"
+    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://packages.luna-lang.org/config.yaml"
                                             , _cachedRepo = Nothing
                                             }
