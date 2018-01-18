@@ -256,9 +256,9 @@ linkingLocalBin currentBin appName = do
     case currentHost of
         Windows -> exportPathWindows currentBin
         _       -> do
-            localBin <- expand $ (installConfig ^. localBinPath) </> convert appName
-            linking currentBin localBin
-            exportPathUnix =<< expand (installConfig ^. localBinPath)
+            localBin <- expand (installConfig ^. localBinPath)
+            linking currentBin $ localBin </> convert appName
+            exportPathUnix localBin
 
 -- === Windows specific === --
 
