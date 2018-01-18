@@ -1,12 +1,14 @@
 module Luna.Manager.Logger where
 
-import           Prologue                     hiding (FilePath)
+import           Prologue                     hiding (FilePath, log)
+import           Control.Monad.Raise
 import           Control.Monad.State.Layered
-import           Data.Text                    (Text)
+import           Data.Text                    (Text, pack)
 import qualified Data.Text.IO                 as Text
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), decodeString)
 import           Shelly.Lifted                (MonadSh, MonadShControl)
 import qualified Shelly.Lifted                as Sh
+import           System.Directory             (getAppUserDataDirectory)
 import           System.IO                    (hFlush, stdout)
 import qualified System.Directory     as SystemDirectory
 
@@ -33,8 +35,9 @@ type LoggerMonad m = (MonadIO m, MonadSh m, MonadShControl m, MonadGetters '[Opt
 
 logFilePath :: LoggerMonad m => m FilePath
 logFilePath = do
-    tmpDir <- liftIO $ SystemDirectory.getTemporaryDirectory
-    return $ (decodeString tmpDir) </> "luna-manager.log"
+    tmpDir <- decodeString <$> (liftIO $ getAppUserDataDirectory "luna_manager")
+    Sh.mkdir_p tmpDir
+    return $ tmpDir </> "luna-manager.log"
 
 logToStdout :: Text -> IO ()
 logToStdout msg = do
@@ -55,7 +58,8 @@ log msg = do
     opts <- view globals <$> get @Options
     let verb = opts ^. verbose
         gui  = opts ^. guiInstaller
-    if verb && (not gui) then liftIO $ logToStdout msg else logToTmpFile msg
+        msg' = msg <> "\n"
+    if verb && (not gui) then liftIO $ logToStdout msg' else logToTmpFile msg'
 
 logToJSON :: MonadIO m => Text -> m ()
 logToJSON = liftIO . print . encode . WarningMessage
@@ -69,3 +73,13 @@ warning msg = do
     if   gui     then logToJSON m
     else if verb then liftIO $ logToStdout m
     else              logToTmpFile m
+
+exception :: (LoggerMonad m, Show e) => Text -> e -> m ()
+exception funName exc = log $ "[Exception in " <> funName <> "] " <> (pack $ show exc)
+
+logObject :: (LoggerMonad m, Show a) => Text -> a -> m ()
+logObject name obj = log $ name <> ": " <> (pack $ show obj)
+
+tryJustWithLog :: (LoggerMonad m, Show e, MonadException e m) => Text -> e -> Maybe a -> m a
+tryJustWithLog funName e (Just x) = return x
+tryJustWithLog funName e Nothing  = exception funName e >> raise e

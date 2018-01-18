@@ -128,7 +128,6 @@ instance Exception UnresolvedDepsError where
 
 type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m)
 
-
 -- === Utils === --
 
 mkSystemPkgName :: Text -> Text
@@ -398,16 +397,25 @@ run opts = do
 
         let install = JSON.decode $ BSL.fromStrict options :: Maybe Initilize.Option
         forM_ install $ \(Initilize.Option (Initilize.Install appName appVersion emailM)) -> do
+            Logger.logObject "[run] appName"    appName
+            Logger.logObject "[run] appVersion" appVersion
             Analytics.mpRegisterUser userInfoPath $ fromMaybe "" emailM
             Analytics.mpTrackEvent "LunaInstaller.Started"
-            appPkg           <- tryJust undefinedPackageError $ Map.lookup appName (repo ^. packages)
-            evaluatedVersion <- tryJust (toException $ VersionException $ convert $ show appVersion) $ Map.lookup appVersion $ appPkg ^. versions --tryJust missingPackageDescriptionError $ Map.lookup currentSysDesc $ snd $ Map.lookup appVersion $ appPkg ^. versions
-            appDesc          <- tryJust (toException $ MissingPackageDescriptionError appVersion) $ Map.lookup currentSysDesc evaluatedVersion
+            appPkg           <- Logger.tryJustWithLog "Install.run" undefinedPackageError $ Map.lookup appName (repo ^. packages)
+            Logger.logObject "[run] App package" appPkg
+            evaluatedVersion <- Logger.tryJustWithLog "Install.run" (toException $ VersionException $ convert $ show appVersion) $ Map.lookup appVersion $ appPkg ^. versions --tryJust missingPackageDescriptionError $ Map.lookup currentSysDesc $ snd $ Map.lookup appVersion $ appPkg ^. versions
+            Logger.logObject "[run] evaluated version" evaluatedVersion
+            appDesc          <- Logger.tryJustWithLog "Install.run" (toException $ MissingPackageDescriptionError appVersion) $ Map.lookup currentSysDesc evaluatedVersion
+            Logger.logObject "[run] app description" appDesc
             let (unresolvedLibs, pkgsToInstall) = Repo.resolve repo appDesc
-            when (not $ null unresolvedLibs) . raise' $ UnresolvedDepsError unresolvedLibs
+            when (not $ null unresolvedLibs) $ do
+                let e = UnresolvedDepsError unresolvedLibs
+                Logger.exception "Install.run" $ toException e
+                raise' e
             let appsToInstall = filter (( <$> (^. header . name)) (`elem` (repo ^.apps))) pkgsToInstall
                 resolvedApp   = ResolvedPackage (PackageHeader appName appVersion) appDesc (appPkg ^. appType)
                 allApps       = resolvedApp : appsToInstall
+            Logger.logObject "[run] allApps" allApps
 
             mapM_ (installApp opts) $ allApps
             print $ encode $ InstallationProgress 1

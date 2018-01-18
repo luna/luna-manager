@@ -105,24 +105,22 @@ resolve repo pkg = (errs <> subErrs, oks <> subOks) where
     subErrs      = concat $ fst <$> subRes
     subOks       = concat $ snd <$> subRes
 
-versionsMap :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m VersionMap
+versionsMap :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> Text -> m VersionMap
 versionsMap repo appName = do
-    appPkg <- tryJust unresolvedDepError $ Map.lookup appName $ repo ^. packages
+    appPkg <- Logger.tryJustWithLog "Repo.versionsMap" unresolvedDepError $ Map.lookup appName $ repo ^. packages
     return $ appPkg ^. versions
 
-getFullVersionsList :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
+getFullVersionsList :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
 getFullVersionsList repo appName = do
     vmap <- versionsMap repo appName
     return $ reverse . sort . Map.keys $ vmap
 
-getVersionsList :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m [Version]
+getVersionsList :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m [Version]
 getVersionsList repo appName = do
     vmap <- versionsMap repo appName
-    Logger.log "vmap"
-    Logger.log . convert $ show vmap
+    Logger.logObject "[getVersionsList] vmap" vmap
     let filteredVmap = Map.filter (Map.member currentSysDesc) vmap
-    Logger.log "filteredVmap"
-    Logger.log . convert $ show filteredVmap
+    Logger.logObject "[getVersionsList] filteredVmap" filteredVmap
     return $ reverse . sort . Map.keys $ filteredVmap
 
 -- Gets versions grouped by type (dev, nightly, release)
@@ -138,28 +136,24 @@ getGroupedVersionsList repo appName = do
 
 resolvePackageApp :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m ResolvedApplication
 resolvePackageApp repo appName = do
-    appPkg       <- tryJust undefinedPackageError $ Map.lookup appName (repo ^. packages)
+    appPkg       <- Logger.tryJustWithLog "Repo.resolvePackageApp" undefinedPackageError $ Map.lookup appName (repo ^. packages)
     versionsList <- getVersionsList repo appName
-    Logger.log "versionsList"
-    Logger.log . convert $ show versionsList
+    Logger.logObject "[resolvePackageApp] versionsList" versionsList
     let version         = head versionsList
         applicationType = appPkg ^. appType
-    Logger.log "version"
-    Logger.log . convert $ show version
-    desc <- tryJust (toException UnresolvedDepError) $ Map.lookup version $ appPkg ^. versions
-    Logger.log "desc"
-    Logger.log . convert $ show desc
-    appDesc <- tryJust (toException $ MissingPackageDescriptionError version) $ Map.lookup currentSysDesc desc
-    Logger.log "appDesc"
-    Logger.log . convert $ show appDesc
+    Logger.logObject "[resolvePackageApp] version" version
+    desc <- Logger.tryJustWithLog "Repo.resolvePackageApp" (toException UnresolvedDepError) $ Map.lookup version $ appPkg ^. versions
+    Logger.logObject "[resolvePackageApp] desc" desc
+    appDesc <- Logger.tryJustWithLog "Repo.resolvePackageApp" (toException $ MissingPackageDescriptionError version) $ Map.lookup currentSysDesc desc
+    Logger.logObject "[resolvePackageApp] appDesc" appDesc
     return $ ResolvedApplication (ResolvedPackage (PackageHeader appName version) appDesc applicationType) (snd $ resolve repo appDesc)
 
-getSynopis :: (MonadIO m, MonadException SomeException m) => Repo -> Text -> m Text
+getSynopis :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> Text -> m Text
 getSynopis repo appName = do
-    appPkg <- tryJust undefinedPackageError $ Map.lookup appName (repo ^. packages)
+    appPkg <- Logger.tryJustWithLog "Repo.getSynopsis" undefinedPackageError $ Map.lookup appName (repo ^. packages)
     return $ appPkg ^. synopsis
 
-generatePackage :: (MonadIO m, MonadException SomeException m) => Repo -> Maybe FilePath -> ResolvedPackage -> m (Text, Package)
+generatePackage :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> Maybe FilePath -> ResolvedPackage -> m (Text, Package)
 generatePackage repo repoPath resPkg = do
     let pkgName = resPkg ^. header . name
     pkgSynopsis <- getSynopis repo pkgName
@@ -178,7 +172,7 @@ addPackageToMap pkgMap pkg = Map.insert (fst pkg) (snd pkg) pkgMap
 emptyMapPkgs :: Map Text Package
 emptyMapPkgs = Map.empty
 
-generateYaml :: (MonadIO m, MonadException SomeException m) => Repo -> ResolvedApplication -> FilePath -> m ()
+generateYaml :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> ResolvedApplication -> FilePath -> m ()
 generateYaml repo resolvedApplication filePath = do
     let appName = resolvedApplication ^. resolvedApp . header . name
     pkg <- generatePackage repo (Just ".") $ resolvedApplication ^. resolvedApp
@@ -250,6 +244,6 @@ getRepo = gets @RepoConfig repoPath >>= downloadRepo >>= parseConfig
 -- === Instances === --
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig RepoConfig sys arch m where
-    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://10.62.1.34:8000/config.yaml"
+    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://localhost:8000/config.yaml"
                                             , _cachedRepo = Nothing
                                             }
