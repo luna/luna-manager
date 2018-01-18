@@ -113,7 +113,7 @@ exportPathUnix pathToExport = do
         Logger.warning $ convert $ encodeString pathToExport <> " is not a directory, exporting " <> encodeString parentDir <> " instead"
         return parentDir
     file               <- getShExportFile
-    let pathToExportText = convert $ encodeString properPathToExport
+    let pathToExportText = Shelly.toTextIgnore properPathToExport
         exportToAppend   = Text.concat ["\nexport PATH=", pathToExportText, ":$PATH\n"]
         warn             = Logger.warning "Unable to export Luna path. Please add ~/.local/bin to your PATH"
     case file of
