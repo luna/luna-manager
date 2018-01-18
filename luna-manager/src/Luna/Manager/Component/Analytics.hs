@@ -195,8 +195,11 @@ processUserEmail userInfoPath email = do
     Shelly.mkdir_p $ FilePath.parent userInfoPath
     Logger.log "Touching the user info file"
     Shelly.touchfile userInfoPath
+    Logger.log "Encoding the path to info"
+    let p = FilePath.encodeString userInfoPath
     Logger.log "Writing to the file"
-    liftIO $ strictWrite userInfoPath info
+    liftIO $ BSL.writeFile p $ JSON.encode info
+    Logger.log "Returning the info"
     return info
 
 
@@ -238,8 +241,11 @@ mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath)
                               , _did = uuid
                               , _set = userData
                               }
+    Logger.log "Putting user data to the state"
     put @MPUserData userData
+    Logger.log "Sending MP request"
     sendMpRequest userUpdateEndpoint mpData
+    Logger.log "Done sending the request"
     return ()
 
 -- Send a single event to Mixpanel.

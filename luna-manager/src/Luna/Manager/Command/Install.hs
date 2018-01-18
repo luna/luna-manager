@@ -110,7 +110,7 @@ instance Monad m => MonadHostConfig InstallConfig 'Darwin arch m where
 
 instance Monad m => MonadHostConfig InstallConfig 'Windows arch m where
     defaultHostConfig = reconfig <$> defaultHostConfigFor @Linux where
-        reconfig cfg = cfg & defaultBinPathGuiApp   .~ "C:\\Program Files"
+        reconfig cfg = cfg & defaultBinPathGuiApp .~ "C:\\Program Files"
 
 
 
