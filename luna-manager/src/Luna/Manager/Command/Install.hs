@@ -200,9 +200,6 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
              Shelly.mkdir_p installPath
              Shelly.mv unpacked $ installPath </> convert appName
          _  -> Shelly.mv unpacked  installPath
-    -- Shelly.rm_rf tmp -- FIXME[WD -> SB]: I commented it out, we use downloadWithProgressBar now which automatically downloads to tmp.
-                        --                  However, manuall tmp removing is error prone! Create a wrapper like `withTmp $ \tmp -> downloadWithProgressBarTo pkgPath tmp; ...`
-                        --                  which automatically removes tmp on the end!
 
 linkingCurrent :: MonadInstall m => AppType -> FilePath -> m ()
 linkingCurrent appType installPath = do
