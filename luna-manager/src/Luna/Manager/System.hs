@@ -15,7 +15,7 @@ import           Data.List.Split              (splitOn)
 import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text                    as Text
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, toText, parent)
-import           System.Directory             (executable, setPermissions, getPermissions, doesPathExist, getHomeDirectory)
+import           System.Directory             (executable, setPermissions, getPermissions, doesDirectoryExist, doesPathExist, getHomeDirectory)
 import qualified System.Environment           as Environment
 import           System.Exit
 import qualified System.FilePath              as Path
@@ -104,11 +104,16 @@ getShExportFile = do
     checkedFiles <- mapM runControlCheck files
     return $ listToMaybe $ catMaybes checkedFiles
 
---TODO wyextrachowac wspolna logike dla poszczególnych terminali
+--TODO extract common logic for all unix terminals
 exportPathUnix :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
 exportPathUnix pathToExport = do
-    file <- getShExportFile
-    let pathToExportText = convert $ encodeString pathToExport
+    pathIsDirectory    <- liftIO $ doesDirectoryExist $ encodeString pathToExport
+    properPathToExport <- if pathIsDirectory then return pathToExport else do
+        let parentDir = parent pathToExport
+        Logger.warning $ convert $ encodeString pathToExport <> " is not a directory, exporting " <> encodeString parentDir <> " instead"
+        return parentDir
+    file               <- getShExportFile
+    let pathToExportText = convert $ encodeString properPathToExport
         exportToAppend   = Text.concat ["\nexport PATH=", pathToExportText, ":$PATH\n"]
         warn             = Logger.warning "Unable to export Luna path. Please add ~/.local/bin to your PATH"
     case file of

@@ -51,20 +51,6 @@ import Data.Aeson (ToJSON, toJSON, toEncoding, encode)
 
 default(Text.Text)
 
--- FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME FIXME
--- FIXME: Remove it as fast as we upload config yaml to the server
--- hardcodedRepo :: Repo
--- hardcodedRepo = Repo defpkgs ["studio"] where
---     defpkgs = mempty & at "lib1"         .~ Just (Package "lib1 synopsis"     $ fromList [ (Version 1 0 0 Nothing      , fromList [(SysDesc Linux X64, PackageDesc mempty "path")] )])
---                      & at "luna-studio"  .~ Just (Package "studio synopsis"   $ fromList [ (Version 1 0 0 (Just $ RC 5), fromList [(SysDesc Linux X64, PackageDesc [PackageHeader "lib1" (Version 1 0 0 Nothing)] "path")] )
---                                                                                          , (Version 1 0 0 (Just $ RC 6), fromList [(SysDesc Linux X64, PackageDesc [PackageHeader "lib1" (Version 1 0 0 Nothing)] "path")] )
---                                                                                          , (Version 1 1 0 Nothing      , fromList [(SysDesc Linux X64, PackageDesc [PackageHeader "lib1" (Version 1 0 0 Nothing)] "path")] )
---                                                                                          ])
---
---                      & at "luna"         .~ Just (Package "compiler synopsis" $ fromList [(Version 1 0 0 (Just $ RC 5), fromList [(SysDesc Linux X64, PackageDesc [PackageHeader "lib1" (Version 1 0 0 (Just $ RC 5))] "path")] )])
---                      & at "luna-manager" .~ Just (Package "manager synopsis"  $ fromList [(Version 1 0 0 (Just $ RC 5), fromList [(SysDesc Linux X64, PackageDesc [PackageHeader "lib1" (Version 1 0 0 (Just $ RC 5))] "path")] )])
-
-
 
 ---------------------------------
 -- === Installation config === --
@@ -272,7 +258,7 @@ linkingLocalBin currentBin appName = do
         _       -> do
             localBin <- expand $ (installConfig ^. localBinPath) </> convert appName
             linking currentBin localBin
-            exportPathUnix localBin
+            exportPathUnix =<< expand (installConfig ^. localBinPath)
 
 -- === Windows specific === --
 
