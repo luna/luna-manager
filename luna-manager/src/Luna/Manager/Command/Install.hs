@@ -279,9 +279,6 @@ runServices installPath appType appName version = when (currentHost == Windows &
     logs <- expand $ (installConfig ^. defaultConfPath) </> (installConfig ^. logsFolder) </> fromText appName </> (fromText $ showPretty version)
     runServicesWindows services logs
 
--- whenHost :: MonadInstall m => forall system a. m a -> m ()
--- whenHost f = when (currentHost == fromType @a) (void f) --TODO : use for matching on single host + refactor -> mv function to utils
-
 copyDllFilesOnWindows :: MonadInstall m => FilePath -> m ()
 copyDllFilesOnWindows installPath = when (currentHost == Windows) $ do
     installConfig <- get @InstallConfig
@@ -365,9 +362,6 @@ installApp' binPath package = do
 data VersionException = VersionException Text  deriving (Show)
 instance Exception VersionException where
     displayException (VersionException v ) = "Unknown version: " <> show v
-
--- versionError :: SomeException
--- versionError = toException VersionException
 
 readVersion :: (MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> m Version
 readVersion v = case readPretty v of

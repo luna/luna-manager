@@ -105,7 +105,7 @@ directProgressLogger progressFieldName totalProgress actualProgress = do
         Right x -> do
             let progress =  (fst x) * totalProgress
             print $ "{\"" <> (convert progressFieldName) <> "\":\"" <> (show progress) <> "\"}"
-        Left err -> raise' ProgressException --TODO czy nie powinien tu być jednak unpacking exception??
+        Left err -> raise' ProgressException
 
 unpackTarGzUnix :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 unpackTarGzUnix totalProgress progressFieldName file = do
@@ -121,22 +121,19 @@ unpackTarGzUnix totalProgress progressFieldName file = do
                 Right x -> do
                     currentUnpackingFileNumber <- liftIO $ newIORef 0
                     Shelly.log_stderr_with (countingFilesLogger progressFieldName totalProgress currentUnpackingFileNumber $ fst x)
-                                         $ Shelly.cmd "tar" "-xvpzf" (Shelly.toTextIgnore file) "--strip=1" "-C" (Shelly.toTextIgnore name)-- (\stdout -> liftIO $ hGetContents stdout >> print "33")
+                                         $ Shelly.cmd "tar" "-xvpzf" (Shelly.toTextIgnore file) "--strip=1" "-C" (Shelly.toTextIgnore name)
                 Left err -> throwM (UnpackingException (Shelly.toTextIgnore file) (toException $ Exception.StringException err callStack ))
         else (Shelly.switchVerbosity $ Shelly.cmd  "tar" "-xpzf" file "--strip=1" "-C" name) `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore file) $ toException err))
         listed <- Shelly.ls $ dir </> name
         if length listed == 1 then return $ head listed else return $ dir </> name
-        -- return $ dir </> name
 
 -- TODO: download unzipper if missing
 unzipFileWindows :: UnpackContext m => FilePath -> m FilePath
 unzipFileWindows zipFile = do
     let scriptPath = "http://packages.luna-lang.org/windows/j_unzip.vbs"
-    --sprawdź czy jest na dysku, shelly.find, skrypt i plik musza byc w tym samym directory
     script       <- downloadFromURL scriptPath "Downloading archiving tool"
     let dir = directory zipFile
         name = dir </> basename zipFile
-    -- Shelly.shelly $ Shelly.cp script dir
     Shelly.switchVerbosity $ do
       Shelly.chdir dir $ do
           Shelly.mkdir_p name
@@ -152,7 +149,6 @@ unzipFileWindows zipFile = do
 untarWin :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 untarWin totalProgress progressFieldName zipFile = do
     let scriptPath = "http://packages.luna-lang.org/windows/tar2.exe"
-    --sprawdź czy jest na dysku, shelly.find, skrypt i plik musza byc w tym samym directory
 
     guiInstaller <- Opts.guiInstallerOpt
     script       <- downloadFromURL scriptPath "Downloading archiving tool"
