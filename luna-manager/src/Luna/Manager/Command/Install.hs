@@ -458,8 +458,4 @@ run opts = do
                 allApps = resolvedApp : appsToInstall
             mapM_ (installApp opts) $ allApps
 
-    -- print $ "TODO: Install the libs (each with separate progress bar): " <> show pkgsToInstall -- w ogóle nie supportujemy przeciez instalowania osobnych komponentów i libów
-    -- print $ "TODO: Add new exports to bashRC if not already present"
     -- print $ "TODO: IMPORTANT: be sure that installation of manager updates the manager in-place"
-    -- TODO: powinnismy zrobic funckje "installPackage" i przemapowac ja przez app i pkgsToInstall
-    --       i to powinien byc koniec "instalacji" - potem jeszcze dopisywanie do shelli sciezek etc
