@@ -16,7 +16,7 @@ import qualified Luna.Manager.Shell.Shelly as Shelly
 import qualified Luna.Manager.Archive      as Archive
 
 import Luna.Manager.Component.Repository
-import Luna.Manager.Command.CreatePackage --(downloadAndUnpackDependency, PackageConfig)
+import Luna.Manager.Command.CreatePackage
 import Luna.Manager.Component.Version
 import Luna.Manager.System.Host
 import Luna.Manager.System.Path (expand)
@@ -24,14 +24,6 @@ import Control.Monad.Trans.Resource ( MonadBaseControl)
 
 import qualified Data.Text as T
 default (T.Text)
-
--- hardcodedRepo :: Repo
--- hardcodedRepo = Repo defpkgs ["studio"] where
---     defpkgs = mempty & at "lib1"         .~ Just (Package "lib1 synopsis"   BatchApp $ fromList [ (Version 1 0 0 Nothing      , fromList [(SysDesc Linux X64, PackageDesc mempty "path")] )])
---                      & at "luna-studio"  .~ Just (Package "studio synopsis" GuiApp $ fromList [ (Version 1 0 0 (Just $ RC 5), fromList [(SysDesc Linux X64, PackageDesc [PackageHeader "lib1" (Version 1 0 0 Nothing)] "path")] )
---                                                                                          , (Version 1 0 0 (Just $ RC 6), fromList [(SysDesc Linux X64, PackageDesc [PackageHeader "lib1" (Version 1 0 0 Nothing)] "path")] )
---                                                                                          , (Version 1 1 0 Nothing      , fromList [(SysDesc Linux X64, PackageDesc [PackageHeader "lib1" (Version 1 0 0 Nothing)] "path")] )
---                                                                                          ])
 
 
 
@@ -49,7 +41,7 @@ type MonadDevelop m = (MonadGetter Options m, MonadStates '[EnvConfig, RepoConfi
 
 instance Monad m => MonadHostConfig DevelopConfig 'Linux arch m where
     defaultHostConfig = return $ DevelopConfig
-        { _stackPath      = "https://github.com/commercialhaskell/stack/releases/download/v1.5.1/stack-1.5.1-linux-x86_64-static.tar.gz"
+        { _stackPath      = "https://github.com/commercialhaskell/stack/releases/download/v1.6.3/stack-1.6.3-linux-x86_64-static.tar.gz"
         , _devPath        = "luna-develop"
         , _appsPath       = "apps"
         , _toolsPath      = "tools"
@@ -59,7 +51,7 @@ instance Monad m => MonadHostConfig DevelopConfig 'Linux arch m where
 
 instance Monad m => MonadHostConfig DevelopConfig 'Darwin arch m where
     defaultHostConfig = reconfig <$> defaultHostConfigFor @Linux where
-        reconfig cfg = cfg & stackPath .~ "https://github.com/commercialhaskell/stack/releases/download/v1.5.1/stack-1.5.1-osx-x86_64.tar.gz"
+        reconfig cfg = cfg & stackPath .~ "https://github.com/commercialhaskell/stack/releases/download/v1.6.3/stack-1.6.3-osx-x86_64.tar.gz"
 
 instance Monad m => MonadHostConfig DevelopConfig 'Windows arch m where
     defaultHostConfig = defaultHostConfigFor @Linux
@@ -129,12 +121,3 @@ run opts = do
         Shelly.run "stack" bootstrapStackArgs
         downloadDeps appName appPath
 
-
-
--- - luna-workspace
---   - apps
---     - luna
---     - luna-studio
---   - tools
---     - stack
---
