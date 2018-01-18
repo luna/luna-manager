@@ -174,7 +174,7 @@ untarWin totalProgress progressFieldName zipFile = do
         Logger.log "Running the download"
         if guiInstaller
             then Shelly.log_stdout_with (directProgressLogger progressFieldName totalProgress) $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name-- (\stdout -> liftIO $ hGetContents stdout >> print "33")
-            else Shelly.switchVerbosity $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
+            else Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
         Logger.log "Listing the dir"
         listed <- Shelly.ls $ dir </> name
         return $ if length listed == 1 then head listed else dir </> name
