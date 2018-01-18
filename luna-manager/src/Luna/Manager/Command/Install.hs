@@ -14,6 +14,7 @@ import Luna.Manager.Component.Pretty
 import Luna.Manager.Shell.Question
 import           Luna.Manager.Command.Options (Options, InstallOpts)
 import qualified Luna.Manager.Command.Options as Opts
+import qualified Luna.Manager.Logger          as Logger
 import Luna.Manager.System.Path
 import Luna.Manager.System (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows)
 
@@ -180,15 +181,16 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     stopServices installPath appType
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
+    Logger.log "pkg downloaded to unpack"
+    Logger.log $ toTextIgnore pkg
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
+    Logger.log "unpacked"
+    Logger.log $ toTextIgnore unpacked
     case currentHost of
          Linux   -> do
              Shelly.mkdir_p installPath
              Shelly.mv unpacked $ installPath </> convert appName
          _  -> Shelly.mv unpacked  installPath
-    -- Shelly.rm_rf tmp -- FIXME[WD -> SB]: I commented it out, we use downloadWithProgressBar now which automatically downloads to tmp.
-                        --                  However, manuall tmp removing is error prone! Create a wrapper like `withTmp $ \tmp -> downloadWithProgressBarTo pkgPath tmp; ...`
-                        --                  which automatically removes tmp on the end!
 
 linkingCurrent :: MonadInstall m => AppType -> FilePath -> m ()
 linkingCurrent appType installPath = do
@@ -279,9 +281,6 @@ runServices installPath appType appName version = when (currentHost == Windows &
     logs <- expand $ (installConfig ^. defaultConfPath) </> (installConfig ^. logsFolder) </> fromText appName </> (fromText $ showPretty version)
     runServicesWindows services logs
 
--- whenHost :: MonadInstall m => forall system a. m a -> m ()
--- whenHost f = when (currentHost == fromType @a) (void f) --TODO : use for matching on single host + refactor -> mv function to utils
-
 copyDllFilesOnWindows :: MonadInstall m => FilePath -> m ()
 copyDllFilesOnWindows installPath = when (currentHost == Windows) $ do
     installConfig <- get @InstallConfig
@@ -289,6 +288,7 @@ copyDllFilesOnWindows installPath = when (currentHost == Windows) $ do
         binsFolderPath = installPath </> (installConfig ^. privateBinPath)
     do
         listedLibs <- Shelly.ls libFolderPath
+        Logger.log $ "copy dll windows " <> (convert $ show binsFolderPath) <> " " <> (convert $ show listedLibs)
         mapM_ (`Shelly.mv` binsFolderPath) listedLibs
 
 copyWinSW :: MonadInstall m => FilePath -> m ()
@@ -296,6 +296,7 @@ copyWinSW installPath = when (currentHost == Windows) $ do
     installConfig <- get @InstallConfig
     let winSW = installPath </> (installConfig ^. thirdParty) </> fromText "WinSW.Net4.exe"
         winConfigFolderPath = installPath </> (installConfig ^. configPath) </> fromText "windows"
+    Logger.log $ "copy winsw " <> (convert $ show winSW) <> " " <> (convert $ show winConfigFolderPath)
     Shelly.mv winSW winConfigFolderPath
 
 prepareWindowsPkgForRunning :: MonadInstall m => FilePath -> m ()
@@ -311,10 +312,12 @@ copyUserConfig installPath package = do
         packageUserConfigPath = installPath </> "user-config"
     homeUserConfigPath <- expand $ (installConfig ^. defaultConfPath) </> (installConfig ^. configPath) </> convert pkgName </> convert pkgVersion
     userConfigExists   <- Shelly.test_d packageUserConfigPath
+    Logger.log $ "user config exist " <> (convert $ show userConfigExists)
     when userConfigExists $ do
         Shelly.rm_rf homeUserConfigPath
         Shelly.mkdir_p homeUserConfigPath
         listedPackageUserConfig <- Shelly.ls packageUserConfigPath
+        Logger.log $ "listedPackageUserConfig " <> (convert $ show listedPackageUserConfig)
         mapM_ (flip Shelly.cp_r homeUserConfigPath) $ map (packageUserConfigPath </>) listedPackageUserConfig
 
 -- === MacOS specific === --
@@ -333,7 +336,7 @@ askLocation opts appType appName = do
             BatchApp -> installConfig ^. defaultBinPathBatchApp
     binPath <- askOrUse (opts ^. Opts.selectedInstallationPath)
         $ question ("Select installation path for " <> appName) plainTextReader
-        & defArg .~ Just (toTextIgnore pkgInstallDefPath) --TODO uzyć toText i złapać tryRight'
+        & defArg .~ Just (toTextIgnore pkgInstallDefPath) 
     return binPath
 
 installApp :: MonadInstall m => InstallOpts -> ResolvedPackage -> m ()
