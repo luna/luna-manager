@@ -347,7 +347,7 @@ askLocation opts appType appName = do
             BatchApp -> installConfig ^. defaultBinPathBatchApp
     binPath <- askOrUse (opts ^. Opts.selectedInstallationPath)
         $ question ("Select installation path for " <> appName) plainTextReader
-        & defArg .~ Just (toTextIgnore pkgInstallDefPath) --TODO uzyć toText i złapać tryRight'
+        & defArg .~ Just (toTextIgnore pkgInstallDefPath) 
     return binPath
 
 installApp :: MonadInstall m => InstallOpts -> ResolvedPackage -> m ()
