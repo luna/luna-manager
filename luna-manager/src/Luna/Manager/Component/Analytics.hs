@@ -39,6 +39,7 @@ import qualified System.IO                     as SIO
 import           Luna.Manager.Command.Options  (Options)
 import           Luna.Manager.Component.Pretty (showPretty)
 import qualified Luna.Manager.Logger           as Logger
+import           Luna.Manager.Logger           (LoggerMonad)
 import           Luna.Manager.Shell.Shelly     (MonadSh, MonadShControl)
 import qualified Luna.Manager.Shell.Shelly     as Shelly
 import           Luna.Manager.System.Host
@@ -170,24 +171,31 @@ strictWrite filePath s = do
     return ()
 
 -- Checks whether we already have the right user info saved in ~/.luna/user_info.json
-userInfoExists :: (MonadSh m, MonadIO m) => FilePath -> m Bool
+userInfoExists :: (LoggerMonad m, MonadSh m, MonadIO m) => FilePath -> m Bool
 userInfoExists userInfoPath = do
+    Logger.log "Analytics.userInfoExists"
     path <- expand userInfoPath
     fileExists <- Shelly.test_f path
     if not fileExists then return False
     else do
+        Logger.log "Reading from user_info"
         bytes <- liftIO $ BSL.readFile $ FilePath.encodeString path
+        Logger.log "Decoding JSON from user_info"
         let userInfoM = JSON.decode bytes :: Maybe MPUserData
             userInfo  = fromMaybe def userInfoM
         return . not . UUID.null $ userInfo ^. userInfoUUID
 
 -- Saves the email, along with some OS info, to a file user_info.json.
-processUserEmail :: (MonadSh m, MonadShControl m, MonadIO m, MonadBaseControl IO m) =>
+processUserEmail :: (LoggerMonad m, MonadSh m, MonadShControl m, MonadIO m, MonadBaseControl IO m) =>
                      FilePath -> Text -> m MPUserData
 processUserEmail userInfoPath email = do
+    Logger.log "Analytics.processUserEmail"
     info  <- userInfo email
+    Logger.log "Making the user info dir"
     Shelly.mkdir_p $ FilePath.parent userInfoPath
+    Logger.log "Touching the user info file"
     Shelly.touchfile userInfoPath
+    Logger.log "Writing to the file"
     liftIO $ strictWrite userInfoPath info
     return info
 
@@ -209,18 +217,20 @@ serialize :: ToJSON s => s -> ByteString
 serialize = Base64.encode . toStrict . JSON.encode
 
 -- Generic wrapper around Mixpanel requests.
-sendMpRequest :: (ToJSON s, MonadIO m, MonadThrow m) => String -> s -> m ()
+sendMpRequest :: (LoggerMonad m, ToJSON s, MonadIO m, MonadThrow m) => String -> s -> m ()
 sendMpRequest endpoint s = do
+    Logger.log "Analytics.sendMpRequest"
     let payload = serialize s
     request <- HTTP.setRequestQueryString [("data", Just payload)] <$>
                HTTP.parseRequest endpoint
     liftIO $ void $ HTTP.httpNoBody request
 
 -- Register a new user within Mixpanel.
-mpRegisterUser :: (MonadIO m, MonadSetter MPUserData m, MonadThrow m,
+mpRegisterUser :: (LoggerMonad m, MonadIO m, MonadSetter MPUserData m, MonadThrow m,
                    MonadShControl m, MonadSh m, MonadBaseControl IO m) =>
                    FilePath -> Text -> m ()
 mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath) $ do
+    Logger.log "Analytics.mpRegisterUser"
     path     <- expand userInfoPath
     userData <- processUserEmail path email
     let uuid   = UUID.toText $ userData ^. userInfoUUID
@@ -233,9 +243,10 @@ mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath)
     return ()
 
 -- Send a single event to Mixpanel.
-mpTrackEvent :: (MonadIO m, MonadGetters '[MPUserData, Options, EnvConfig] m,
+mpTrackEvent :: (LoggerMonad m, MonadIO m, MonadGetters '[MPUserData, Options, EnvConfig] m,
                  MonadThrow m, MonadSh m, MonadShControl m) => Text -> m ()
 mpTrackEvent eventName = do
+    Logger.log "Analytics.mpTrackEvent"
     uuid <- gets @MPUserData userInfoUUID
     let mpProps = MPEventProps { _token       = projectToken
                                , _distinct_id = UUID.toText uuid

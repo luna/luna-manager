@@ -124,12 +124,13 @@ exportPathUnix pathToExport = do
                 (liftIO $ appendFile path exportToAppend) `Shelly.catchany` (const warn)
         Nothing -> warn
 
-exportPathWindows :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
+exportPathWindows :: (LoggerMonad m, MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
 exportPathWindows path = do
+    Logger.log "System.exportPathWindows"
     (exitCode1, pathenv, err1) <- Process.readProcess $ "echo %PATH%"
     let pathToexport = Path.dropTrailingPathSeparator $ encodeString $ parent path 
         systemPath   = unpack pathenv
-    unless (isInfixOf pathToexport systemPath) $ do 
+    unless (isInfixOf pathToexport systemPath) $ do
         (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx PATH \"%PATH%;" ++ pathToexport ++ "\""
         unless (exitCode == ExitSuccess) $ Logger.warning $ "Path was not exported."
 
@@ -138,16 +139,18 @@ makeExecutable file = unless (currentHost == Windows) $ liftIO $ do
         p <- getPermissions $ encodeString file
         setPermissions (encodeString file) (p {executable = True})
 
-runServicesWindows :: (MonadSh m, MonadIO m, MonadShControl m) => FilePath -> FilePath -> m ()
+runServicesWindows :: (LoggerMonad m, MonadSh m, MonadIO m, MonadShControl m) => FilePath -> FilePath -> m ()
 runServicesWindows path logsPath = Shelly.chdir path $ do
+    Logger.log "System.runServicesWindows"
+    Logger.log "Making the logs dir"
     Shelly.mkdir_p logsPath
     let installPath = path </> Shelly.fromText "installAll.bat"
     Shelly.setenv "LUNA_STUDIO_LOG_PATH" $ Shelly.toTextIgnore logsPath
     Shelly.silently $ Shelly.cmd installPath --TODO create proper error
 
-stopServicesWindows :: MonadIO m => FilePath -> m ()
-stopServicesWindows path = Shelly.shelly $ Shelly.chdir path $ do
+stopServicesWindows :: (LoggerMonad m, MonadCatch m, MonadIO m) => FilePath -> m ()
+stopServicesWindows path = Shelly.chdir path $ do
         let uninstallPath = path </> Shelly.fromText "uninstallAll.bat"
         Shelly.silently $ Shelly.cmd uninstallPath `catch` handler where
-            handler :: MonadSh m => SomeException -> m ()
-            handler ex = return () -- Shelly.liftSh $ print ex --TODO create proper error
+            handler :: (LoggerMonad m, MonadSh m) => SomeException -> m ()
+            handler ex = Logger.exception "System.stopServicesWindows" ex -- Shelly.liftSh $ print ex --TODO create proper error
