@@ -9,14 +9,14 @@ Even though most of the users should simply use the graphical installer, for Lun
 ### Quick download
 
 The graphical installer can be downloaded using the following links:
-* Mac OS: http://packages.luna-lang.org/darwin/lunaInstaller.zip
-* Linux: http://packages.luna-lang.org/linux/lunaInstaller.zip
-* Windows: http://packages.luna-lang.org/windows/lunaInstaller.zip
+* Mac OS: https://s3-us-west-2.amazonaws.com/packages-luna/darwin/lunaInstaller.zip
+* Linux: https://s3-us-west-2.amazonaws.com/packages-luna/linux/lunaInstaller.zip
+* Windows: https://s3-us-west-2.amazonaws.com/packages-luna/windows/lunaInstaller.zip
 
 If you only need the command line installer, we are maintaining up-to-date prebuilt binaries for each system:
-* Mac OS: http://packages.luna-lang.org/darwin/lunaManager.zip
-* Linux: http://packages.luna-lang.org/linux/luna-manager
-* Windows: http://packages.luna-lang.org/windows/luna-manager.exe
+* Mac OS: https://s3-us-west-2.amazonaws.com/packages-luna/darwin/lunaManager.zip
+* Linux: https://s3-us-west-2.amazonaws.com/packages-luna/linux/luna-manager
+* Windows: https://s3-us-west-2.amazonaws.com/packages-luna/windows/luna-manager.exe
 
 ## Command reference
 
