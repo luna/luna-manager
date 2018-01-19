@@ -22,14 +22,10 @@ expand path = if null path
     else do
         Logger.log "Path.expand"
         Logger.logObject "Path" path
-        Logger.log "Splitting the dir"
         let dirs = Path.splitDirectories path
             fstEl = head dirs
-        Logger.log "Getting the home path"
         home <- getHomePath
-        Logger.log "Getting the current path"
         current <- getCurrentPath
-        Logger.log "encoding the string"
         case encodeString fstEl of
             "~/"   -> return $ Path.concat $ home : tail dirs
             "./"   -> return $ Path.concat $ current : tail dirs

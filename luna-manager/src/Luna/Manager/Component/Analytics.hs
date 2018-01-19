@@ -14,7 +14,7 @@ module Luna.Manager.Component.Analytics (
 
 import           Prologue                      hiding ((.=), FilePath)
 
-import           Control.Exception.Safe        (handleAny)
+import           Control.Exception.Safe        (handleAny, catchAnyDeep)
 import           Control.Lens.Aeson            (lensJSONToJSON, lensJSONToEncoding, lensJSONParse)
 import           Control.Monad.State.Layered   as SL
 import           Control.Monad.Trans.Resource  (MonadBaseControl)
@@ -124,14 +124,16 @@ stripVarName varName txt = fromMaybe "unknown" stripped
     where stripped = Text.filter (/= '"') <$> (Text.stripPrefix varName $ Text.strip txt)
 
 -- (linux) lookup a var in /etc/*-release files
-lookupSysVar :: (MonadShControl m, MonadSh m) => Text -> m Text
+lookupSysVar :: LoggerMonad m => Text -> m Text
 lookupSysVar varName = do
+    Logger.log "Analytics.lookupSysVar"
     let awkClause = "'/^" <> varName <> "=/'"
     line <- Shelly.escaping False $ Shelly.cmd "awk" awkClause "/etc/*-release"
     return $ stripVarName (varName <> "=") line
 
-osVersion :: (MonadShControl m, MonadSh m) => m Text
+osVersion :: LoggerMonad m => m Text
 osVersion = do
+    Logger.log "Analytics.osVersion"
     Shelly.silently $ case currentHost of
         Windows ->   Text.strip . (!! 1) . Text.splitOn ":" . head
                  .   filter ("OS Name" `Text.isPrefixOf`) . Text.lines
@@ -139,20 +141,24 @@ osVersion = do
         Linux   -> lookupSysVar "VERSION"
         Darwin  -> Text.strip <$> Shelly.cmd "sw_vers" "-productVersion"
 
-osDistro :: (MonadShControl m, MonadSh m) => m Text
+osDistro :: LoggerMonad m => m Text
 osDistro = Shelly.silently $ case currentHost of
         Windows -> return "N/A"
         Linux   -> lookupSysVar "NAME"
         Darwin  -> return "N/A"
 
 -- Gets basic info about the operating system the installer is running on.
-userInfo :: (MonadIO m, MonadBaseControl IO m, MonadSh m, MonadShControl m) =>
+userInfo :: (LoggerMonad m, MonadCatch m, MonadBaseControl IO m) =>
              Text -> m MPUserData
 userInfo email = do
-    let safeGet item = Shelly.catchany item (const $ return "unknown")
+    Logger.log "Analytics.userInfo"
+    let safeGet item = catchAnyDeep item (const $ return "unknown")
     uuid <- newUuid
+    Logger.logObject "uuid" uuid
     ver  <- safeGet osVersion
+    Logger.logObject "ver" ver
     dist <- safeGet osDistro
+    Logger.logObject "dist" dist
     return $ MPUserData { _userInfoUUID   = uuid
                         , _userInfoEmail  = email
                         , _userInfoOsType = currentHost
@@ -271,4 +277,6 @@ mpTrackEvent eventName = do
         mpData  = MPEvent  { _event      = eventName
                            , _properties = mpProps
                            }
+    Logger.log "Sending MP request"
     sendMpRequest eventEndpoint mpData
+    Logger.log "Done sending MP request"
