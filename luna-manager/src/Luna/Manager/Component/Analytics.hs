@@ -14,6 +14,7 @@ module Luna.Manager.Component.Analytics (
 
 import           Prologue                      hiding ((.=), FilePath)
 
+import           Control.Exception.Safe        (handleAny)
 import           Control.Lens.Aeson            (lensJSONToJSON, lensJSONToEncoding, lensJSONParse)
 import           Control.Monad.State.Layered   as SL
 import           Control.Monad.Trans.Resource  (MonadBaseControl)
@@ -186,21 +187,31 @@ userInfoExists userInfoPath = do
         return . not . UUID.null $ userInfo ^. userInfoUUID
 
 -- Saves the email, along with some OS info, to a file user_info.json.
-processUserEmail :: (LoggerMonad m, MonadSh m, MonadShControl m, MonadIO m, MonadBaseControl IO m) =>
+processUserEmail :: (LoggerMonad m, MonadSh m, MonadShControl m, MonadIO m, MonadBaseControl IO m, MonadCatch m) =>
                      FilePath -> Text -> m MPUserData
 processUserEmail userInfoPath email = do
-    Logger.log "Analytics.processUserEmail"
-    info  <- userInfo email
-    Logger.log "Making the user info dir"
-    Shelly.mkdir_p $ FilePath.parent userInfoPath
-    Logger.log "Touching the user info file"
-    Shelly.touchfile userInfoPath
-    Logger.log "Encoding the path to info"
-    let p = FilePath.encodeString userInfoPath
-    Logger.log "Writing to the file"
-    liftIO $ BSL.writeFile p $ JSON.encode info
-    Logger.log "Returning the info"
-    return info
+    let handler = \(e::SomeException) -> do
+            Logger.log $ convert $  "Caught exception: " <> displayException e
+            Logger.log "Returning empty data"
+            return def
+    handleAny handler $ do
+        Logger.log "Analytics.processUserEmail"
+        info  <- userInfo email
+        Logger.log $ convert $ show info
+        Logger.log "Making the user info dir"
+        Shelly.mkdir_p $ FilePath.parent userInfoPath
+        Logger.log "Touching the user info file"
+        Shelly.touchfile userInfoPath
+        Logger.log "Encoding the path to info"
+        let p = FilePath.encodeString userInfoPath
+        Logger.log $ convert p
+        Logger.log "Encoding info"
+        let i = JSON.encode info
+        Logger.log $ convert $ show i
+        Logger.log "Writing to the file"
+        liftIO $ BSL.writeFile p i
+        Logger.log "Returning the info"
+        return info
 
 
 -----------------------------------------------------------------
@@ -230,7 +241,7 @@ sendMpRequest endpoint s = do
 
 -- Register a new user within Mixpanel.
 mpRegisterUser :: (LoggerMonad m, MonadIO m, MonadSetter MPUserData m, MonadThrow m,
-                   MonadShControl m, MonadSh m, MonadBaseControl IO m) =>
+                   MonadShControl m, MonadSh m, MonadBaseControl IO m, MonadCatch m) =>
                    FilePath -> Text -> m ()
 mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath) $ do
     Logger.log "Analytics.mpRegisterUser"
