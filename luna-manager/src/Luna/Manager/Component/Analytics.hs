@@ -35,6 +35,7 @@ import qualified Data.UUID.V4                  as UUID
 import           Filesystem.Path.CurrentOS     (FilePath)
 import qualified Filesystem.Path.CurrentOS     as FilePath
 import qualified Network.HTTP.Simple           as HTTP
+import           Safe                          (atMay, headMay)
 import qualified System.IO                     as SIO
 
 import           Luna.Manager.Command.Options  (Options)
@@ -131,13 +132,17 @@ lookupSysVar varName = do
     line <- Shelly.escaping False $ Shelly.cmd "awk" awkClause "/etc/*-release"
     return $ stripVarName (varName <> "=") line
 
+extractWindowsVersion :: Text -> Maybe Text
+extractWindowsVersion systemInfo = Text.strip <$> version
+    where filtered  = filter ("OS Name" `Text.isPrefixOf`) $ Text.lines systemInfo
+          firstLine = Text.splitOn ":" <$> headMay filtered
+          version   = firstLine >>= flip atMay 1
+
 osVersion :: LoggerMonad m => m Text
 osVersion = do
     Logger.log "Analytics.osVersion"
     Shelly.silently $ case currentHost of
-        Windows ->   Text.strip . (!! 1) . Text.splitOn ":" . head
-                 .   filter ("OS Name" `Text.isPrefixOf`) . Text.lines
-                 <$> Shelly.cmd "systeminfo"
+        Windows -> (fromMaybe "unknown" . extractWindowsVersion) <$> Shelly.cmd "systeminfo"
         Linux   -> lookupSysVar "VERSION"
         Darwin  -> Text.strip <$> Shelly.cmd "sw_vers" "-productVersion"
 

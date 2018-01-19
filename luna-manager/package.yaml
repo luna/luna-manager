@@ -34,7 +34,7 @@ dependencies:
   - typelevel
   - signal
   - monad-control
-
+  - safe
   - lens-utils
   - constraints
   - transformers
