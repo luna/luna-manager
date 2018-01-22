@@ -132,7 +132,7 @@ checkAppImageName appName filePath = do
     let fileName      = filename filePath
         outFolderPath = parent $ filePath
     when (Text.isInfixOf appName (Shelly.toTextIgnore fileName)) $ do
-        Shelly.mv filePath $ outFolderPath </> convert (appName <> ".AppImage")
+        Shelly.mv filePath $ outFolderPath </> convert (appName <> "-" <> showPretty currentHost <> ".AppImage")
 
 changeAppImageName :: MonadCreatePackage m => Text -> FilePath -> m ()
 changeAppImageName appName outFolderPath = do
@@ -365,9 +365,9 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     when (currentHost == Darwin) $ Shelly.silently $ linkLibs binsFolder libsFolder
 
     case currentHost of
-        Linux   -> createAppimage appName $ appPath
-        Darwin  -> void $ createTarGzUnix mainAppDir appName
-        Windows -> void $ zipFileWindows mainAppDir appName
+        Linux   -> createAppimage appName appPath
+        Darwin  -> void . createTarGzUnix mainAppDir $ appName <> "-" <> showPretty currentHost
+        Windows -> void . zipFileWindows mainAppDir $ appName <> "-" <> showPretty currentHost
 
     unless buildHead $ Shelly.switchVerbosity $ Shelly.chdir appPath $ do
         Shelly.cmd "git" "checkout" currBranch
@@ -378,12 +378,12 @@ updateConfig config resolvedApplication =
         appDesc    = app ^. desc
         appHeader  = app ^. header
         appName    = appHeader ^. name
-        mainPackagePath = "https://d1uis3r8vv41jj.cloudfront.net/"
-        applicationPartPackagePath = appName <> "/" <> showPretty (view version appHeader) <> "/" <> appName
+        mainPackagePath = "https://github.com/luna/"
+        applicationPartPackagePath = appName <> "/releases/download/" <> showPretty (view version appHeader) <> "/" <> appName <> "-" <> showPretty currentHost
         s3Path = case currentHost of
-            Darwin  -> mainPackagePath <> "darwin/"  <> applicationPartPackagePath <> ".tar.gz"
-            Linux   -> mainPackagePath <> "linux/"   <> applicationPartPackagePath <> ".AppImage"
-            Windows -> mainPackagePath <> "windows/" <> applicationPartPackagePath <> ".tar.gz"
+            Darwin  -> mainPackagePath <> applicationPartPackagePath <> ".tar.gz"
+            Linux   -> mainPackagePath <> applicationPartPackagePath <> ".AppImage"
+            Windows -> mainPackagePath <> applicationPartPackagePath <> ".tar.gz"
         updatedConfig  = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ s3Path
         filteredConfig = updatedConfig & packages . ix appName . versions . ix (view version appHeader)  %~ Map.filterWithKey (\k _ -> k == currentSysDesc   )
     in filteredConfig
