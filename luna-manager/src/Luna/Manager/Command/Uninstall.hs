@@ -61,9 +61,10 @@ uninstallRunner opts = case currentHost of
     Windows -> return ()
     _       -> do
         let localBinPath = (opts ^. Install.localBinPath) </> Shelly.fromText "luna-studio"
+        expandedPath     <- expand localBinPath
         Logger.log "Removing symlink from ~/.local/bin"
-        Shelly.rm_rf localBinPath `Exception.catchAny` (\(e::SomeException) ->
-            Logger.warning $ "Removing symlink " <> Shelly.toTextIgnore localBinPath <> " failed "
+        Shelly.rm_rf expandedPath `Exception.catchAny` (\(e::SomeException) ->
+            Logger.warning $ "Removing symlink " <> Shelly.toTextIgnore expandedPath <> " failed "
                 <> "because of " <> convert (displayException e) <> ". Continuing...")
 
 uninstallLocalData :: MonadUninstall m => Install.InstallConfig -> m ()
