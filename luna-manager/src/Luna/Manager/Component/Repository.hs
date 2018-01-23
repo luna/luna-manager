@@ -180,7 +180,6 @@ generateYaml repo resolvedApplication filePath = do
 
     let defpkgs = foldl addPackageToMap emptyMapPkgs $ pkg : deps
     liftIO $ BS.writeFile (encodeString filePath) $ Yaml.encode $ Repo defpkgs [appName]
-    -- return ()
 
 repoUnion :: Repo -> Repo -> Repo
 repoUnion r1 r2 = r1 & packages .~ Map.unionWith packageUnion (r1 ^. packages) (r2 ^. packages) where

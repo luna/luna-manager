@@ -65,8 +65,6 @@ progress :: MonadIO m => Progress -> m ()
 progress (Progress completed total) = liftIO $ do
     print $ encode $ DownloadProgress pr
     liftIO $ hFlush stdout
-    -- cursorUpLine 1
-    -- clearLine
     where
         pr = fromIntegral completed / fromIntegral total
 

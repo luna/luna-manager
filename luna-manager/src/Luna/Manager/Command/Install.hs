@@ -402,9 +402,6 @@ data VersionException = VersionException Text  deriving (Show)
 instance Exception VersionException where
     displayException (VersionException v ) = "Unknown version: " <> show v
 
--- versionError :: SomeException
--- versionError = toException VersionException
-
 readVersion :: (MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> m Version
 readVersion v = case readPretty v of
     Left e  -> throwM $ VersionException v
