@@ -13,6 +13,10 @@ dependencies:
 compile:
     override:
         - stack install
+
+test:
+    override:
+        - echo "nothing to do"
         
 deploy:
     override:
