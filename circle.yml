@@ -13,12 +13,8 @@ dependencies:
 compile:
     override:
         - stack install
+        - cp executables $CIRCLE_ARTIFACTS
 
 test:
     override:
         - echo "nothing to do"
-        
-deploy:
-    override:
-        - cp executables $CIRCLE_ARTIFACTS
-        
