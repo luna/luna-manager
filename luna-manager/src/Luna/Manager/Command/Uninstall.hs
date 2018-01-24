@@ -5,7 +5,6 @@ module Luna.Manager.Command.Uninstall where
 import Prologue hiding (txt, FilePath, toText)
 
 import qualified Control.Exception.Safe       as Exception
-import           Control.Monad                (forM)
 import qualified Data.Text                    as Text
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), splitDirectories)
 import qualified System.Directory             as Dir
@@ -77,6 +76,9 @@ uninstallLocalData opts = do
         Logger.warning $ "Removing local config from " <> Shelly.toTextIgnore confPath <> " failed "
             <> "because of " <> convert (displayException e) <> ". Continuing...")
 
+createdByLunaStudio :: FilePath -> Bool
+createdByLunaStudio = ("LunaStudio" `Text.isInfixOf`) . Shelly.toTextIgnore . last . splitDirectories
+
 uninstallElectronCaches :: MonadUninstall m => m ()
 uninstallElectronCaches = when (currentHost /= Darwin) $ do
     baseDir <- Text.pack <$> case currentHost of
@@ -88,28 +90,38 @@ uninstallElectronCaches = when (currentHost /= Darwin) $ do
     --           than running Text.isInfixOf directly, but is more correct
     --           if e.g. username is LunaStudio - in that case, every path
     --           would be deleted
-    let lunaStudioPred = ("LunaStudio" `Text.isInfixOf`) . Shelly.toTextIgnore . last . splitDirectories
-        lunaStudioDirs = filter lunaStudioPred dirs
+    let lunaStudioDirs = filter createdByLunaStudio dirs
     Logger.log $ "Removing Electron caches from " <> baseDir
-    forM lunaStudioDirs $ \dir -> do
+    forM_ lunaStudioDirs $ \dir -> do
         Logger.log $ "    removing " <> Shelly.toTextIgnore dir
         Shelly.rm_rf dir `Exception.catchAny` (\(e::SomeException) ->
             Logger.warning $ "    removing " <> Shelly.toTextIgnore dir <> " failed "
             <> "because of " <> convert (displayException e) <> ". Continuing...")
 
 uninstallStartMenuEntry :: MonadUninstall m => m ()
-uninstallStartMenuEntry = when (currentHost == Windows) $ do
-    appdata <- Text.pack <$> liftIO (Dir.getAppUserDataDirectory "")
-    Logger.log "Removing Luna Studio shortcut in Start Menu"
-    let shortcut = Shelly.fromText appdata
-               </> "Microsoft"
-               </> "Windows"
-               </> "Start Menu"
-               </> "Programs"
-               </> "LunaStudio.lnk"
-    Shelly.rm_rf shortcut `Exception.catchAny` (\(e::SomeException) ->
-        Logger.warning $ "Removing Luna Studio shortcut in " <> Shelly.toTextIgnore shortcut <> " failed "
-        <> "because of " <> convert (displayException e) <> ". Continuing...")
+uninstallStartMenuEntry = case currentHost of
+    Windows ->  do
+        appdata <- Text.pack <$> liftIO (Dir.getAppUserDataDirectory "")
+        Logger.log "Removing Luna Studio shortcut in Start Menu"
+        let shortcut = Shelly.fromText appdata
+                   </> "Microsoft"
+                   </> "Windows"
+                   </> "Start Menu"
+                   </> "Programs"
+                   </> "LunaStudio.lnk"
+        Shelly.rm_rf shortcut `Exception.catchAny` (\(e::SomeException) ->
+            Logger.warning $ "Removing Luna Studio shortcut in " <> Shelly.toTextIgnore shortcut <> " failed "
+            <> "because of " <> convert (displayException e) <> ". Continuing...")
+    Linux -> do
+        let desktopFilesDir = "~/.local/share/applications"
+        desktops <- Shelly.ls desktopFilesDir
+        -- see a NOTE in uninstallElectronCaches
+        let lunaStudioFiles = filter createdByLunaStudio desktops
+        Logger.log "Removing Luna Studio .desktop files from ~/.local/share/applications"
+        forM_ lunaStudioFiles $ \desktop -> do
+            Shelly.rm_rf desktop `Exception.catchAny` (\(e::SomeException) ->
+                Logger.warning $ "Removing Luna Studio shortcut in " <> Shelly.toTextIgnore desktop <> " failed "
+                <> "because of " <> convert (displayException e) <> ". Continuing...")
 
 run :: MonadUninstall m => m ()
 run = do
