@@ -12,8 +12,8 @@ dependencies:
         
 compile:
     override:
-        - stack install
-        - cp executables $CIRCLE_ARTIFACTS
+        - stack install --ghc-options=-j2
+        - cp executables/luna-manager $CIRCLE_ARTIFACTS
 
 test:
     override:
