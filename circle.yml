@@ -1,6 +1,6 @@
 dependencies:
     pre:
-        - [ -f /usr/local/bin/stack] || curl -L https://github.com/commercialhaskell/stack/releases/download/v1.6.3/stack-1.6.3-linux-x86_64-static.tar.gz | sudo tar zx -C /usr/local/bin
+        - [ -f /usr/local/bin/stack ] || curl -L https://github.com/commercialhaskell/stack/releases/download/v1.6.3/stack-1.6.3-linux-x86_64-static.tar.gz | sudo tar zx -C /usr/local/bin
  
     override:
         - stack build --install-ghc --only-dependencies
