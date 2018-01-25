@@ -77,5 +77,4 @@ executables:
   luna-manager:
     main:          Main.hs
     source-dirs:   src
-    other-modules: Paths_luna_manager
     ghc-options: -threaded

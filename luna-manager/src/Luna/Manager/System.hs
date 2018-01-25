@@ -84,16 +84,6 @@ instance Exception UnrecognizedShellException where
 unrecognizedShellError :: SomeException
 unrecognizedShellError = toException UnrecognizedShellException
 
--- exportPath' :: (MonadIO m, LoggerMonad m) => FilePath -> m ()
--- exportPath' pathToExport = case currentHost of
---     Windows -> exportPathWindows pathToExport
---     _       -> exportPath (parent pathToExport)
-    -- | e == unrecognizedShellError  -> error "d"
-    -- | e == bashConfigNotFoundError -> error "x"
-    -- UnrecognizedShellException ->
-    -- `catches` [Handler (\ (ex :: UnrecognizedShellException) -> liftIO $ putStrLn $ displayException ex),
-    --                                                                               Handler (\ (ex :: BashConfigNotFoundError) -> liftIO $ putStrLn $ displayException ex)]
-
 getShExportFile :: MonadIO m => m (Maybe FilePath)
 getShExportFile = do
     shellType <- checkShell
@@ -127,9 +117,9 @@ exportPathUnix pathToExport = do
 exportPathWindows :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
 exportPathWindows path = do
     (exitCode1, pathenv, err1) <- Process.readProcess $ "echo %PATH%"
-    let pathToexport = Path.dropTrailingPathSeparator $ encodeString $ parent path 
+    let pathToexport = Path.dropTrailingPathSeparator $ encodeString $ parent path
         systemPath   = unpack pathenv
-    unless (isInfixOf pathToexport systemPath) $ do 
+    unless (isInfixOf pathToexport systemPath) $ do
         (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx PATH \"%PATH%;" ++ pathToexport ++ "\""
         unless (exitCode == ExitSuccess) $ Logger.warning $ "Path was not exported."
 

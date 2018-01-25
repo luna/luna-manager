@@ -108,7 +108,6 @@ instance Exception NoTagException where
 -- === Appimage === --
 ----------------------
 
--- zlintuj
 modifyDesktopFileToUseWrapperAppImageToRunApp :: MonadCreatePackage m => Text -> FilePath -> m ()
 modifyDesktopFileToUseWrapperAppImageToRunApp appName tmpAppDirPath =
     Process.runProcess_ $ Process.setWorkingDir (encodeString tmpAppDirPath) $ Process.shell $ inPlaceSubs <> substitute <> desktopFile
@@ -377,7 +376,6 @@ updateConfig :: Repo -> ResolvedApplication -> Repo
 updateConfig config resolvedApplication =
     let app        = resolvedApplication ^. resolvedApp
         appDesc    = app ^. desc
-        -- appPath    = convert (appDesc ^. path)
         appHeader  = app ^. header
         appName    = appHeader ^. name
         mainPackagePath = "https://d1uis3r8vv41jj.cloudfront.net/"

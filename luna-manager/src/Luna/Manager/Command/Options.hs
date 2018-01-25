@@ -33,7 +33,6 @@ data Command = Install       InstallOpts
              | Develop       DevelopOpts
              | MakePackage   MakePackageOpts
              | NextVersion   NextVersionOpts
-             | Info
              deriving (Show)
 
 data InstallOpts = InstallOpts
@@ -98,7 +97,7 @@ evalOptionsParserT m = evalStateT m =<< parseOptions
 
 parseOptions :: MonadIO m => m Options
 parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser where
-    commands           = mconcat [cmdInstall, cmdUninstall, cmdMkpkg, cmdUpdate, cmdDevelop, cmdSwitchVersion, cmdNextVer, cmdInfo]
+    commands           = mconcat [cmdInstall, cmdUninstall, cmdMkpkg, cmdUpdate, cmdDevelop, cmdSwitchVersion, cmdNextVer]
     optsParser         = info (helper <*> optsProgram) (fullDesc <> header ("Luna ecosystem manager (" <> Info.version <> ")") <> progDesc Info.synopsis)
 
     -- Commands
@@ -109,7 +108,6 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
     cmdDevelop         = Opts.command "develop"        . info optsDevelop       $ progDesc "Setup development environment"
     cmdMkpkg           = Opts.command "make-package"   . info optsMkpkg         $ progDesc "Prepare installation package"
     cmdNextVer         = Opts.command "next-version"   . info optsNextVersion   $ progDesc "Get a newer version of a package, by default incrementing the build number (x.y.z.w)"
-    cmdInfo            = Opts.command "info"           . info (pure Info)       $ progDesc "Show environment information"
 
     -- Options
     optsProgram        = Options           <$> optsGlobal <*> hsubparser commands

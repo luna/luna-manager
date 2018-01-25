@@ -30,4 +30,5 @@ chooseCommand = do
         Develop     opt -> evalDefHostConfigs @'[Develop.DevelopConfig, EnvConfig, PackageConfig, RepoConfig] $ Develop.run       opt
         NextVersion opt -> evalDefHostConfigs @'[EnvConfig, RepoConfig]                                       $ NextVersion.run   opt
         Uninstall       -> evalDefHostConfigs @'[InstallConfig, EnvConfig]                                    $ Uninstall.run
+        a               -> putStrLn $ "Unimplemented option: " ++ show a
         -- TODO: other commands

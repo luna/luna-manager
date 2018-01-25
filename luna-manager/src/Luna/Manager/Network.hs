@@ -33,9 +33,6 @@ data DownloadException = DownloadException Text SomeException deriving (Show)
 instance Exception DownloadException where
     displayException (DownloadException file exception) = "Couldn't download file: " <> convert file <> " because of: "  <> displayException exception
 
--- downloadError :: SomeException
--- downloadError = toException DownloadError
-
 
 -- === Utils === --
 
@@ -87,9 +84,3 @@ downloadWithProgressBarTo address dstPath = Exception.handleAny (\e -> throwM (D
             HTTP.responseBody res $=+ updateProgressBar pg    $$+- sinkFile (encodeString dstFile)
             putStrLn "Download completed!"
         return dstFile
-
--- downloadWithProgressBarAndUnpack :: (MonadIO m, MonadException SomeException m, MonadGetter EnvConfig m) => URIPath -> m FilePath
--- downloadWithProgressBarAndUnpack address = do
---     tmp <- getTmpPath
---     print =<< downloadWithProgressBar address tmp
---     return undefined
