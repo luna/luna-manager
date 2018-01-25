@@ -7,6 +7,7 @@ import Prologue hiding (txt, FilePath, toText)
 import qualified Control.Exception.Safe       as Exception
 import qualified Data.Text                    as Text
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), decodeString, splitDirectories)
+import qualified Safe
 import qualified System.Directory             as Dir
 
 import           Control.Monad.State.Layered
@@ -84,10 +85,10 @@ uninstallLocalData opts = do
 --           if e.g. username is LunaStudio - in that case, every path
 --           would be deleted
 createdByLunaStudio :: FilePath -> Bool
-createdByLunaStudio = (lunaStudio `Text.isInfixOf`) . Shelly.toTextIgnore . last . splitDirectories
+createdByLunaStudio = (lunaStudio `Text.isInfixOf`) . Shelly.toTextIgnore . Safe.lastDef "" . splitDirectories
 
 uninstallElectronCaches :: MonadUninstall m => m ()
-uninstallElectronCaches = when (currentHost /= Darwin) $ do
+uninstallElectronCaches = do
     baseDir <- case currentHost of
         Linux   -> decodeString <$> liftIO (Dir.getXdgDirectory Dir.XdgConfig "")
         Windows -> decodeString <$> liftIO (Dir.getAppUserDataDirectory "")
