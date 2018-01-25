@@ -6,7 +6,7 @@ import Prologue hiding (txt, FilePath, toText)
 
 import qualified Control.Exception.Safe       as Exception
 import qualified Data.Text                    as Text
-import           Filesystem.Path.CurrentOS    (FilePath, (</>), splitDirectories)
+import           Filesystem.Path.CurrentOS    (FilePath, (</>), decodeString, splitDirectories)
 import qualified System.Directory             as Dir
 
 import           Control.Monad.State.Layered
@@ -25,12 +25,15 @@ default(Text.Text)
 
 type MonadUninstall m = (MonadIO m, MonadSh m, MonadShControl m, MonadCatch m, MonadGetter Install.InstallConfig m, MonadGetter Options m, MonadGetter EnvConfig m)
 
+lunaStudio :: IsString s => s
+lunaStudio = "LunaStudio"
+
 uninstallServices :: MonadUninstall m => Install.InstallConfig -> m ()
 uninstallServices opts = case currentHost of
     Windows -> do
         let currentServices = (opts ^. Install.defaultBinPathGuiApp)
-                          </> Shelly.fromText "LunaStudio"
-                          </> Shelly.fromText "current"
+                          </> lunaStudio
+                          </> (opts ^. Install.selectedVersionPath)
                           </> (opts ^. Install.configPath)
                           </> fromText "windows"
         do
@@ -44,9 +47,9 @@ uninstallServices opts = case currentHost of
 
 guiDirectory :: FilePath -> FilePath
 guiDirectory binPathGui = case currentHost of
-    Windows -> binPathGui </> "LunaStudio"
+    Windows -> binPathGui </> lunaStudio
     Linux   -> binPathGui
-    Darwin  -> binPathGui </> "LunaStudio"
+    Darwin  -> binPathGui </> lunaStudio
 
 uninstallApp :: MonadUninstall m => Install.InstallConfig -> m ()
 uninstallApp opts = do
@@ -76,22 +79,23 @@ uninstallLocalData opts = do
         Logger.warning $ "Removing local config from " <> Shelly.toTextIgnore confPath <> " failed "
             <> "because of " <> convert (displayException e) <> ". Continuing...")
 
+-- NOTE[MM]: splitting a directory and taking last is a bit more involved
+--           than running Text.isInfixOf directly, but is more correct
+--           if e.g. username is LunaStudio - in that case, every path
+--           would be deleted
 createdByLunaStudio :: FilePath -> Bool
-createdByLunaStudio = ("LunaStudio" `Text.isInfixOf`) . Shelly.toTextIgnore . last . splitDirectories
+createdByLunaStudio = (lunaStudio `Text.isInfixOf`) . Shelly.toTextIgnore . last . splitDirectories
 
 uninstallElectronCaches :: MonadUninstall m => m ()
 uninstallElectronCaches = when (currentHost /= Darwin) $ do
-    baseDir <- Text.pack <$> case currentHost of
-        Linux   -> return "~/.config"
-        Windows -> liftIO $ Dir.getAppUserDataDirectory ""
-        _       -> error "uninstallElectronCaches: unsupported system detected"
-    dirs <- Shelly.ls $ Shelly.fromText baseDir
-    -- NOTE[MM]: splitting a directory and taking last is a bit more involved
-    --           than running Text.isInfixOf directly, but is more correct
-    --           if e.g. username is LunaStudio - in that case, every path
-    --           would be deleted
+    baseDir <- case currentHost of
+        Linux   -> decodeString <$> liftIO (Dir.getXdgDirectory Dir.XdgConfig "")
+        Windows -> decodeString <$> liftIO (Dir.getAppUserDataDirectory "")
+        Darwin  -> (\home -> decodeString home </> "Library" </> "Application Support") <$> liftIO Dir.getHomeDirectory
+    dirs <- Shelly.ls baseDir
+    -- see a NOTE in createdByLunaStudio
     let lunaStudioDirs = filter createdByLunaStudio dirs
-    Logger.log $ "Removing Electron caches from " <> baseDir
+    Logger.log $ "Removing Electron caches from " <> Shelly.toTextIgnore baseDir
     forM_ lunaStudioDirs $ \dir -> do
         Logger.log $ "    removing " <> Shelly.toTextIgnore dir
         Shelly.rm_rf dir `Exception.catchAny` (\(e::SomeException) ->
@@ -113,9 +117,10 @@ uninstallStartMenuEntry = case currentHost of
             Logger.warning $ "Removing Luna Studio shortcut in " <> Shelly.toTextIgnore shortcut <> " failed "
             <> "because of " <> convert (displayException e) <> ". Continuing...")
     Linux -> do
+        -- TODO[MM]: respect $XDG_DATA_HOME after a change in runner
         let desktopFilesDir = "~/.local/share/applications"
         desktops <- Shelly.ls desktopFilesDir
-        -- see a NOTE in uninstallElectronCaches
+        -- see a NOTE in createdByLunaStudio
         let lunaStudioFiles = filter createdByLunaStudio desktops
         Logger.log "Removing Luna Studio .desktop files from ~/.local/share/applications"
         forM_ lunaStudioFiles $ \desktop -> do
