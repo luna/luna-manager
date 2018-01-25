@@ -11,6 +11,7 @@ import Luna.Manager.Component.Version    as Version
 import Luna.Manager.Component.Analytics  as Analytics
 import Luna.Manager.Network
 import Luna.Manager.Component.Pretty
+import qualified Luna.Manager.Logger          as Logger
 import Luna.Manager.Shell.Question
 import           Luna.Manager.Command.Options (Options, InstallOpts)
 import qualified Luna.Manager.Command.Options as Opts
@@ -33,7 +34,7 @@ import qualified Data.Yaml as Yaml
 import Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, decodeString, toText, basename, hasExtension, parent)
 import Luna.Manager.Shell.Shelly (toTextIgnore, MonadSh, MonadShControl)
 import qualified Luna.Manager.Shell.Shelly as Shelly
-import System.Exit (exitSuccess, exitFailure)
+import System.Exit (exitSuccess, exitFailure, ExitCode(..))
 import System.IO (hFlush, stdout, stderr, hPutStrLn)
 import System.Info (arch)
 import qualified System.Process.Typed as Process
@@ -125,7 +126,7 @@ makeLenses ''UnresolvedDepsError
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
 
-type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m)
+type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, Logger.LoggerMonad m)
 
 
 -- === Utils === --
@@ -202,7 +203,8 @@ makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
     binAbsPath  <- Shelly.canonicalize $ (parent packageBinPath) </> (decodeString bin)
     userProfile <- liftIO $ Environment.getEnv "userprofile"
     let menuPrograms = (decodeString userProfile) </> "AppData" </> "Roaming" </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
-    liftIO $ Process.runProcess_ $ Process.shell ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"" )
+    exitCode <- liftIO $ Process.runProcess $ Process.shell  ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"")
+    unless (exitCode == ExitSuccess) $ Logger.warning $ "Menu Start shortcut was not created."
 
 postInstallation :: MonadInstall m => AppType -> FilePath -> Text -> Text -> Text -> m ()
 postInstallation appType installPath binPath appName version = do
