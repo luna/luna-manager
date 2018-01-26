@@ -380,11 +380,9 @@ updateConfig config resolvedApplication =
         appName    = appHeader ^. name
         mainPackagePath = "https://github.com/luna/"
         applicationPartPackagePath = appName <> "/releases/download/" <> showPretty (view version appHeader) <> "/" <> appName <> "-" <> showPretty currentHost <> "-" <> showPretty (view version appHeader)
-        s3Path = case currentHost of
-            Darwin  -> mainPackagePath <> applicationPartPackagePath <> ".tar.gz"
-            Linux   -> mainPackagePath <> applicationPartPackagePath <> ".AppImage"
-            Windows -> mainPackagePath <> applicationPartPackagePath <> ".tar.gz"
-        updatedConfig  = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ s3Path
+        extension = if currentHost == Linux then ".AppImage" else ".tar.gz"
+        githubReleasePath = mainPackagePath <> applicationPartPackagePath <> extension
+        updatedConfig  = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ githubReleasePath
         filteredConfig = updatedConfig & packages . ix appName . versions . ix (view version appHeader)  %~ Map.filterWithKey (\k _ -> k == currentSysDesc   )
     in filteredConfig
 
