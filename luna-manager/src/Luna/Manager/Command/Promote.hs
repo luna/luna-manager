@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings     #-}
 module Luna.Manager.Command.Promote where
 
-import Prologue hiding (FilePath)
+import Prologue hiding (FilePath, (<.>))
 
 import           Control.Exception.Safe            as Exception
 import           Control.Monad.State.Layered
 import qualified Data.Text                         as Text
-import           Filesystem.Path.CurrentOS         (FilePath, parent, encodeString, fromText, (</>))
+import           Filesystem.Path.CurrentOS         (FilePath, parent, encodeString, fromText, (</>), (<.>), filename)
 
 import qualified Luna.Manager.Archive              as Archive
 import           Luna.Manager.Command.NextVersion  (PromotionInfo(..), TargetVersionType(..), VersionUpgradeException(..), createNextVersion, newVersion, appName)
@@ -28,6 +28,19 @@ default (Text.Text)
 type MonadPromote m = (MonadGetter Options m, MonadStates '[EnvConfig, RepoConfig] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, MonadIO m)
 
 
+-- return the new name of the package, based on the full path to the old one
+-- note that this drops the extension!
+-- if called with ~/some/path/luna-studio
+newPackageName :: FilePath -> Version -> Text
+newPackageName pkgPath version = if length chunks < 3
+    then fName <> "1" -- if the version doesn't contain enough parts, it must be the old one
+    else chunks & ix lastIdx .~ prettyV & Text.intercalate "-"  -- replace the last element with the new version
+    where fName   = Shelly.toTextIgnore $ filename pkgPath
+          chunks  = Text.splitOn "-" fName
+          lastIdx = length chunks - 1
+          prettyV = showPretty version
+
+
 renameVersion :: MonadPromote m => FilePath -> Version -> m ()
 renameVersion path version = do
     let prettyVersion =  showPretty version
@@ -44,18 +57,18 @@ promote' pkgPath name version = do
 
     renameVersion extracted version
 
-    Logger.log "Compressing the package"
-    compressed <- Archive.pack extracted (name <> "1")
+    let correctPath = (parent extracted) </> (convert name)
+    Logger.log $ "Renaming " <> (Shelly.toTextIgnore extracted) <> " to " <> (Shelly.toTextIgnore correctPath)
+    Shelly.mv extracted correctPath `Exception.catchAny` (\(e :: SomeException) ->
+        Logger.warning $ "Failed to rename the extracted folder.\n" <> (convert $ displayException e))
 
-
-    -- TODO: change the version in the name of the pkg once it lands
-    Logger.log "Renaming the package"
-    Shelly.mv compressed pkgPath `Exception.catchAny` (\(e :: SomeException) ->
-        Logger.warning "Failed to rename the new package.")
+    Logger.log $ "Compressing the package"
+    let newName = newPackageName pkgPath version
+    compressed <- Archive.pack correctPath newName
 
     Logger.log "Cleaning up"
-    Shelly.rm_rf extracted `Exception.catchAny` (\(e :: SomeException) ->
-        Logger.warning $ "Failed to clean up after extracting." <> (convert $ displayException e))
+    Shelly.rm_rf correctPath `Exception.catchAny` (\(e :: SomeException) ->
+        Logger.warning $ "Failed to clean up after extracting.\n" <> (convert $ displayException e))
 
 
 promoteLinux :: MonadPromote m => FilePath -> Text -> Version -> m ()
@@ -73,17 +86,13 @@ promoteLinux pkgPath name version = do
 
     -- TODO: change the version in the name once it lands
     Logger.log "Repacking AppImage"
-    let aiName    = convert $ name <> ".AppImage"  :: FilePath
-        aiNewName = convert $ name <> "1.AppImage" :: FilePath
+    let aiName    = Shelly.toTextIgnore $ filename pkgPath
+        aiNewName = newPackageName pkgPath version <> ".AppImage"
     Shelly.cmd appImageTool appDir aiNewName
-
-    Logger.log "Renaming the AppImage"
-    Shelly.mv aiNewName aiName `Exception.catchAny` (\(e :: SomeException) ->
-        Logger.warning "Failed to rename the new AppImage.")
 
     Logger.log "Cleaning up"
     Shelly.rm_rf appDir `Exception.catchAny` (\(e :: SomeException) ->
-        Logger.warning $ "Failed to clean up after extracting." <> (convert $ displayException e))
+        Logger.warning $ "Failed to clean up after extracting.\n" <> (convert $ displayException e))
 
 
 promote :: MonadPromote m => FilePath -> PromotionInfo -> m ()
