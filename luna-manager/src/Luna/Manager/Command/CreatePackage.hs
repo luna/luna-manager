@@ -365,9 +365,8 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     when (currentHost == Darwin) $ Shelly.silently $ linkLibs binsFolder libsFolder
 
     case currentHost of
-        Linux   -> createAppimage appName appVersion appPath
-        Darwin  -> void . createTarGzUnix mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> (showPretty appVersion)
-        Windows -> void . zipFileWindows mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> (showPretty appVersion)
+        Linux -> createAppimage appName appVersion appPath
+        _     -> void . Archive.pack mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> (showPretty appVersion)
 
     unless buildHead $ Shelly.switchVerbosity $ Shelly.chdir appPath $ do
         Shelly.cmd "git" "checkout" currBranch

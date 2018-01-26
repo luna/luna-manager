@@ -15,6 +15,7 @@ import qualified Luna.Manager.Command.CreatePackage as CreatePackage
 import           Luna.Manager.Command.CreatePackage (PackageConfig)
 import qualified Luna.Manager.Command.Develop       as Develop
 import qualified Luna.Manager.Command.NextVersion   as NextVersion
+import qualified Luna.Manager.Command.Promote       as Promote
 import qualified Luna.Manager.Shell.Shelly          as Shelly
 import           Luna.Manager.Shell.Shelly          (MonadSh, MonadShControl)
 import Control.Monad.Trans.Resource ( MonadBaseControl)
@@ -28,5 +29,6 @@ chooseCommand = do
         MakePackage opt -> evalDefHostConfigs @'[PackageConfig, EnvConfig, RepoConfig]                        $ CreatePackage.run opt
         Develop     opt -> evalDefHostConfigs @'[Develop.DevelopConfig, EnvConfig, PackageConfig, RepoConfig] $ Develop.run       opt
         NextVersion opt -> evalDefHostConfigs @'[EnvConfig, RepoConfig]                                       $ NextVersion.run   opt
+        Promote     opt -> evalDefHostConfigs @'[EnvConfig, RepoConfig]                                       $ Promote.run       opt
         a               -> putStrLn $ "Unimplemented option: " ++ show a
         -- TODO: other commands
