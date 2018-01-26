@@ -204,7 +204,7 @@ makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
     userProfile <- liftIO $ Environment.getEnv "userprofile"
     let menuPrograms = (decodeString userProfile) </> "AppData" </> "Roaming" </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
     exitCode <- liftIO $ Process.runProcess $ Process.shell  ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"")
-    unless (exitCode == ExitSuccess) $ Logger.warning $ "Menu Start shortcut was not created."
+    unless (exitCode == ExitSuccess) $ Logger.warning $ "Menu Start shortcut was not created. Powershell could not be found in the $PATH"
 
 postInstallation :: MonadInstall m => AppType -> FilePath -> Text -> Text -> Text -> m ()
 postInstallation appType installPath binPath appName version = do
