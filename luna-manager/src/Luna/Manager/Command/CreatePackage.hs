@@ -358,7 +358,7 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     mainAppDir <- case currentHost of
         Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
         _       -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
-    let binsFolder  = mainAppDir </> (pkgConfig ^. binFolder)    </> (pkgConfig ^. binsPrivate)
+    let binsFolder  = mainAppDir </> (pkgConfig ^. binFolder) </> (pkgConfig ^. binsPrivate)
         libsFolder  = mainAppDir </> (pkgConfig ^. libPath)
 
 
@@ -366,7 +366,7 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
 
     case currentHost of
         Linux -> createAppimage appName appVersion appPath
-        _     -> void . Archive.pack mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> (showPretty appVersion)
+        _     -> void . Archive.pack mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> showPretty appVersion
 
     unless buildHead $ Shelly.switchVerbosity $ Shelly.chdir appPath $ do
         Shelly.cmd "git" "checkout" currBranch

@@ -46,9 +46,9 @@ makeLenses ''PromotionInfo
 instance Show PromotionInfo where
     show (PromotionInfo appName verType oldVer newVer commit) = header <> " " <> newInfo <> " " <> commitInfo
         where commitInfo = convert $ fromMaybe ""  $ ("from commit " <>) <$> commit
-              header     = "[Promotion info -- " <> (convert appName) <>  "] Previous version: " <> (convert $ showPretty oldVer) <> "."
+              header     = "[Promotion info -- " <> convert appName <>  "] Previous version: " <> (convert $ showPretty oldVer) <> "."
               newVerInfo = (": " <>) . convert . showPretty <$> newVer
-              newInfo    = "Creating new " <> (show verType) <> " version" <> (fromMaybe "" newVerInfo) <> "."
+              newInfo    = "Creating new " <> show verType <> " version" <> fromMaybe "" newVerInfo <> "."
 
 getNewVersion :: PromotionInfo -> Either VersionUpgradeException Version
 getNewVersion prInfo = case prInfo ^. newVersion of
