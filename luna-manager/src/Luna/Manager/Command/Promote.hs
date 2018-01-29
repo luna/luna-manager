@@ -73,6 +73,9 @@ promote' pkgPath name version = do
 
 promoteLinux :: MonadPromote m => FilePath -> Text -> Version -> m ()
 promoteLinux pkgPath name version = do
+    Logger.log "Ensuring the AppImage is executable"
+    makeExecutable pkgPath
+
     Logger.log "Unpacking AppImage"
     Shelly.cmd pkgPath "--appimage-extract"
 
@@ -80,18 +83,22 @@ promoteLinux pkgPath name version = do
     renameVersion (appDir </> "usr") version
 
     Logger.log "Downloading appImageTool"
-    let aitUrl = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+    let aitUrl  = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+        baseDir = parent pkgPath
     appImageTool <- downloadWithProgressBarTo aitUrl "."
     makeExecutable appImageTool
 
-    -- TODO: change the version in the name once it lands
     Logger.log "Repacking AppImage"
     let aiName    = Shelly.toTextIgnore $ filename pkgPath
         aiNewName = newPackageName pkgPath version <> ".AppImage"
     Shelly.cmd appImageTool appDir aiNewName
 
+    Logger.log "Moving the AppImage"
+    Shelly.mv (convert aiNewName) baseDir `Exception.catchAny` (\(e :: SomeException) ->
+        Logger.warning $ "Failed to move the AppImage.\n" <> (convert $ displayException e))
+
     Logger.log "Cleaning up"
-    Shelly.rm_rf appDir `Exception.catchAny` (\(e :: SomeException) ->
+    (Shelly.rm_rf appDir >> Shelly.rm_rf appImageTool) `Exception.catchAny` (\(e :: SomeException) ->
         Logger.warning $ "Failed to clean up after extracting.\n" <> (convert $ displayException e))
 
 
