@@ -42,6 +42,7 @@ dependencies:
   - shelly
   - conduit-extra
   - system-filepath
+  - safe
   - safe-exceptions
   - errors
   - aeson-pretty
