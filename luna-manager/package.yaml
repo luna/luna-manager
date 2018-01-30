@@ -1,5 +1,5 @@
 name:               luna-manager
-version:            "0.1"
+version:            "1.1.1"
 author:             New Byte Order <contact@newbyteorder.com>
 maintainer:         New Byte Order <contact@newbyteorder.com>
 
@@ -34,7 +34,7 @@ dependencies:
   - typelevel
   - signal
   - monad-control
-
+  - file-embed
   - lens-utils
   - constraints
   - transformers
@@ -48,7 +48,8 @@ dependencies:
   - aeson-pretty
   - time
   - uuid
-
+  - template-haskell
+  - unordered-containers
 
 default-extensions:
     - AllowAmbiguousTypes

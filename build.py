@@ -1,0 +1,120 @@
+import argparse
+import github3
+import os
+import platform
+from subprocess import run
+
+production_branch = 'production'
+
+
+def write_version(v, path):
+    """Write a new version to the `package.yaml` file.
+
+    :param v: the version to write
+    :param path: the path to the `package.yaml` file
+    :return: True if the version already exists, false otherwise.
+    """
+    lines = None
+    with open(path, 'r') as f:
+        lines = f.readlines()
+
+    if not lines:
+        raise Exception('Failed to read the package.yaml file.')
+
+    try:
+        assert lines[1].startswith('version')
+        h, old_v, n = lines[1].split('"')
+        if old_v == v:
+            return True
+        lines[1] = '"'.join([h, v, n])
+    except Exception as e:
+        raise Exception('Failed to substitute the version') from e
+
+    with open(path, 'w') as f:
+        f.writelines(lines)
+
+    return False
+
+
+def git(command, *args):
+    """Run a git command using the provided args"""
+    run([command] + args, check=True)
+
+
+def commit(v, path):
+    """Handle the git part of creating the new version
+
+    :param v: the version to write
+    :param path: the path to the `package.yaml` file
+    """
+    git('add', path)
+    commit_msg = 'New version: ' + v
+    git('commit', '-m', commit_msg)
+    git('tag', v)
+    git('push', 'origin', production_branch)
+
+
+def get_name(version):
+    """Get the name for the new manager, based on the OS and the version."""
+    base_name = 'luna-manager'
+    osname = platform.system().lower()
+    return "-".join([base_name, osname, version])
+
+
+def get_release(repo, tag):
+    """If the release already exists on GitHub, fetch and return it. Create
+    a new release otherwise.
+
+    :param repo: a `Repository` object obtained by calling: github3.login.repository
+    :param tag: the tag with the release version to find
+    :return : a `Release` object.
+    """
+    for r in repo.iter_releases():
+        if r.tag_name == tag:
+            return r
+
+    return repository.create_release(tag_name=version, draft=False, prerelease=True)
+
+
+def deploy(version):
+    """Create a GitHub release for the newly built package."""
+    binary_path = os.path.join('executables', 'luna-manager')
+    tkn = os.environ.get('GITHUB_TOKEN')
+    if not tkn:
+        raise Exception('The GITHUB_TOKEN env variable not set.')
+    gh = github3.login(tkn)
+    repo = gh.repository('luna', 'luna-manager')
+    release = get_release(repo, version)
+    name = get_name(version)
+    with open(binary_path, 'rb') as asset:
+        release.upload_asset(name=name, asset=asset, content_type='application_binary')
+
+
+def run(version, dry_run=False):
+    package_yaml_path = os.path.join('luna-manager', 'package.yaml')
+    print('Creating a new version: {}.'.format(version))
+    ver_exists = write_version(version, package_yaml_path)
+
+    if ver_exists:
+        print('Version is already commited.')
+    else:
+        print('Commiting and tagging the new version.')
+        commit(version, package_yaml_path)
+
+    print('Building the application.')
+    run('stack install')
+
+    if not dry_run:
+        print('Deploying the release to GitHub.')
+        deploy(version)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Build and deploy the Luna Manager')
+    parser.add_argument('version', metavar='VERSION',
+                        help='The version to create in the plaintext form.')
+    parser.add_argument('--dry-run', dest=dry_run, action='store_true',
+                        help='Create the new version without deploying anything')
+    args = parser.parse_args()
+
+    run(args.version, args.dry_run)

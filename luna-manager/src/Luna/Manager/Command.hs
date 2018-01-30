@@ -17,6 +17,7 @@ import qualified Luna.Manager.Command.Develop       as Develop
 import qualified Luna.Manager.Command.NextVersion   as NextVersion
 import qualified Luna.Manager.Command.Promote       as Promote
 import qualified Luna.Manager.Command.Uninstall     as Uninstall
+import qualified Luna.Manager.Command.Version       as Version
 import qualified Luna.Manager.Shell.Shelly          as Shelly
 import           Luna.Manager.Shell.Shelly          (MonadSh, MonadShControl)
 import Control.Monad.Trans.Resource ( MonadBaseControl)
@@ -32,5 +33,6 @@ chooseCommand = do
         NextVersion opt -> evalDefHostConfigs @'[EnvConfig, RepoConfig]                                       $ NextVersion.run   opt
         Promote     opt -> evalDefHostConfigs @'[EnvConfig, RepoConfig]                                       $ Promote.run       opt
         Uninstall       -> evalDefHostConfigs @'[InstallConfig, EnvConfig]                                    $ Uninstall.run
+        Version         -> Version.run
         a               -> putStrLn $ "Unimplemented option: " ++ show a
         -- TODO: other commands
