@@ -2,12 +2,12 @@ import argparse
 import github3
 import os
 import platform
-from subprocess import run
+import subprocess
 
 production_branch = 'production'
 
 
-def write_version(v, path):
+def write_version(v: str, path: str) -> bool:
     """Write a new version to the `package.yaml` file.
 
     :param v: the version to write
@@ -36,17 +36,18 @@ def write_version(v, path):
     return False
 
 
-def git(command, *args):
+def git(command: str, *args):
     """Run a git command using the provided args"""
-    run([command] + args, check=True)
+    subprocess.run(['git', command] + list(args))
 
 
-def commit(v, path):
+def commit(v: str, path: str) -> None:
     """Handle the git part of creating the new version
 
     :param v: the version to write
     :param path: the path to the `package.yaml` file
     """
+    git('checkout', production_branch)
     git('add', path)
     commit_msg = 'New version: ' + v
     git('commit', '-m', commit_msg)
@@ -54,29 +55,30 @@ def commit(v, path):
     git('push', 'origin', production_branch)
 
 
-def get_name(version):
+def get_name(version: str) -> str:
     """Get the name for the new manager, based on the OS and the version."""
     base_name = 'luna-manager'
     osname = platform.system().lower()
     return "-".join([base_name, osname, version])
 
 
-def get_release(repo, tag):
+def get_release(repo: str, tag: str, draft: bool=False) -> github3.repos.release.Release:
     """If the release already exists on GitHub, fetch and return it. Create
     a new release otherwise.
 
     :param repo: a `Repository` object obtained by calling: github3.login.repository
     :param tag: the tag with the release version to find
+    :param draft: whether this release should be a draft (not visible to other users)
     :return : a `Release` object.
     """
     for r in repo.iter_releases():
         if r.tag_name == tag:
             return r
 
-    return repository.create_release(tag_name=version, draft=False, prerelease=True)
+    return repository.create_release(tag_name=version, draft=draft, prerelease=True)
 
 
-def deploy(version):
+def deploy(version: str, draft: bool=False) -> None:
     """Create a GitHub release for the newly built package."""
     binary_path = os.path.join('executables', 'luna-manager')
     tkn = os.environ.get('GITHUB_TOKEN')
@@ -84,13 +86,13 @@ def deploy(version):
         raise Exception('The GITHUB_TOKEN env variable not set.')
     gh = github3.login(tkn)
     repo = gh.repository('luna', 'luna-manager')
-    release = get_release(repo, version)
+    release = get_release(repo, version, draft)
     name = get_name(version)
     with open(binary_path, 'rb') as asset:
         release.upload_asset(name=name, asset=asset, content_type='application_binary')
 
 
-def run(version, dry_run=False):
+def run(version: str, dry_run: bool=False, draft: bool=False) -> None:
     package_yaml_path = os.path.join('luna-manager', 'package.yaml')
     print('Creating a new version: {}.'.format(version))
     ver_exists = write_version(version, package_yaml_path)
@@ -102,19 +104,21 @@ def run(version, dry_run=False):
         commit(version, package_yaml_path)
 
     print('Building the application.')
-    run('stack install')
+    subprocess.run(['stack', 'install'])
 
     if not dry_run:
         print('Deploying the release to GitHub.')
-        deploy(version)
+        deploy(version, draft=draft)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build and deploy the Luna Manager')
     parser.add_argument('version', metavar='VERSION',
                         help='The version to create in the plaintext form.')
-    parser.add_argument('--dry-run', dest=dry_run, action='store_true',
+    parser.add_argument('--draft', dest='draft', default=False, action='store_true',
+                        help='Create a draft release instead of the real one')
+    parser.add_argument('--dry-run', dest='dry_run', default=False, action='store_true',
                         help='Create the new version without deploying anything')
     args = parser.parse_args()
 
-    run(args.version, args.dry_run)
+    run(args.version, dry_run=args.dry_run, draft=args.draft)
