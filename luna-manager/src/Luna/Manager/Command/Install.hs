@@ -302,14 +302,19 @@ registerUninstallInfo installPath = when (currentHost == Windows) $ do
     installConfig <- get @InstallConfig
     let registerScript = installPath </> (installConfig ^. configPath) </> fromText "windows" </> "registerUninstall.ps1"
         directory      = parent $ parent installPath -- if default, c:\Program Files\
-    liftIO $ Process.runProcess_ $ Process.shell ("powershell -executionpolicy bypass -file \"" <> encodeString registerScript <> "\" \"" <> encodeString directory <> "\"")
+    pkgHasRegister <- Shelly.test_f registerScript
+    when pkgHasRegister $ do
+        let registerPowershell = "powershell -executionpolicy bypass -file \"" <> encodeString registerScript <> "\" \"" <> encodeString directory <> "\""
+        liftIO $ Process.runProcess_ $ Process.shell registerPowershell
 
 moveUninstallScript :: MonadInstall m => FilePath -> m ()
 moveUninstallScript installPath = when (currentHost == Windows) $ do
     installConfig <- get @InstallConfig
     let uninstallScript = installPath </> (installConfig ^. configPath) </> fromText "windows" </> "uninstallLunaStudio.ps1"
         rootInstallPath = parent installPath
-    Shelly.cp uninstallScript $ rootInstallPath </> "uninstallLunaStudio.ps1"
+    pkgHasUninstall <- Shelly.test_f uninstallScript
+    when pkgHasUninstall $
+        Shelly.cp uninstallScript $ rootInstallPath </> "uninstallLunaStudio.ps1"
 
 prepareWindowsPkgForRunning :: MonadInstall m => FilePath -> m ()
 prepareWindowsPkgForRunning installPath = do
