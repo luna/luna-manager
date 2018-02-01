@@ -22,7 +22,7 @@ import qualified Luna.Manager.Shell.Shelly          as Shelly
 import           Luna.Manager.Shell.Shelly          (MonadSh, MonadShControl)
 import Control.Monad.Trans.Resource ( MonadBaseControl)
 
-chooseCommand :: (MonadIO m, MonadException SomeException m, MonadGetter Options m, MonadSh m, MonadShControl m, MonadThrow m, MonadCatch m, MonadBaseControl IO m) => m ()
+chooseCommand :: (MonadIO m, MonadException SomeException m, MonadState Options m, MonadSh m, MonadShControl m, MonadThrow m, MonadCatch m, MonadBaseControl IO m) => m ()
 chooseCommand = do
     opts <- get @Options
 

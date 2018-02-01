@@ -13,6 +13,7 @@ import qualified System.Directory             as Dir
 import           Control.Monad.State.Layered
 import qualified Luna.Manager.Command.Install as Install
 import           Luna.Manager.Command.Options (Options)
+import qualified Luna.Manager.Command.Options as Options
 import qualified Luna.Manager.Logger          as Logger
 import           Luna.Manager.System          (stopServicesWindows)
 import           Luna.Manager.System.Env
@@ -24,7 +25,8 @@ import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
 
 default(Text.Text)
 
-type MonadUninstall m = (MonadIO m, MonadSh m, MonadShControl m, MonadCatch m, MonadGetter Install.InstallConfig m, MonadGetter Options m, MonadGetter EnvConfig m)
+type MonadUninstall m = (MonadIO m, MonadSh m, MonadShControl m, MonadCatch m, MonadGetter Install.InstallConfig m,
+                         MonadGetter Options m, MonadSetter Options m, MonadGetter EnvConfig m)
 
 lunaStudio :: IsString s => s
 lunaStudio = "LunaStudio"
@@ -119,8 +121,9 @@ uninstallStartMenuEntry = case currentHost of
             <> "because of " <> convert (displayException e) <> ". Continuing...")
     Linux -> do
         -- TODO[MM]: respect $XDG_DATA_HOME after a change in runner
-        let desktopFilesDir = "~/.local/share/applications"
-        desktops <- Shelly.ls desktopFilesDir
+        userDir <- (Shelly.fromText . Text.pack) <$> liftIO Dir.getHomeDirectory
+        let desktopFilesDir = ".local/share/applications"
+        desktops <- Shelly.ls $ userDir </> desktopFilesDir
         -- see a NOTE in createdByLunaStudio
         let lunaStudioFiles = filter createdByLunaStudio desktops
         Logger.log "Removing Luna Studio .desktop files from ~/.local/share/applications"
@@ -131,6 +134,9 @@ uninstallStartMenuEntry = case currentHost of
 
 run :: MonadUninstall m => m ()
 run = do
+    opts <- get @Options
+    let verb = opts & Options.globals . Options.verbose .~ True
+    put @Options verb
     conf <- get @Install.InstallConfig
     uninstallServices conf
     uninstallApp conf
