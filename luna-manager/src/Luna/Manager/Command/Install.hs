@@ -184,13 +184,11 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     if guiInstaller then progress (Progress 0 1) else return ()
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
-    liftIO $ print "skonczylo sciagac"
-    if guiInstaller then do 
-        print $ "{\"" <> "installation_progress" <> "\":\"" <> "0.0" <> "\"}" 
+    if guiInstaller then do
+        print $ "{\"" <> "installation_progress" <> "\":\"" <> "0.0" <> "\"}"
         liftIO $ hFlush stdout
         else return ()
 
-    liftIO $ print "zacznie odpakowywac"
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
     case currentHost of
          Linux   -> do
