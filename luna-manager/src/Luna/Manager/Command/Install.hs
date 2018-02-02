@@ -184,7 +184,7 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     when guiInstaller $ downloadProgress (Progress 0 1)
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
-    when guiInstaller $ installatioProgress 0
+    when guiInstaller $ installationProgress 0
 
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
     case currentHost of

@@ -13,13 +13,12 @@ import Control.Lens.Aeson
 import System.IO (hFlush, stdout)
 
 
-data InstallationProgress = InstallationProgress { installation_progress :: Float
-                                 } deriving (Show, Generic, Eq)
+data InstallationProgress = InstallationProgress { installation_progress :: Float } deriving (Show, Generic, Eq)
 
 instance ToJSON   InstallationProgress
 instance FromJSON InstallationProgress
 
-installatioProgress :: MonadIO m => Float -> m ()
-installatioProgress pr = liftIO $ do
+installationProgress :: MonadIO m => Float -> m ()
+installationProgress pr = liftIO $ do
     print $ encode $ InstallationProgress pr
-    liftIO $ hFlush stdout
+    hFlush stdout

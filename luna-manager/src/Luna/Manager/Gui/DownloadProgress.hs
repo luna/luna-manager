@@ -15,7 +15,7 @@ data Progress = Progress { completed :: Int
                          , total     :: Int
                          }
 
-data DownloadProgress = DownloadProgress { download_progress :: Float} deriving (Generic, Show)
+data DownloadProgress = DownloadProgress { download_progress :: Float } deriving (Generic, Show)
 
 instance ToJSON   DownloadProgress
 instance FromJSON DownloadProgress
@@ -23,6 +23,6 @@ instance FromJSON DownloadProgress
 downloadProgress :: MonadIO m => Progress -> m ()
 downloadProgress (Progress completed total) = liftIO $ do
     print $ encode $ DownloadProgress pr
-    liftIO $ hFlush stdout
+    hFlush stdout
     where
         pr = fromIntegral completed / fromIntegral total
