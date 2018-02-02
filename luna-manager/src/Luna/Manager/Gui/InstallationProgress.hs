@@ -13,7 +13,7 @@ import Control.Lens.Aeson
 import System.IO (hFlush, stdout)
 
 
-data InstallationProgress = InstallationProgress { installation_progress :: Float } deriving (Show, Generic, Eq)
+newtype InstallationProgress = InstallationProgress { installation_progress :: Float } deriving (Show, Generic, Eq)
 
 instance ToJSON   InstallationProgress
 instance FromJSON InstallationProgress

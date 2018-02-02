@@ -15,7 +15,7 @@ data Progress = Progress { completed :: Int
                          , total     :: Int
                          }
 
-data DownloadProgress = DownloadProgress { download_progress :: Float } deriving (Generic, Show)
+newtype DownloadProgress = DownloadProgress { download_progress :: Float } deriving (Generic, Show)
 
 instance ToJSON   DownloadProgress
 instance FromJSON DownloadProgress
