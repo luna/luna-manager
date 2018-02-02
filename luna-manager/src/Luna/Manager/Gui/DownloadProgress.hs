@@ -20,8 +20,8 @@ data DownloadProgress = DownloadProgress { download_progress :: Float} deriving 
 instance ToJSON   DownloadProgress
 instance FromJSON DownloadProgress
 
-progress :: MonadIO m => Progress -> m ()
-progress (Progress completed total) = liftIO $ do
+downloadProgress :: MonadIO m => Progress -> m ()
+downloadProgress (Progress completed total) = liftIO $ do
     print $ encode $ DownloadProgress pr
     liftIO $ hFlush stdout
     where

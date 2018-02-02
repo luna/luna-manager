@@ -52,7 +52,7 @@ updateProgress :: MonadIO m => Progress -> ConduitM ByteString ByteString m ()
 updateProgress (Progress completed total) = await >>= maybe (return ()) (\chunk -> do
     let len = ByteString.length chunk
         pg = Progress (completed+len) total
-    liftIO $ progress pg
+    liftIO $ downloadProgress pg
     yield chunk
     updateProgress pg)
 

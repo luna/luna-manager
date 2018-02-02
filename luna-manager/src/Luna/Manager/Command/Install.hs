@@ -181,13 +181,10 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     guiInstaller <- Opts.guiInstallerOpt
     checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion
     stopServices installPath appType
-    if guiInstaller then progress (Progress 0 1) else return ()
+    if guiInstaller then downloadProgress (Progress 0 1) else return ()
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
-    if guiInstaller then do
-        print $ "{\"" <> "installation_progress" <> "\":\"" <> "0.0" <> "\"}"
-        liftIO $ hFlush stdout
-        else return ()
+    if guiInstaller then do installatioProgress 0 else return ()
 
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
     case currentHost of
