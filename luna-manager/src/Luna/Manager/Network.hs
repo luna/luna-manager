@@ -4,6 +4,7 @@ import Prologue hiding (FilePath, fromText)
 
 import Luna.Manager.Command.Options (Options, guiInstallerOpt)
 import qualified Luna.Manager.Logger as Logger
+import Luna.Manager.Gui.DownloadProgress (Progress(..))
 import Luna.Manager.System.Env
 import Luna.Manager.Shell.ProgressBar
 import Luna.Manager.System.Path

@@ -11,6 +11,7 @@ import Luna.Manager.Component.Version    as Version
 import Luna.Manager.Component.Analytics  as Analytics
 import Luna.Manager.Network
 import Luna.Manager.Component.Pretty
+import Luna.Manager.Gui.DownloadProgress
 import qualified Luna.Manager.Logger          as Logger
 import Luna.Manager.Shell.Question
 import           Luna.Manager.Command.Options (Options, InstallOpts)
@@ -180,9 +181,16 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     guiInstaller <- Opts.guiInstallerOpt
     checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion
     stopServices installPath appType
+    if guiInstaller then progress (Progress 0 1) else return ()
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
-    if guiInstaller then print $ "{\"" <> "installation_progress" <> "\":\"" <> "0" <> "\"}" else return ()
+    liftIO $ print "skonczylo sciagac"
+    if guiInstaller then do 
+        print $ "{\"" <> "installation_progress" <> "\":\"" <> "0.0" <> "\"}" 
+        liftIO $ hFlush stdout
+        else return ()
+
+    liftIO $ print "zacznie odpakowywac"
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
     case currentHost of
          Linux   -> do
