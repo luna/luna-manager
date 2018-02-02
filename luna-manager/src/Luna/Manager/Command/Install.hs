@@ -177,10 +177,12 @@ checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion = do
 
 downloadAndUnpackApp :: MonadInstall m => URIPath -> FilePath -> Text -> AppType -> Version -> m ()
 downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
+    guiInstaller <- Opts.guiInstallerOpt
     checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion
     stopServices installPath appType
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
+    if guiInstaller then print $ "{\"" <> "installation_progress" <> "\":\"" <> "0" <> "\"}" else return ()
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
     case currentHost of
          Linux   -> do
