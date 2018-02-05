@@ -12,11 +12,7 @@ import Data.List (genericReplicate)
 import Data.Ratio ( (%) )
 import qualified Data.Text as Text
 
-import Data.Aeson                    (FromJSON, ToJSON, FromJSONKey, ToJSONKey, parseJSON, encode)
-import qualified Data.Aeson          as JSON
-import qualified Data.Aeson.Types    as JSON
-import qualified Data.Aeson.Encoding as JSON
-import System.IO (hFlush, stdout)
+import Luna.Manager.Gui.DownloadProgress
 
 import Text.Printf   ( printf )
 import System.Console.ANSI (clearLine, cursorUpLine)
@@ -27,15 +23,6 @@ data ProgressBar = ProgressBar { barWidth  :: Int --total progress bar width
                                , completed :: Int --Amount of work completed
                                , totalWork :: Int --total amount of work
                                }
-
-data Progress = Progress { completed :: Int
-                         , total     :: Int
-                         }
-
-data DownloadProgress = DownloadProgress { download_progress :: Float} deriving (Generic, Show)
-
-instance ToJSON   DownloadProgress
-instance FromJSON DownloadProgress
 
 --------------------------------
 ------ ProgressBarUtils --------
@@ -61,18 +48,11 @@ progressBar (ProgressBar width todo done) = liftIO $ do
         completed = min effectiveWidth $ floor numCompletedChars
         remaining = effectiveWidth - completed
 
-progress :: MonadIO m => Progress -> m ()
-progress (Progress completed total) = liftIO $ do
-    print $ encode $ DownloadProgress pr
-    liftIO $ hFlush stdout
-    where
-        pr = fromIntegral completed / fromIntegral total
-
 updateProgress :: MonadIO m => Progress -> ConduitM ByteString ByteString m ()
 updateProgress (Progress completed total) = await >>= maybe (return ()) (\chunk -> do
     let len = ByteString.length chunk
         pg = Progress (completed+len) total
-    liftIO $ progress pg
+    liftIO $ downloadProgress pg
     yield chunk
     updateProgress pg)
 

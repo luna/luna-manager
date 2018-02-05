@@ -4,6 +4,7 @@ module Luna.Manager.System where
 
 import           Prologue                     hiding (FilePath,null, filter, appendFile, readFile, toText, fromText)
 
+import qualified Control.Exception.Safe       as Exception
 import           Control.Monad.Raise
 import           Control.Monad.State.Layered
 import           Control.Monad.Trans.Resource (MonadBaseControl)
@@ -95,7 +96,7 @@ getShExportFile = do
     return $ listToMaybe $ catMaybes checkedFiles
 
 --TODO extract common logic for all unix terminals
-exportPathUnix :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
+exportPathUnix :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m, MonadCatch m) => FilePath -> m ()
 exportPathUnix pathToExport = do
     pathIsDirectory    <- liftIO $ doesDirectoryExist $ encodeString pathToExport
     properPathToExport <- if pathIsDirectory then return pathToExport else do
@@ -109,9 +110,10 @@ exportPathUnix pathToExport = do
     case file of
         Just f  -> do
             let path = encodeString f
-            exportExists <- Text.isInfixOf exportToAppend <$> liftIO (readFile path)
-            unless exportExists $
-                (liftIO $ appendFile path exportToAppend) `Shelly.catchany` (const warn)
+            Exception.handleAny (const warn) $ do
+                exportExists <- Text.isInfixOf exportToAppend <$> liftIO (readFile path)
+                unless exportExists $
+                    (liftIO $ appendFile path exportToAppend)
         Nothing -> warn
 
 exportPathWindows :: (LoggerMonad m, MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()

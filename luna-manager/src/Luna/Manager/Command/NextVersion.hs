@@ -35,7 +35,8 @@ instance Exception VersionUpgradeException
 
 data TargetVersionType = Dev | Nightly | Release deriving (Show, Eq)
 
-data PromotionInfo = PromotionInfo { _versionType :: TargetVersionType
+data PromotionInfo = PromotionInfo { _appName     :: Text
+                                   , _versionType :: TargetVersionType
                                    , _oldVersion  :: Version
                                    , _newVersion  :: Maybe Version
                                    , _commit      :: Maybe Text
@@ -43,11 +44,11 @@ data PromotionInfo = PromotionInfo { _versionType :: TargetVersionType
 makeLenses ''PromotionInfo
 
 instance Show PromotionInfo where
-    show (PromotionInfo verType oldVer newVer commit) = header <> " " <> newInfo <> " " <> commitInfo
+    show (PromotionInfo appName verType oldVer newVer commit) = header <> " " <> newInfo <> " " <> commitInfo
         where commitInfo = convert $ fromMaybe ""  $ ("from commit " <>) <$> commit
-              header     = "[Promotion info] Previous version: " <> (convert $ showPretty oldVer) <> "."
+              header     = "[Promotion info -- " <> convert appName <>  "] Previous version: " <> (convert $ showPretty oldVer) <> "."
               newVerInfo = (": " <>) . convert . showPretty <$> newVer
-              newInfo    = "Creating new " <> (show verType) <> " version" <> (fromMaybe "" newVerInfo) <> "."
+              newInfo    = "Creating new " <> show verType <> " version" <> fromMaybe "" newVerInfo <> "."
 
 getNewVersion :: PromotionInfo -> Either VersionUpgradeException Version
 getNewVersion prInfo = case prInfo ^. newVersion of
@@ -70,7 +71,7 @@ latestVersion appName targetVersionType = do
             _     -> def :: Version
 
 nextVersion :: MonadNextVersion m => PromotionInfo -> m (Either VersionUpgradeException PromotionInfo)
-nextVersion prInfo@(PromotionInfo targetVersionType latestVersion _ _) = do
+nextVersion prInfo@(PromotionInfo _ targetVersionType latestVersion _ _) = do
     let next = case targetVersionType of
             Dev     -> Right . Version.nextBuild
             Nightly -> Version.promoteToNightly
@@ -83,12 +84,13 @@ getAppName cfg = case cfg ^? apps . ix 0 of
     Just app -> Right app
     Nothing  -> Left $ VersionUpgradeException "Unable to determine the app to upgrade."
 
-saveVersion :: MonadNextVersion m => Text -> Text -> PromotionInfo -> m ()
-saveVersion cfgFile appName prInfo = do
-    config  <- Repo.parseConfig $ convert cfgFile
+saveVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
+saveVersion cfgFile prInfo = do
+    config  <- Repo.parseConfig cfgFile
     version <- tryRight' $ getNewVersion prInfo
-    let newConfig = config & packages . ix appName . versions %~ Map.mapKeys (\_ -> version)
-    Repo.saveYamlToFile newConfig $ convert cfgFile
+    let name      = prInfo ^. appName
+        newConfig = config & packages . ix name . versions %~ Map.mapKeys (\_ -> version)
+    Repo.saveYamlToFile newConfig cfgFile
 
 commitVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
 commitVersion appPath prInfo = do
@@ -111,23 +113,29 @@ tagVersion appPath prInfo = do
         commitVersion appPath prInfo
         Shelly.run_ "git" (["tag", versionTxt] ++ tagSource)
 
-run :: MonadNextVersion m => NextVersionOpts -> m ()
-run opts = do
-    let cfgPath = opts ^. Opts.configFilePath
-        appPath = parent $ convert cfgPath
-        verType = if opts ^. Opts.release then Release else if opts ^. Opts.nightly then Nightly else Dev
-
-    config    <- Repo.parseConfig $ convert cfgPath
-    appName   <- tryRight' $ getAppName config
-    latestVer <- latestVersion appName verType
+createNextVersion :: MonadNextVersion m => FilePath -> TargetVersionType -> Maybe Text -> m PromotionInfo
+createNextVersion cfgPath verType commitM = do
+    let appPath = parent cfgPath
+    config    <- Repo.parseConfig cfgPath
+    name      <- tryRight' $ getAppName config
+    latestVer <- latestVersion name verType
     liftIO $ Text.putStrLn $ "The latest version is: " <> (showPretty latestVer)
-    let promotionInfo = PromotionInfo { _versionType = verType
+    let promotionInfo = PromotionInfo { _appName     = name
+                                      , _versionType = verType
                                       , _oldVersion  = latestVer
                                       , _newVersion  = Nothing
-                                      , _commit      = opts ^. Opts.commit
+                                      , _commit      = commitM
                                       }
 
     newInfo <- nextVersion promotionInfo >>= tryRight'
     liftIO $ print newInfo
-    saveVersion cfgPath appName newInfo
+    saveVersion cfgPath newInfo
     tagVersion  appPath newInfo
+    return newInfo
+
+run :: MonadNextVersion m => NextVersionOpts -> m ()
+run opts = do
+    let cfgPath = convert $ opts ^. Opts.configFilePath :: FilePath
+        verType = if opts ^. Opts.release then Release else if opts ^. Opts.nightly then Nightly else Dev
+
+    void $ createNextVersion cfgPath verType $ opts ^. Opts.commit

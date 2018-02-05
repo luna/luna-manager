@@ -127,17 +127,17 @@ copyResourcesAppImage repoPath appName tmpAppDirPath mainAppImageFolderPath = do
     Shelly.cp desktopFile $ tmpAppDirPath </> convert (appName <> ".desktop")
     copyDir srcPkgPath mainAppImageFolderPath
 
-checkAppImageName :: MonadCreatePackage m => Text -> FilePath -> m ()
-checkAppImageName appName filePath = do
+checkAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m ()
+checkAppImageName appName version filePath = do
     let fileName      = filename filePath
         outFolderPath = parent $ filePath
     when (Text.isInfixOf appName (Shelly.toTextIgnore fileName)) $ do
-        Shelly.mv filePath $ outFolderPath </> convert (appName <> ".AppImage")
+        Shelly.mv filePath $ outFolderPath </> convert (appName <> "-" <> showPretty currentHost <> "-" <> showPretty version <> ".AppImage")
 
-changeAppImageName :: MonadCreatePackage m => Text -> FilePath -> m ()
-changeAppImageName appName outFolderPath = do
+changeAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m ()
+changeAppImageName appName version outFolderPath = do
     listedDir <- Shelly.ls outFolderPath
-    mapM_ (checkAppImageName appName) listedDir
+    mapM_ (checkAppImageName appName version) listedDir
 
 getApprun :: MonadCreatePackage m => FilePath -> FilePath -> m ()
 getApprun tmpAppDirPath functions = do
@@ -152,8 +152,8 @@ generateAppimage tmpAppPath functions appName = do
     (exitCode, out, err) <- Process.readProcess $ Process.setWorkingDir (encodeString tmpAppPath) $ Process.setEnv [("APP", (convert appName))] $ Process.shell $ ". " <> (encodeString functions) <> " && " <> generateAppimage
     unless (exitCode == ExitSuccess) $ throwM (AppimageException (toException $ Exception.StringException (BSLChar.unpack err) callStack))
 
-createAppimage :: MonadCreatePackage m => Text -> FilePath -> m ()
-createAppimage appName repoPath = do
+createAppimage :: MonadCreatePackage m => Text -> Version -> FilePath -> m ()
+createAppimage appName version repoPath = do
     Logger.log "Creating app image"
     let appImageFolderName = "appimage"
     pkgConfig     <- get @PackageConfig
@@ -182,7 +182,7 @@ createAppimage appName repoPath = do
     generateAppimage tmpAppPath functions appName
 
     let outFolder = (parent $ tmpAppPath) </> "out"
-    changeAppImageName appName outFolder
+    changeAppImageName appName version outFolder
 
 ------------------------------
 -- === Package building === --
@@ -358,16 +358,15 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     mainAppDir <- case currentHost of
         Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
         _       -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
-    let binsFolder  = mainAppDir </> (pkgConfig ^. binFolder)    </> (pkgConfig ^. binsPrivate)
+    let binsFolder  = mainAppDir </> (pkgConfig ^. binFolder) </> (pkgConfig ^. binsPrivate)
         libsFolder  = mainAppDir </> (pkgConfig ^. libPath)
 
 
     when (currentHost == Darwin) $ Shelly.silently $ linkLibs binsFolder libsFolder
 
     case currentHost of
-        Linux   -> createAppimage appName $ appPath
-        Darwin  -> void $ createTarGzUnix mainAppDir appName
-        Windows -> void $ zipFileWindows mainAppDir appName
+        Linux -> createAppimage appName appVersion appPath
+        _     -> void . Archive.pack mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> showPretty appVersion
 
     unless buildHead $ Shelly.switchVerbosity $ Shelly.chdir appPath $ do
         Shelly.cmd "git" "checkout" currBranch
@@ -378,13 +377,11 @@ updateConfig config resolvedApplication =
         appDesc    = app ^. desc
         appHeader  = app ^. header
         appName    = appHeader ^. name
-        mainPackagePath = "https://d1uis3r8vv41jj.cloudfront.net/"
-        applicationPartPackagePath = appName <> "/" <> showPretty (view version appHeader) <> "/" <> appName
-        s3Path = case currentHost of
-            Darwin  -> mainPackagePath <> "darwin/"  <> applicationPartPackagePath <> ".tar.gz"
-            Linux   -> mainPackagePath <> "linux/"   <> applicationPartPackagePath <> ".AppImage"
-            Windows -> mainPackagePath <> "windows/" <> applicationPartPackagePath <> ".tar.gz"
-        updatedConfig  = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ s3Path
+        mainPackagePath = "https://github.com/luna/"
+        applicationPartPackagePath = appName <> "/releases/download/" <> showPretty (view version appHeader) <> "/" <> appName <> "-" <> showPretty currentHost <> "-" <> showPretty (view version appHeader)
+        extension = if currentHost == Linux then ".AppImage" else ".tar.gz"
+        githubReleasePath = mainPackagePath <> applicationPartPackagePath <> extension
+        updatedConfig  = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ githubReleasePath
         filteredConfig = updatedConfig & packages . ix appName . versions . ix (view version appHeader)  %~ Map.filterWithKey (\k _ -> k == currentSysDesc   )
     in filteredConfig
 

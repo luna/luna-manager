@@ -11,6 +11,8 @@ import Luna.Manager.Component.Version    as Version
 import Luna.Manager.Component.Analytics  as Analytics
 import Luna.Manager.Network
 import Luna.Manager.Component.Pretty
+import Luna.Manager.Gui.DownloadProgress
+import qualified Luna.Manager.Logger          as Logger
 import Luna.Manager.Shell.Question
 import           Luna.Manager.Command.Options (Options, InstallOpts)
 import qualified Luna.Manager.Command.Options as Opts
@@ -34,7 +36,7 @@ import qualified Data.Yaml as Yaml
 import Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, decodeString, toText, basename, hasExtension, parent)
 import Luna.Manager.Shell.Shelly (toTextIgnore, MonadSh, MonadShControl)
 import qualified Luna.Manager.Shell.Shelly as Shelly
-import System.Exit (exitSuccess, exitFailure)
+import System.Exit (exitSuccess, exitFailure, ExitCode(..))
 import System.IO (hFlush, stdout, stderr, hPutStrLn)
 import System.Info (arch)
 import qualified System.Process.Typed as Process
@@ -126,7 +128,7 @@ makeLenses ''UnresolvedDepsError
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
 
-type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m)
+type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, Logger.LoggerMonad m)
 
 -- === Utils === --
 
@@ -176,13 +178,15 @@ checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion = do
 
 downloadAndUnpackApp :: MonadInstall m => URIPath -> FilePath -> Text -> AppType -> Version -> m ()
 downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
+    guiInstaller <- Opts.guiInstallerOpt
     checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion
     stopServices installPath appType
+    when guiInstaller $ downloadProgress (Progress 0 1)
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
-    Logger.log $ toTextIgnore pkg
+    when guiInstaller $ installationProgress 0
+
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
-    Logger.log $ toTextIgnore unpacked
     case currentHost of
          Linux   -> do
              Shelly.mkdir_p installPath
@@ -201,7 +205,8 @@ makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
     binAbsPath  <- Shelly.canonicalize $ (parent packageBinPath) </> (decodeString bin)
     userProfile <- liftIO $ Environment.getEnv "userprofile"
     let menuPrograms = (decodeString userProfile) </> "AppData" </> "Roaming" </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
-    liftIO $ Process.runProcess_ $ Process.shell ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"" )
+    exitCode <- liftIO $ Process.runProcess $ Process.shell  ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"")
+    unless (exitCode == ExitSuccess) $ Logger.warning $ "Menu Start shortcut was not created. Powershell could not be found in the $PATH"
 
 postInstallation :: MonadInstall m => AppType -> FilePath -> Text -> Text -> Text -> m ()
 postInstallation appType installPath binPath appName version = do
@@ -295,10 +300,31 @@ copyWinSW installPath = when (currentHost == Windows) $ do
         winConfigFolderPath = installPath </> (installConfig ^. configPath) </> fromText "windows"
     Shelly.mv winSW winConfigFolderPath
 
+registerUninstallInfo :: MonadInstall m => FilePath -> m ()
+registerUninstallInfo installPath = when (currentHost == Windows) $ do
+    installConfig <- get @InstallConfig
+    let registerScript = installPath </> (installConfig ^. configPath) </> fromText "windows" </> "registerUninstall.ps1"
+        directory      = parent $ parent installPath -- if default, c:\Program Files\
+    pkgHasRegister <- Shelly.test_f registerScript
+    when pkgHasRegister $ do
+        let registerPowershell = "powershell -executionpolicy bypass -file \"" <> encodeString registerScript <> "\" \"" <> encodeString directory <> "\""
+        liftIO $ Process.runProcess_ $ Process.shell registerPowershell
+
+moveUninstallScript :: MonadInstall m => FilePath -> m ()
+moveUninstallScript installPath = when (currentHost == Windows) $ do
+    installConfig <- get @InstallConfig
+    let uninstallScript = installPath </> (installConfig ^. configPath) </> fromText "windows" </> "uninstallLunaStudio.ps1"
+        rootInstallPath = parent installPath
+    pkgHasUninstall <- Shelly.test_f uninstallScript
+    when pkgHasUninstall $
+        Shelly.cp uninstallScript $ rootInstallPath </> "uninstallLunaStudio.ps1"
+
 prepareWindowsPkgForRunning :: MonadInstall m => FilePath -> m ()
 prepareWindowsPkgForRunning installPath = do
     copyDllFilesOnWindows installPath
     copyWinSW installPath
+    registerUninstallInfo installPath
+    moveUninstallScript installPath
 
 copyUserConfig :: MonadInstall m => FilePath -> ResolvedPackage -> m ()
 copyUserConfig installPath package = do

@@ -169,8 +169,13 @@ untarWin totalProgress progressFieldName zipFile = do
         listed <- Shelly.ls $ dir </> name
         return $ if length listed == 1 then head listed else dir </> name
 
-zipFileWindows :: UnpackContext m => FilePath -> Text -> m FilePath
-zipFileWindows folder appName = do
+pack :: UnpackContext m => FilePath -> Text -> m FilePath
+pack = case currentHost of
+    Windows -> gzipWindows
+    _       -> gzipUnix
+
+gzipWindows :: UnpackContext m => FilePath -> Text -> m FilePath
+gzipWindows folder appName = do
     let name = parent folder </> Shelly.fromText (appName <> ".tar.gz")
     let scriptPath = "http://packages.luna-lang.org/windows/tar.exe"
     script <- downloadFromURL scriptPath "Downloading archiving tool"
@@ -184,8 +189,8 @@ unpackRPM file filepath = liftIO $ do
     (exitCode, out, err) <- Process.readProcess $ Process.setWorkingDir (encodeString filepath) $ Process.shell $ "rpm2cpio " <> encodeString file <> " | cpio -idmv"
     unless (exitCode == ExitSuccess) $ throwM (UnpackingException (Shelly.toTextIgnore file) (toException $ Exception.StringException (BSLChar.unpack err) callStack )) -- print $ "Fatal: rpm not unpacked. " <> err
 
-createTarGzUnix :: UnpackContext m => FilePath  -> Text -> m FilePath
-createTarGzUnix folder appName = do
+gzipUnix :: UnpackContext m => FilePath  -> Text -> m FilePath
+gzipUnix folder appName = do
     let name =  parent folder </> Shelly.fromText (appName <> ".tar.gz")
     Shelly.chdir (parent folder) $ Shelly.switchVerbosity $ do
         Shelly.cmd "tar" "-cpzf" name $ filename folder

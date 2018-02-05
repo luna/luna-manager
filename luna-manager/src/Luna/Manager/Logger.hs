@@ -71,8 +71,9 @@ warning msg = do
         gui  = opts ^. guiInstaller
         m    = "WARNING: " <> msg
     if   gui     then logToJSON m
-    else if verb then liftIO $ logToStdout m
-    else              logToTmpFile m
+    else do
+        liftIO $ logToStdout m
+        logToTmpFile m
 
 exception :: (LoggerMonad m, Show e) => Text -> e -> m ()
 exception funName exc = log $ "[Exception in " <> funName <> "] " <> (pack $ show exc)
