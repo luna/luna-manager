@@ -134,9 +134,7 @@ uninstallStartMenuEntry = case currentHost of
 
 run :: MonadUninstall m => m ()
 run = do
-    opts <- get @Options
-    let verb = opts & Options.globals . Options.verbose .~ True
-    put @Options verb
+    modify_ @Options $ Options.globals . Options.verbose .~ True
     conf <- get @Install.InstallConfig
     uninstallServices conf
     uninstallApp conf
