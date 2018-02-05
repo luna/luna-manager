@@ -160,7 +160,6 @@ instance Exception TheSameVersionException where
 
 checkIfAppAlreadyInstalledInCurrentVersion :: MonadInstall m => FilePath -> AppType -> Version -> m ()
 checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion = do
-    Logger.log "Installer.checkIfAppAlreadyInstalledInCurrentVersion"
     guiInstaller    <- Opts.guiInstallerOpt
     testInstallPath <- Shelly.test_d installPath
     when testInstallPath $ do
@@ -170,7 +169,6 @@ checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion = do
             ans <- liftIO $ getLine
             if ans == "yes" then do
                 stopServices installPath appType
-                Logger.log "Removing the installPath (checkIfAppAlreadyInstalledInCurrentVersion)"
                 Shelly.rm_rf installPath
             else if ans == "no" || ans == ""
             then liftIO $ exitSuccess
@@ -178,16 +176,12 @@ checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion = do
 
 downloadAndUnpackApp :: MonadInstall m => URIPath -> FilePath -> Text -> AppType -> Version -> m ()
 downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
-    Logger.log "Install.downloadAndUnpackApp"
     checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion
     stopServices installPath appType
-    Logger.log "[downloadAndUnpackApp] creating the parent of install"
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
-    Logger.log "pkg downloaded to unpack"
     Logger.log $ toTextIgnore pkg
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
-    Logger.log "unpacked"
     Logger.log $ toTextIgnore unpacked
     case currentHost of
          Linux   -> do
@@ -197,28 +191,20 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
 
 linkingCurrent :: MonadInstall m => AppType -> FilePath -> m ()
 linkingCurrent appType installPath = do
-    Logger.log "Install.linkingCurrent"
     installConfig <- get @InstallConfig
     let currentPath = (parent installPath) </> (installConfig ^. selectedVersionPath)
-    Logger.log "running createSymLinkDirectory"
     createSymLinkDirectory installPath currentPath
 
 makeShortcuts :: MonadInstall m => FilePath -> Text -> m ()
 makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
-    Logger.log "Installation.makeShortcuts"
-    Logger.log "Getting the symlink target"
     bin         <- liftIO $ System.getSymbolicLinkTarget $ encodeString packageBinPath
-    Logger.log "Canonicalizing the path"
     binAbsPath  <- Shelly.canonicalize $ (parent packageBinPath) </> (decodeString bin)
-    Logger.log "Getting the userprofile from env"
     userProfile <- liftIO $ Environment.getEnv "userprofile"
     let menuPrograms = (decodeString userProfile) </> "AppData" </> "Roaming" </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
-    Logger.log "Exporting the vars"
     liftIO $ Process.runProcess_ $ Process.shell ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"" )
 
 postInstallation :: MonadInstall m => AppType -> FilePath -> Text -> Text -> Text -> m ()
 postInstallation appType installPath binPath appName version = do
-    Logger.log "Install.postInstallation"
     linkingCurrent appType installPath
     installConfig <- get @InstallConfig
     packageBin    <- return $ installPath </> case currentHost of
@@ -259,19 +245,15 @@ copyResources appType installPath appName = when (currentHost == Darwin && appTy
 
 linking :: MonadInstall m => FilePath -> FilePath -> m ()
 linking src dst = do
-    Logger.log "Install.linking mkdir_p"
     Shelly.mkdir_p $ parent dst
-    Logger.log "Install.linking createSymLink"
     createSymLink src dst
 
 linkingLocalBin :: (MonadInstall m, MonadIO m) => FilePath -> Text -> m ()
 linkingLocalBin currentBin appName = do
-    Logger.log "Install.linkingLocalBin"
     home          <- getHomePath
     installConfig <- get @InstallConfig
     case currentHost of
         Windows -> do
-            Logger.log "exporting the path on Windows"
             exportPathWindows currentBin
         _       -> do
             localBin <- expand (installConfig ^. localBinPath)
@@ -282,7 +264,6 @@ linkingLocalBin currentBin appName = do
 
 stopServices ::MonadInstall m => FilePath -> AppType -> m ()
 stopServices installPath appType = when (currentHost == Windows && appType == GuiApp) $ do
-    Logger.log "Install.stopServices stopping the services on Windows"
     installConfig <- get @InstallConfig
     let currentServices = parent installPath </> (installConfig ^. selectedVersionPath) </> (installConfig ^. configPath) </> fromText "windows"
     do
@@ -293,7 +274,6 @@ stopServices installPath appType = when (currentHost == Windows && appType == Gu
 
 runServices :: MonadInstall m => FilePath -> AppType -> Text -> Text -> m ()
 runServices installPath appType appName version = when (currentHost == Windows && appType == GuiApp) $ do
-    Logger.log "Install.runServices running the services on windows"
     installConfig <- get @InstallConfig
     let services = installPath </> (installConfig ^. configPath) </> fromText "windows"
     logs <- expand $ (installConfig ^. defaultConfPath) </> (installConfig ^. logsFolder) </> fromText appName </> (fromText $ showPretty version)
@@ -301,64 +281,49 @@ runServices installPath appType appName version = when (currentHost == Windows &
 
 copyDllFilesOnWindows :: MonadInstall m => FilePath -> m ()
 copyDllFilesOnWindows installPath = when (currentHost == Windows) $ do
-    Logger.log "Install.copyDllFilesOnWindows moving the dlls"
     installConfig <- get @InstallConfig
     let libFolderPath  = installPath </> (installConfig ^. libPath)
         binsFolderPath = installPath </> (installConfig ^. privateBinPath)
     do
-        Logger.log "Install.copyDllFilesOnWindows listing the lib folder"
         listedLibs <- Shelly.ls libFolderPath
-        Logger.log $ "copy dll windows " <> (convert $ show binsFolderPath) <> " " <> (convert $ show listedLibs)
-        Logger.log "Install.copyDllFilesOnWindows moving the dlls"
         mapM_ (`Shelly.mv` binsFolderPath) listedLibs
 
 copyWinSW :: MonadInstall m => FilePath -> m ()
 copyWinSW installPath = when (currentHost == Windows) $ do
-    Logger.log "Install.copyWinSW"
     installConfig <- get @InstallConfig
     let winSW = installPath </> (installConfig ^. thirdParty) </> fromText "WinSW.Net4.exe"
         winConfigFolderPath = installPath </> (installConfig ^. configPath) </> fromText "windows"
-    Logger.log $ "copy winsw " <> (convert $ show winSW) <> " " <> (convert $ show winConfigFolderPath)
-    Logger.log "Install.copyWinSW moving the SW!"
     Shelly.mv winSW winConfigFolderPath
 
 prepareWindowsPkgForRunning :: MonadInstall m => FilePath -> m ()
 prepareWindowsPkgForRunning installPath = do
-    Logger.log "Install.prepareWindowsPkgForRunning"
     copyDllFilesOnWindows installPath
     copyWinSW installPath
 
 copyUserConfig :: MonadInstall m => FilePath -> ResolvedPackage -> m ()
 copyUserConfig installPath package = do
-    Logger.log "Install.copUserConfig"
     installConfig <- get @InstallConfig
     let pkgName               = package ^. header . name
         pkgVersion            = showPretty $ package ^. header . version
         packageUserConfigPath = installPath </> "user-config"
     homeUserConfigPath <- expand $ (installConfig ^. defaultConfPath) </> (installConfig ^. configPath) </> convert pkgName </> convert pkgVersion
     userConfigExists   <- Shelly.test_d packageUserConfigPath
-    Logger.log $ "user config exist " <> (convert $ show userConfigExists)
     when userConfigExists $ do
-        Logger.log "removing the user config (copyUserConfig)"
         Shelly.rm_rf homeUserConfigPath
         Shelly.mkdir_p homeUserConfigPath
-        Logger.log "listing the packageUserConfigPath"
         listedPackageUserConfig <- Shelly.ls packageUserConfigPath
-        Logger.log $ "listedPackageUserConfig " <> (convert $ show listedPackageUserConfig)
         mapM_ (flip Shelly.cp_r homeUserConfigPath) $ map (packageUserConfigPath </>) listedPackageUserConfig
 
 -- === MacOS specific === --
 
 touchApp :: MonadInstall m => FilePath -> AppType -> m ()
 touchApp appPath appType = when (currentHost == Darwin && appType == GuiApp) $ do
-        Logger.log "Install.touchApp"
         Shelly.switchVerbosity $ Shelly.cmd "touch" $ toTextIgnore appPath
 
 -- === Installation utils === --
 
 askLocation :: (MonadStates '[EnvConfig, InstallConfig, RepoConfig] m, MonadNetwork m) => InstallOpts -> AppType -> Text -> m Text
 askLocation opts appType appName = do
-    Logger.log "Install.askLocation"
     installConfig <- get @InstallConfig
     let pkgInstallDefPath = case appType of
             GuiApp   -> installConfig ^. defaultBinPathGuiApp
@@ -370,12 +335,10 @@ askLocation opts appType appName = do
 
 installApp :: MonadInstall m => InstallOpts -> ResolvedPackage -> m ()
 installApp opts package = do
-    Logger.log "Install.installApp installing!"
     installConfig <- get @InstallConfig
     guiInstaller  <- Opts.guiInstallerOpt
     let pkgName    = package ^. header . name
         appType    = package ^. resolvedAppType
-    Logger.log "Getting the binary path"
     binPath     <- if guiInstaller then return $ toTextIgnore $
         case appType of
                 GuiApp   -> installConfig ^. defaultBinPathGuiApp
@@ -385,7 +348,6 @@ installApp opts package = do
 
 installApp' :: MonadInstall m => Text -> ResolvedPackage -> m ()
 installApp' binPath package = do
-    Logger.log "Install.installApp' installing the app"
     let pkgName    = package ^. header . name
         appType    = package ^. resolvedAppType
         pkgVersion = showPretty $ package ^. header . version
@@ -394,7 +356,6 @@ installApp' binPath package = do
     prepareWindowsPkgForRunning installPath
     postInstallation appType installPath binPath pkgName pkgVersion
     copyUserConfig installPath package
-    Logger.log "Install.installApp' making the system package name"
     let appName = mkSystemPkgName pkgName <> ".app"
     touchApp (convert binPath </> convert appName) appType
 

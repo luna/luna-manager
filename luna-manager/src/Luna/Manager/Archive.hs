@@ -130,9 +130,7 @@ unpackTarGzUnix totalProgress progressFieldName file = do
 -- TODO: download unzipper if missing
 unzipFileWindows :: UnpackContext m => FilePath -> m FilePath
 unzipFileWindows zipFile = do
-    Logger.log "Archive.unzipFileWindows"
     let scriptPath = "http://packages.luna-lang.org/windows/j_unzip.vbs"
-    Logger.log "Downloading the unzipping file"
     script       <- downloadFromURL scriptPath "Downloading archiving tool"
     let dir = directory zipFile
         name = dir </> basename zipFile
@@ -157,36 +155,27 @@ unzipFileWindows zipFile = do
 
 untarWin :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 untarWin totalProgress progressFieldName zipFile = do
-    Logger.log "Archive.untarWin"
     let scriptPath = "http://packages.luna-lang.org/windows/tar2.exe"
     guiInstaller <- Opts.guiInstallerOpt
-    Logger.log "downloading the archiving tool"
     script       <- downloadFromURL scriptPath "Downloading archiving tool"
     let dir = directory zipFile
         name = dir </> basename zipFile
 
     Shelly.chdir dir $ do
-        Logger.log "Making the directory for the unzipped content"
         Shelly.mkdir_p name
-        Logger.log "Running the download"
         if guiInstaller
             then Shelly.log_stdout_with (directProgressLogger progressFieldName totalProgress) $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name-- (\stdout -> liftIO $ hGetContents stdout >> print "33")
             else Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
-        Logger.log "Listing the dir"
         listed <- Shelly.ls $ dir </> name
         return $ if length listed == 1 then head listed else dir </> name
 
 zipFileWindows :: UnpackContext m => FilePath -> Text -> m FilePath
 zipFileWindows folder appName = do
-    Logger.log "Archive.zipFileWindows"
     let name = parent folder </> Shelly.fromText (appName <> ".tar.gz")
     let scriptPath = "http://packages.luna-lang.org/windows/tar.exe"
-    Logger.log "Downloading the script"
     script <- downloadFromURL scriptPath "Downloading archiving tool"
     Shelly.chdir (parent folder) $ do
-        Logger.log "Copying the script"
         Shelly.cp script $ parent folder
-        Logger.log "Zipping"
         Shelly.switchVerbosity $ Shelly.cmd (parent folder </> filename script) "tar" name folder
         return name
 
