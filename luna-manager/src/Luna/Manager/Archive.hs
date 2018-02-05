@@ -136,20 +136,13 @@ unzipFileWindows zipFile = do
         name = dir </> basename zipFile
     Shelly.switchVerbosity $ do
       Shelly.chdir dir $ do
-          Logger.log "Making the directory for the unzipped stuff"
           Shelly.mkdir_p name
-          Logger.log "Copying the zip file"
           Shelly.cp zipFile name
-          Logger.log "Copying the script"
           Shelly.cp script name
       Shelly.chdir (dir </> name) $ do
-          Logger.log "Running the script"
           Shelly.cmd "cscript" (filename script) (filename zipFile) `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
-          Logger.log "Removing the zipped file"
           Shelly.rm $ dir </> name </> filename zipFile
-          Logger.log "Removing the script"
           Shelly.rm $ dir </> name </> filename script
-          Logger.log "Listing the dir"
           listed <- Shelly.ls $ dir </> name
           return $ if length listed == 1 then head listed else dir </> name
 
