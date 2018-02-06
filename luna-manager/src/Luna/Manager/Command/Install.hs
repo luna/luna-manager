@@ -343,7 +343,9 @@ copyUserConfig installPath package = do
         Shelly.mkdir_p homeUserConfigPath
         listedPackageUserConfig <- Shelly.ls packageUserConfigPath
         mapM_ (flip Shelly.cp_r homeUserConfigPath) $ map (packageUserConfigPath </>) listedPackageUserConfig
-    when (currentHost == Windows) $ Shelly.cmd "attrib +h" homeLunaPath
+    when (currentHost == Windows) $ do
+        exitCode <- liftIO $ Process.runProcess $ Process.shell $ "attrib +h " <> (encodeString homeLunaPath)
+        unless (exitCode == ExitSuccess) $ Logger.warning $ "Setting hidden attribute for .luna folder failed"
 
 -- === MacOS specific === --
 
@@ -361,7 +363,7 @@ askLocation opts appType appName = do
             BatchApp -> installConfig ^. defaultBinPathBatchApp
     binPath <- askOrUse (opts ^. Opts.selectedInstallationPath)
         $ question ("Select installation path for " <> appName) plainTextReader
-        & defArg .~ Just (toTextIgnore pkgInstallDefPath) --TODO uzyć toText i złapać tryRight'
+        & defArg .~ Just (toTextIgnore pkgInstallDefPath) 
     return binPath
 
 installApp :: MonadInstall m => InstallOpts -> ResolvedPackage -> m ()
