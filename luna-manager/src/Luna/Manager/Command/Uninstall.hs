@@ -119,7 +119,7 @@ uninstallStartMenuEntry = case currentHost of
         Shelly.rm_rf shortcut `Exception.catchAny` (\(e::SomeException) ->
             Logger.warning $ "Removing Luna Studio shortcut in " <> Shelly.toTextIgnore shortcut <> " failed "
             <> "because of " <> convert (displayException e) <> ". Continuing...")
-    Linux -> do
+    Linux   -> do
         -- TODO[MM]: respect $XDG_DATA_HOME after a change in runner
         userDir <- (Shelly.fromText . Text.pack) <$> liftIO Dir.getHomeDirectory
         let desktopFilesDir = ".local/share/applications"
@@ -131,6 +131,7 @@ uninstallStartMenuEntry = case currentHost of
             Shelly.rm_rf desktop `Exception.catchAny` (\(e::SomeException) ->
                 Logger.warning $ "Removing Luna Studio shortcut in " <> Shelly.toTextIgnore desktop <> " failed "
                 <> "because of " <> convert (displayException e) <> ". Continuing...")
+    _       -> return ()
 
 run :: MonadUninstall m => m ()
 run = do
