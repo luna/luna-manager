@@ -22,6 +22,7 @@ import qualified Luna.Manager.Shell.Shelly         as Shelly
 import           Luna.Manager.System               (makeExecutable)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host          (currentHost, System(..))
+import           Luna.Manager.System.Path          (expand)
 
 default (Text.Text)
 
@@ -104,6 +105,7 @@ promoteLinux pkgPath name version = do
 
 promote :: MonadPromote m => FilePath -> PromotionInfo -> m ()
 promote pkgPath prInfo = do
+    pkgFullPath <- expand $ pkgPath
     let name = prInfo ^. appName
     case prInfo ^. newVersion of
         Nothing -> liftIO $ putStrLn "No version to promote"
