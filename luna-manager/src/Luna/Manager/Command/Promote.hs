@@ -105,7 +105,6 @@ promoteLinux pkgPath name version = do
 
 promote :: MonadPromote m => FilePath -> PromotionInfo -> m ()
 promote pkgPath prInfo = do
-    pkgFullPath <- expand $ pkgPath
     let name = prInfo ^. appName
     case prInfo ^. newVersion of
         Nothing -> liftIO $ putStrLn "No version to promote"
@@ -120,5 +119,7 @@ run opts = do
         pkgPath = convert $ opts ^. Opts.pkgPath  :: FilePath
         verType = if opts ^. Opts.toRelease then Release else Nightly
 
-    prInfo <- createNextVersion cfgPath verType Nothing
-    promote pkgPath prInfo
+    pkgFullPath <- expand $ pkgPath
+    cfgFullPath <- expand $ cfgPath
+    prInfo      <- createNextVersion cfgFullPath verType Nothing
+    promote pkgFullPath prInfo
