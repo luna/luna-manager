@@ -153,7 +153,8 @@ untarWin totalProgress progressFieldName zipFile = do
     script       <- downloadFromURL scriptPath "Downloading archiving tool"
     let dir = directory zipFile
         name = dir </> basename zipFile
-
+    print script 
+    Shelly.mv script dir
     Shelly.chdir dir $ do
         Shelly.mkdir_p name
         if guiInstaller
