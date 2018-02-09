@@ -239,6 +239,19 @@ downloadRepo address = downloadFromURL address "Downloading repository configura
 getRepo :: MonadRepo m => m Repo
 getRepo = gets @RepoConfig repoPath >>= downloadRepo >>= parseConfig
 
+updateConfig :: Repo -> ResolvedApplication -> Repo
+updateConfig config resolvedApplication =
+    let app        = resolvedApplication ^. resolvedApp
+        appDesc    = app ^. desc
+        appHeader  = app ^. header
+        appName    = appHeader ^. name
+        mainPackagePath = "https://github.com/luna/"
+        applicationPartPackagePath = appName <> "/releases/download/" <> showPretty (view version appHeader) <> "/" <> appName <> "-" <> showPretty currentHost <> "-" <> showPretty (view version appHeader)
+        extension = if currentHost == Linux then ".AppImage" else ".tar.gz"
+        githubReleasePath = mainPackagePath <> applicationPartPackagePath <> extension
+        updatedConfig  = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ githubReleasePath
+        filteredConfig = updatedConfig & packages . ix appName . versions . ix (view version appHeader)  %~ Map.filterWithKey (\k _ -> k == currentSysDesc   )
+    in filteredConfig
 
 -- === Instances === --
 

@@ -18,6 +18,7 @@ import           Luna.Manager.Network              (MonadNetwork, downloadWithPr
 import           Luna.Manager.Component.Pretty     (showPretty)
 import           Luna.Manager.Component.Repository (RepoConfig)
 import           Luna.Manager.Component.Version    (Version)
+import qualified Luna.Manager.Component.Repository as Repository
 import qualified Luna.Manager.Shell.Shelly         as Shelly
 import           Luna.Manager.System               (makeExecutable)
 import           Luna.Manager.System.Env
@@ -52,6 +53,7 @@ renameVersion path repoPath versionOld versionNew = do
     Logger.log $ "Writing new version number: " <> prettyVersion
     liftIO $ writeFile versionFile (convert prettyVersion)
     let argsList = [encodeString path, (Text.unpack $ showPretty versionOld), Text.unpack prettyVersion]
+    print (argsList)
     case currentHost of
       Windows -> Shelly.cmd "py" promoteScript argsList
       _       -> Shelly.cmd promoteScript argsList
@@ -83,7 +85,7 @@ promoteLinux pkgPath repoPath name versionOld versionNew = do
     makeExecutable pkgPath
 
     Logger.log "Unpacking AppImage"
-    Shelly.cmd pkgPath "--appimage-extract"
+    Shelly.silently $ Shelly.cmd pkgPath "--appimage-extract"
 
     let appDir = "squashfs-root" :: FilePath
     renameVersion (appDir </> "usr") repoPath versionOld versionNew
@@ -129,3 +131,10 @@ run opts = do
     cfgFullPath <- expand $ cfgPath
     prInfo      <- createNextVersion cfgFullPath verType Nothing
     promote pkgFullPath (parent cfgFullPath) prInfo
+
+    config   <- Repository.parseConfig cfgFullPath
+    resolved <- mapM (Repository.resolvePackageApp config) (config ^. Repository.apps)
+    repo     <- Repository.getRepo
+
+    let updatedConfig = foldl' Repository.updateConfig config resolved
+    Repository.generateConfigYamlWithNewPackage repo updatedConfig $ (parent pkgFullPath) </> "config.yaml"
