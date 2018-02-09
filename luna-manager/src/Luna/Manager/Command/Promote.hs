@@ -10,7 +10,7 @@ import qualified Data.Text                         as Text
 import           Filesystem.Path.CurrentOS         (FilePath, parent, encodeString, fromText, (</>), (<.>), filename)
 
 import qualified Luna.Manager.Archive              as Archive
-import           Luna.Manager.Command.NextVersion  (PromotionInfo(..), TargetVersionType(..), VersionUpgradeException(..), createNextVersion, newVersion, appName)
+import           Luna.Manager.Command.NextVersion  (PromotionInfo(..), TargetVersionType(..), VersionUpgradeException(..), createNextVersion, newVersion, oldVersion, appName)
 import           Luna.Manager.Command.Options      (Options, NextVersionOpts, PromoteOpts)
 import qualified Luna.Manager.Command.Options      as Opts
 import qualified Luna.Manager.Logger               as Logger
@@ -42,21 +42,25 @@ newPackageName pkgPath version = if length chunks < 3
           prettyV = showPretty version
 
 
-renameVersion :: MonadPromote m => FilePath -> Version -> m ()
-renameVersion path version = do
-    let prettyVersion =  showPretty version
-        versionFile   =  encodeString $ path </> "config" </> "version.txt"
+renameVersion :: MonadPromote m => FilePath -> FilePath -> Version -> Version -> m ()
+renameVersion path repoPath versionOld versionNew = do
+    print "renameVersion STAAART"
+    let prettyVersion = showPretty versionNew
+        versionFile   = encodeString $ path </> "config" </> "version.txt"
+        promoteScript = repoPath </> "scripts_build" </> "promote.py"
 
     Logger.log $ "Writing new version number: " <> prettyVersion
     liftIO $ writeFile versionFile (convert prettyVersion)
+    case currentHost of
+      Windows -> Shelly.cmd "py" promoteScript [encodeString path, (Text.unpack $ showPretty versionOld), Text.unpack prettyVersion]
+      _       -> Shelly.cmd promoteScript [encodeString path, (Text.unpack $ showPretty versionOld), Text.unpack prettyVersion]
 
-
-promote' :: MonadPromote m => FilePath -> Text -> Version -> m ()
-promote' pkgPath name version = do
+promote' :: MonadPromote m => FilePath -> FilePath -> Text -> Version -> Version -> m ()
+promote' pkgPath repoPath name versionOld versionNew = do
     Logger.log "Unpacking the package"
     extracted <- Archive.unpack 1.0 "unpacking_progress" pkgPath
 
-    renameVersion extracted version
+    renameVersion extracted repoPath versionOld versionNew
 
     let correctPath = (parent extracted) </> (convert name)
     Logger.log $ "Renaming " <> (Shelly.toTextIgnore extracted) <> " to " <> (Shelly.toTextIgnore correctPath)
@@ -64,7 +68,7 @@ promote' pkgPath name version = do
         Logger.warning $ "Failed to rename the extracted folder.\n" <> (convert $ displayException e))
 
     Logger.log $ "Compressing the package"
-    let newName = newPackageName pkgPath version
+    let newName = newPackageName pkgPath versionNew
     compressed <- Archive.pack correctPath newName
 
     Logger.log "Cleaning up"
@@ -72,8 +76,8 @@ promote' pkgPath name version = do
         Logger.warning $ "Failed to clean up after extracting.\n" <> (convert $ displayException e))
 
 
-promoteLinux :: MonadPromote m => FilePath -> Text -> Version -> m ()
-promoteLinux pkgPath name version = do
+promoteLinux :: MonadPromote m => FilePath -> FilePath -> Text -> Version -> Version -> m ()
+promoteLinux pkgPath repoPath name versionOld versionNew = do
     Logger.log "Ensuring the AppImage is executable"
     makeExecutable pkgPath
 
@@ -81,7 +85,7 @@ promoteLinux pkgPath name version = do
     Shelly.cmd pkgPath "--appimage-extract"
 
     let appDir = "squashfs-root" :: FilePath
-    renameVersion (appDir </> "usr") version
+    renameVersion (appDir </> "usr") repoPath versionOld versionNew
 
     Logger.log "Downloading appImageTool"
     let aitUrl  = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
@@ -91,7 +95,7 @@ promoteLinux pkgPath name version = do
 
     Logger.log "Repacking AppImage"
     let aiName    = Shelly.toTextIgnore $ filename pkgPath
-        aiNewName = newPackageName pkgPath version <> ".AppImage"
+        aiNewName = newPackageName pkgPath versionNew <> ".AppImage"
     Shelly.cmd appImageTool appDir aiNewName
 
     Logger.log "Moving the AppImage"
@@ -103,14 +107,15 @@ promoteLinux pkgPath name version = do
         Logger.warning $ "Failed to clean up after extracting.\n" <> (convert $ displayException e))
 
 
-promote :: MonadPromote m => FilePath -> PromotionInfo -> m ()
-promote pkgPath prInfo = do
+promote :: MonadPromote m => FilePath -> FilePath -> PromotionInfo -> m ()
+promote pkgPath repoPath prInfo = do
     let name = prInfo ^. appName
+        vOld = prInfo ^. oldVersion
     case prInfo ^. newVersion of
         Nothing -> liftIO $ putStrLn "No version to promote"
-        Just v  -> case currentHost of
-            Linux -> promoteLinux pkgPath name v
-            _     -> promote'     pkgPath name v
+        Just vNew  -> case currentHost of
+            Linux -> promoteLinux pkgPath repoPath name vOld vNew
+            _     -> promote'     pkgPath repoPath name vOld vNew
 
 
 run :: MonadPromote m => PromoteOpts -> m ()
@@ -122,4 +127,4 @@ run opts = do
     pkgFullPath <- expand $ pkgPath
     cfgFullPath <- expand $ cfgPath
     prInfo      <- createNextVersion cfgFullPath verType Nothing
-    promote pkgFullPath prInfo
+    promote pkgFullPath (parent cfgFullPath) prInfo
