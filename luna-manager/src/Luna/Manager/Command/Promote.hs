@@ -45,7 +45,6 @@ newPackageName pkgPath version = if length chunks < 3
 
 renameVersion :: MonadPromote m => FilePath -> FilePath -> Version -> Version -> m ()
 renameVersion path repoPath versionOld versionNew = do
-    print "renameVersion STAAART"
     let prettyVersion = showPretty versionNew
         versionFile   = encodeString $ path </> "config" </> "version.txt"
         promoteScript = repoPath </> "scripts_build" </> "promote.py"
