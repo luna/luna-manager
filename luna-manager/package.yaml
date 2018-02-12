@@ -4,53 +4,55 @@ author:             New Byte Order <contact@newbyteorder.com>
 maintainer:         New Byte Order <contact@newbyteorder.com>
 
 dependencies:
-  - prologue
+  - aeson
+  - aeson-pretty
   - ansi-terminal
   - ascii-progress
-  - base64-bytestring
-  - io-streams
-  - path
-  - network
-  - conduit
   - base
+  - base64-bytestring
+  - bytestring
+  - conduit
+  - conduit-extra
+  - constraints
+  - containers
+  - cryptonite
+  - cryptonite-conduit
+  - dependent-state
   - directory
+  - errors
   - exceptions
-  - aeson
-  - yaml
-  - text
-  - typed-process
+  - file-embed
+  - filepath
   - http-conduit
   - http-types
-  - filepath
-  - network-uri
-  - bytestring
-  - optparse-applicative
-  - split
+  - io-streams
   - lens
-  - dependent-state
-  - containers
-  - resourcet
-  - optparse-applicative
-  - typelevel
-  - signal
-  - monad-control
-  - safe
-  - file-embed
   - lens-utils
-  - constraints
-  - transformers
+  - monad-control
   - mtl
-  - shelly
-  - conduit-extra
-  - system-filepath
+  - network
+  - network-uri
+  - optparse-applicative
+  - optparse-applicative
+  - path
+  - prologue
+  - resourcet
+  - safe
   - safe
   - safe-exceptions
-  - errors
-  - aeson-pretty
-  - time
-  - uuid
+  - shelly
+  - signal
+  - split
+  - system-filepath
   - template-haskell
+  - text
+  - time
+  - transformers
+  - typed-process
+  - typelevel
   - unordered-containers
+  - uuid
+  - yaml
 
 default-extensions:
     - AllowAmbiguousTypes

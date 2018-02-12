@@ -20,8 +20,6 @@ expand :: (LoggerMonad m, MonadIO m) => FilePath -> m FilePath
 expand path = if null path
     then return path
     else do
-        Logger.log "Path.expand"
-        Logger.logObject "Path" path
         let dirs = Path.splitDirectories path
             fstEl = head dirs
         home <- getHomePath

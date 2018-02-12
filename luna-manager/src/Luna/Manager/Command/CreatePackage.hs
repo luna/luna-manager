@@ -12,25 +12,27 @@ import qualified Luna.Manager.Logger as Logger
 import           Luna.Manager.Component.Pretty
 import           Luna.Manager.Component.Repository as Repo
 import           Luna.Manager.Network
-import           Luna.Manager.System (makeExecutable)
+import           Luna.Manager.System            (makeExecutable, generateChecksum)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
 import           Luna.Manager.Component.Version (Version)
 import           Luna.Manager.Component.Pretty
-import           Prologue hiding (FilePath)
-import qualified Data.Map as Map
-import           Data.Maybe (maybeToList)
-import qualified Data.Text as Text
-import qualified Data.Yaml as Yaml
-import qualified Luna.Manager.Command.Options as Opts
-import qualified Luna.Manager.Shell.Shelly as Shelly
-import qualified System.Process.Typed as Process
+import           Prologue                       hiding (FilePath)
+import qualified Crypto.Hash                    as Crypto
+import qualified Data.Map                       as Map
+import           Data.Maybe                     (maybeToList)
+import qualified Data.Text                      as Text
+import qualified Data.Yaml                      as Yaml
+import qualified Luna.Manager.Command.Options   as Opts
+import qualified Luna.Manager.Shell.Shelly      as Shelly
+import qualified Safe                           as Safe
+import qualified System.Process.Typed           as Process
 import System.Exit
-import System.Directory (renameDirectory)
-import Luna.Manager.Shell.Shelly (MonadSh)
-import qualified Control.Exception.Safe as Exception
-import qualified Data.ByteString.Lazy.Char8 as BSLChar
+import System.Directory                         (renameDirectory)
+import Luna.Manager.Shell.Shelly                (MonadSh)
+import qualified Control.Exception.Safe         as Exception
+import qualified Data.ByteString.Lazy.Char8     as BSLChar
 
 import qualified Data.Text as T
 default (T.Text)
@@ -127,17 +129,20 @@ copyResourcesAppImage repoPath appName tmpAppDirPath mainAppImageFolderPath = do
     Shelly.cp desktopFile $ tmpAppDirPath </> convert (appName <> ".desktop")
     copyDir srcPkgPath mainAppImageFolderPath
 
-checkAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m ()
+checkAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m FilePath
 checkAppImageName appName version filePath = do
     let fileName      = filename filePath
         outFolderPath = parent $ filePath
+        fullAppImagePath = outFolderPath </> convert (appName <> "-" <> showPretty currentHost <> "-" <> showPretty version <> ".AppImage")
     when (Text.isInfixOf appName (Shelly.toTextIgnore fileName)) $ do
-        Shelly.mv filePath $ outFolderPath </> convert (appName <> "-" <> showPretty currentHost <> "-" <> showPretty version <> ".AppImage")
+        Shelly.mv filePath fullAppImagePath
+    return fullAppImagePath
 
-changeAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m ()
+changeAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m FilePath
 changeAppImageName appName version outFolderPath = do
     listedDir <- Shelly.ls outFolderPath
-    mapM_ (checkAppImageName appName version) listedDir
+    appimagesList <- mapM (checkAppImageName appName version) listedDir
+    return $ Safe.headDef (outFolderPath </> convert (appName <> ".AppImage") ) appimagesList
 
 getApprun :: MonadCreatePackage m => FilePath -> FilePath -> m ()
 getApprun tmpAppDirPath functions = do
@@ -152,7 +157,7 @@ generateAppimage tmpAppPath functions appName = do
     (exitCode, out, err) <- Process.readProcess $ Process.setWorkingDir (encodeString tmpAppPath) $ Process.setEnv [("APP", (convert appName))] $ Process.shell $ ". " <> (encodeString functions) <> " && " <> generateAppimage
     unless (exitCode == ExitSuccess) $ throwM (AppimageException (toException $ Exception.StringException (BSLChar.unpack err) callStack))
 
-createAppimage :: MonadCreatePackage m => Text -> Version -> FilePath -> m ()
+createAppimage :: MonadCreatePackage m => Text -> Version -> FilePath -> m FilePath
 createAppimage appName version repoPath = do
     Logger.log "Creating app image"
     let appImageFolderName = "appimage"
@@ -182,7 +187,8 @@ createAppimage appName version repoPath = do
     generateAppimage tmpAppPath functions appName
 
     let outFolder = (parent $ tmpAppPath) </> "out"
-    changeAppImageName appName version outFolder
+    appimage <- changeAppImageName appName version outFolder
+    return appimage
 
 ------------------------------
 -- === Package building === --
@@ -364,9 +370,11 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
 
     when (currentHost == Darwin) $ Shelly.silently $ linkLibs binsFolder libsFolder
 
-    case currentHost of
-        Linux -> createAppimage appName appVersion appPath
-        _     -> void . Archive.pack mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> showPretty appVersion
+    package <- case currentHost of
+                  Linux -> createAppimage appName appVersion appPath
+                  _     -> Archive.pack mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> showPretty appVersion
+
+    generateChecksum  @Crypto.SHA256 package
 
     unless buildHead $ Shelly.switchVerbosity $ Shelly.chdir appPath $ do
         Shelly.cmd "git" "checkout" currBranch

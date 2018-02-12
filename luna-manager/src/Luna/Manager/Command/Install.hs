@@ -184,8 +184,9 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     when guiInstaller $ downloadProgress (Progress 0 1)
     Shelly.mkdir_p $ parent installPath
     pkg      <- downloadWithProgressBar pkgPath
+    -- pkgSha   <- downloadWithProgressBar $
     when guiInstaller $ installationProgress 0
-
+    -- checkChecksum @Crypto.SHA256 pkg pkgSha
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
     case currentHost of
          Linux   -> do
@@ -360,7 +361,7 @@ askLocation opts appType appName = do
             BatchApp -> installConfig ^. defaultBinPathBatchApp
     binPath <- askOrUse (opts ^. Opts.selectedInstallationPath)
         $ question ("Select installation path for " <> appName) plainTextReader
-        & defArg .~ Just (toTextIgnore pkgInstallDefPath) 
+        & defArg .~ Just (toTextIgnore pkgInstallDefPath)
     return binPath
 
 installApp :: MonadInstall m => InstallOpts -> ResolvedPackage -> m ()

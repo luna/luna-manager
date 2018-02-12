@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Luna.Manager.System where
 
-import           Prologue                     hiding (FilePath,null, filter, appendFile, readFile, toText, fromText)
+import           Prologue                     hiding (FilePath,null, filter, appendFile, readFile, toText, fromText, (<.>))
 
 import qualified Control.Exception.Safe       as Exception
 import           Control.Monad.Raise
@@ -10,12 +12,14 @@ import           Control.Monad.State.Layered
 import           Control.Monad.Trans.Resource (MonadBaseControl)
 import           Data.ByteString.Lazy         (ByteString, null)
 import           Data.ByteString.Lazy.Char8   (filter, unpack)
+import qualified Crypto.Hash                  as Crypto
+import qualified Crypto.Hash.Conduit          as Crypto
 import           Data.Maybe                   (listToMaybe)
 import           Data.List                    (isInfixOf)
 import           Data.List.Split              (splitOn)
 import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text                    as Text
-import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, toText, parent)
+import           Filesystem.Path.CurrentOS    (FilePath, (</>), (<.>), encodeString, toText, parent, directory, dropExtension)
 import           System.Directory             (executable, setPermissions, getPermissions, doesDirectoryExist, doesPathExist, getHomeDirectory)
 import qualified System.Environment           as Environment
 import           System.Exit
@@ -146,3 +150,15 @@ stopServicesWindows path = Shelly.chdir path $ do
         Shelly.silently $ Shelly.cmd uninstallPath `catch` handler where
             handler :: (LoggerMonad m, MonadSh m) => SomeException -> m ()
             handler ex = Logger.exception "System.stopServicesWindows" ex -- Shelly.liftSh $ print ex --TODO create proper error
+
+generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, LoggerMonad m, MonadCatch m, MonadIO m) => FilePath -> m ()
+generateChecksum file = do
+    sha <- Crypto.hashFile @_ @hash $ encodeString file
+    let shaFilePath = dropExtension file <.>  "sha256"
+    liftIO $ writeFile (encodeString shaFilePath) (show sha)
+
+checkChecksum :: forall hash m . (Crypto.HashAlgorithm hash, LoggerMonad m, MonadCatch m, MonadIO m) => FilePath -> FilePath -> m Bool
+checkChecksum file shaFile = do
+    sha      <- Crypto.hashFile @_ @hash $ encodeString file
+    shaSaved <- liftIO $ readFile $ encodeString file
+    return $ (Text.pack $ show sha) == shaSaved
