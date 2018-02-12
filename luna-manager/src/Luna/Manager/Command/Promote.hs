@@ -51,8 +51,7 @@ renameVersion path repoPath versionOld versionNew = do
 
     Logger.log $ "Writing new version number: " <> prettyVersion
     liftIO $ writeFile versionFile (convert prettyVersion)
-    let argsList = [encodeString path, (Text.unpack $ showPretty versionOld), Text.unpack prettyVersion]
-    print (argsList)
+    let argsList = ["package_path=" <> encodeString path, "old_version=" <> (Text.unpack $ showPretty versionOld), "nev_version=" <> Text.unpack prettyVersion]
     case currentHost of
       Windows -> Shelly.cmd "py" promoteScript argsList
       _       -> Shelly.cmd promoteScript argsList
