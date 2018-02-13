@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Luna.Manager.System where
@@ -159,6 +158,6 @@ generateChecksum file = do
 
 checkChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m) => FilePath -> FilePath -> m Bool
 checkChecksum file shaFile = do
-    sha      <- Crypto.hashFile @_ @hash $ encodeString file
+    sha      <- Crypto.hashFile @m @hash $ encodeString file
     shaSaved <- liftIO . readFile $ encodeString file
     return $ (Text.pack $ show sha) == shaSaved
