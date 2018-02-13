@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Luna.Manager.System where
@@ -188,7 +187,7 @@ instance Exception SHAChecksumDoesNotMatchError where
 
 generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m) => FilePath -> m ()
 generateChecksum file = do
-    sha <- Crypto.hashFile @_ @hash $ encodeString file
+    sha <- Crypto.hashFile @m @hash $ encodeString file
     let shaFilePath = dropExtension file <.>  "sha256"
     liftIO $ writeFile (encodeString shaFilePath) (show sha)
 
