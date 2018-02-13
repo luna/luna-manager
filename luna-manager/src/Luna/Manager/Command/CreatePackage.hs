@@ -133,7 +133,7 @@ checkAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m Fi
 checkAppImageName appName version filePath = do
     let fileName      = filename filePath
         outFolderPath = parent $ filePath
-        fullAppImagePath = outFolderPath </> convert (appName <> "-" <> showPretty currentHost <> "-" <> showPretty version <> ".AppImage")
+        fullAppImagePath = outFolderPath </> convert (finalPackageName appName version <> ".AppImage")
     when (Text.isInfixOf appName (Shelly.toTextIgnore fileName)) $ do
         Shelly.mv filePath fullAppImagePath
     return fullAppImagePath
@@ -142,7 +142,7 @@ changeAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m F
 changeAppImageName appName version outFolderPath = do
     listedDir <- Shelly.ls outFolderPath
     appimagesList <- mapM (checkAppImageName appName version) listedDir
-    return $ Safe.headDef (outFolderPath </> convert (appName <> ".AppImage") ) appimagesList
+    return $ Safe.headDef (outFolderPath </> convert (appName <> ".AppImage")) appimagesList
 
 getApprun :: MonadCreatePackage m => FilePath -> FilePath -> m ()
 getApprun tmpAppDirPath functions = do
@@ -196,6 +196,9 @@ createAppimage appName version repoPath = do
 
 -- === Utils === --
 
+
+finalPackageName :: Text -> Version -> Text
+finalPackageName appName version = appName <> "-" <> showPretty currentHost <> "-" <> showPretty version
 
 runPkgBuildScript :: MonadCreatePackage m => FilePath -> Maybe Text -> m ()
 runPkgBuildScript repoPath s3GuiURL = do
@@ -372,7 +375,7 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
 
     package <- case currentHost of
                   Linux -> createAppimage appName appVersion appPath
-                  _     -> Archive.pack mainAppDir $ appName <> "-" <> showPretty currentHost <> "-" <> showPretty appVersion
+                  _     -> Archive.pack mainAppDir $ finalPackageName appName appVersion
 
     generateChecksum  @Crypto.SHA256 package
 
