@@ -151,14 +151,14 @@ stopServicesWindows path = Shelly.chdir path $ do
             handler :: (LoggerMonad m, MonadSh m) => SomeException -> m ()
             handler ex = Logger.exception "System.stopServicesWindows" ex -- Shelly.liftSh $ print ex --TODO create proper error
 
-generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, LoggerMonad m, MonadCatch m, MonadIO m) => FilePath -> m ()
+generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m) => FilePath -> m ()
 generateChecksum file = do
     sha <- Crypto.hashFile @_ @hash $ encodeString file
     let shaFilePath = dropExtension file <.>  "sha256"
     liftIO $ writeFile (encodeString shaFilePath) (show sha)
 
-checkChecksum :: forall hash m . (Crypto.HashAlgorithm hash, LoggerMonad m, MonadCatch m, MonadIO m) => FilePath -> FilePath -> m Bool
+checkChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m) => FilePath -> FilePath -> m Bool
 checkChecksum file shaFile = do
     sha      <- Crypto.hashFile @_ @hash $ encodeString file
-    shaSaved <- liftIO $ readFile $ encodeString file
+    shaSaved <- liftIO . readFile $ encodeString file
     return $ (Text.pack $ show sha) == shaSaved

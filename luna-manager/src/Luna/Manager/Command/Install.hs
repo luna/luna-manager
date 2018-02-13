@@ -2,55 +2,51 @@
 {-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Command.Install where
 
-import Prologue hiding (txt, FilePath, toText)
+import Prologue hiding (txt, FilePath, toText, (<.>))
 
-import Luna.Manager.System.Host
-import Luna.Manager.System.Env
-import Luna.Manager.Component.Repository as Repo
-import Luna.Manager.Component.Version    as Version
-import Luna.Manager.Component.Analytics  as Analytics
-import Luna.Manager.Network
-import Luna.Manager.Component.Pretty
-import Luna.Manager.Gui.DownloadProgress
-import qualified Luna.Manager.Logger          as Logger
-import Luna.Manager.Shell.Question
-import           Luna.Manager.Command.Options (Options, InstallOpts)
-import qualified Luna.Manager.Command.Options as Opts
-import qualified Luna.Manager.Logger          as Logger
-import Luna.Manager.System.Path
-import Luna.Manager.System (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows)
+import           Luna.Manager.Archive              as Archive
+import qualified Luna.Manager.Command.Options      as Opts
+import           Luna.Manager.Command.Options      (Options, InstallOpts)
+import           Luna.Manager.Component.Analytics  as Analytics
+import           Luna.Manager.Component.Pretty
+import           Luna.Manager.Component.Repository as Repo
+import           Luna.Manager.Component.Version    as Version
+import           Luna.Manager.Gui.DownloadProgress
+import qualified Luna.Manager.Gui.Initialize       as Initilize
+import           Luna.Manager.Gui.InstallationProgress
+import qualified Luna.Manager.Logger               as Logger
+import           Luna.Manager.Network
+import           Luna.Manager.Shell.Question
+import qualified Luna.Manager.Shell.Shelly         as Shelly
+import           Luna.Manager.Shell.Shelly         (toTextIgnore, MonadSh, MonadShControl)
+import           Luna.Manager.System               (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows, checkChecksum)
+import           Luna.Manager.System.Env
+import           Luna.Manager.System.Host
+import           Luna.Manager.System.Path
 
-import Control.Lens.Aeson
-import Control.Monad.Raise
-import Control.Monad.State.Layered
-import Control.Monad.Trans.Resource (MonadBaseControl)
-
-import qualified Data.Char as Char
-import Data.Maybe (listToMaybe)
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-
-import qualified Data.Yaml as Yaml
-
-import Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, decodeString, toText, basename, hasExtension, parent)
-import Luna.Manager.Shell.Shelly (toTextIgnore, MonadSh, MonadShControl)
-import qualified Luna.Manager.Shell.Shelly as Shelly
-import System.Exit (exitSuccess, exitFailure, ExitCode(..))
-import System.IO (hFlush, stdout, stderr, hPutStrLn)
-import System.Info (arch)
-import qualified System.Process.Typed as Process
-import qualified System.Directory as System
-import qualified System.Environment as Environment
-import Luna.Manager.Archive as Archive
-import qualified Luna.Manager.Gui.Initialize as Initilize
+import qualified Control.Exception.Safe as Exception
+import           Control.Lens.Aeson
+import           Control.Monad.Raise
+import           Control.Monad.State.Layered
+import           Control.Monad.Trans.Resource (MonadBaseControl)
+import qualified Crypto.Hash                  as Crypto
 import qualified Data.Aeson          as JSON
+import           Data.Aeson (ToJSON, toJSON, toEncoding, encode)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
-import qualified Control.Exception.Safe as Exception
-
-import Luna.Manager.Gui.InstallationProgress
-import Data.Aeson (ToJSON, toJSON, toEncoding, encode)
+import qualified Data.Char as Char
+import qualified Data.Map as Map
+import           Data.Maybe (listToMaybe)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
+import qualified Data.Yaml as Yaml
+import           Filesystem.Path.CurrentOS (FilePath, (</>), (<.>), encodeString, decodeString, toText, basename, hasExtension, parent, dropExtension)
+import qualified System.Directory as System
+import qualified System.Environment as Environment
+import qualified System.Process.Typed as Process
+import           System.Exit (exitSuccess, exitFailure, ExitCode(..))
+import           System.Info (arch)
+import           System.IO (hFlush, stdout, stderr, hPutStrLn)
 
 default(Text.Text)
 
@@ -128,6 +124,11 @@ makeLenses ''UnresolvedDepsError
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
 
+data SHAChecksumDoesNotMatchError = SHAChecksumDoesNotMatchError deriving (Show)
+
+instance Exception SHAChecksumDoesNotMatchError where
+    displayException _ = "Package SHA-1 checksum does not match with the one provided with package. Installation interrupted."
+
 type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, Logger.LoggerMonad m)
 
 -- === Utils === --
@@ -183,16 +184,19 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     stopServices installPath appType
     when guiInstaller $ downloadProgress (Progress 0 1)
     Shelly.mkdir_p $ parent installPath
+    let pkgShaPath = dropExtension (fromText pkgPath) <.>  "sha256"
     pkg      <- downloadWithProgressBar pkgPath
-    -- pkgSha   <- downloadWithProgressBar $
+    pkgSha   <- downloadWithProgressBar $ toTextIgnore pkgShaPath
     when guiInstaller $ installationProgress 0
-    -- checkChecksum @Crypto.SHA256 pkg pkgSha
-    unpacked <- Archive.unpack 0.9 "installation_progress" pkg
-    case currentHost of
-         Linux   -> do
-             Shelly.mkdir_p installPath
-             Shelly.mv unpacked $ installPath </> convert appName
-         _  -> Shelly.mv unpacked  installPath
+    checksumMatch <- checkChecksum @Crypto.SHA256 pkg pkgSha
+    if checksumMatch then do
+        unpacked <- Archive.unpack 0.9 "installation_progress" pkg
+        case currentHost of
+             Linux   -> do
+                 Shelly.mkdir_p installPath
+                 Shelly.mv unpacked $ installPath </> convert appName
+             _  -> Shelly.mv unpacked  installPath
+        else throwM . toException $ SHAChecksumDoesNotMatchError 
 
 linkingCurrent :: MonadInstall m => AppType -> FilePath -> m ()
 linkingCurrent appType installPath = do
