@@ -187,8 +187,7 @@ createAppimage appName version repoPath = do
     generateAppimage tmpAppPath functions appName
 
     let outFolder = (parent $ tmpAppPath) </> "out"
-    appimage <- changeAppImageName appName version outFolder
-    return appimage
+    changeAppImageName appName version outFolder
 
 ------------------------------
 -- === Package building === --
