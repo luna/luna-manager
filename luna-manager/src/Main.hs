@@ -5,11 +5,14 @@ module Main where
 import Prologue hiding (FilePath)
 import Control.Monad.Raise
 import Luna.Manager.Clean
-import Luna.Manager.Command.Options (evalOptionsParserT)
+import Luna.Manager.Command.Options (evalOptionsParserT, parseOptions)
 import Luna.Manager.Command         (chooseCommand)
+import Luna.Manager.System.Host     (evalDefHostConfig)
+import Luna.Manager.System.Env      (getTmpPath, EnvConfig)
 
 
 import Control.Concurrent (myThreadId)
+import Control.Monad.State.Layered
 import qualified Control.Exception.Safe as Exception
 import qualified Luna.Manager.Shell.Shelly as Shelly
 import System.Exit (exitSuccess, exitFailure)
@@ -20,7 +23,8 @@ main = run
 
 run :: (MonadIO m, MonadException SomeException m, MonadMask m) => m ()
 run = Shelly.shelly $ do
-    tmp <- evalGetTmp
+    options  <- parseOptions
+    tmp      <- evalDefHostConfig @EnvConfig $ evalStateT getTmpPath options
     threadId <- liftIO myThreadId
     liftIO $ handleSignal threadId
     Exception.handleAny handleTopLvlError $ evalOptionsParserT chooseCommand `Exception.finally` (cleanUp tmp)

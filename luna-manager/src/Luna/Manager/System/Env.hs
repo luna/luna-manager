@@ -4,6 +4,7 @@ module Luna.Manager.System.Env where
 
 import Prologue hiding (FilePath, fromText, toText)
 
+import           Luna.Manager.Command.Options
 import           Luna.Manager.System.Host
 import qualified Shelly.Lifted as Shelly
 import           Shelly.Lifted (MonadSh)
@@ -32,15 +33,17 @@ getHomePath = fromText . convert <$> liftIO System.getHomeDirectory
 getCurrentPath :: MonadIO m => m FilePath
 getCurrentPath = fromText . convert <$> liftIO System.getCurrentDirectory
 
-getTmpPath, getDownloadPath :: (MonadIO m, MonadGetter EnvConfig m, MonadSh m) => m FilePath
+getTmpPath, getDownloadPath :: (MonadIO m, MonadGetters '[Options, EnvConfig] m, MonadSh m) => m FilePath
 getDownloadPath = getTmpPath
 getTmpPath      = do
-    tmp <- view localTempPath <$> get @EnvConfig
+    userTmpPath <- view (globals.selectedTmpPath) <$> get @Options
+    cfgTmpPath  <- view localTempPath <$> get @EnvConfig
+    let tmp = fromMaybe cfgTmpPath $ fromText <$> userTmpPath
     Shelly.mkdir_p tmp
     return tmp
 
 
-setTmpCwd :: (MonadGetter EnvConfig m, MonadIO m, MonadSh m) => m ()
+setTmpCwd :: (MonadGetters '[Options, EnvConfig] m, MonadIO m, MonadSh m) => m ()
 setTmpCwd = liftIO . System.setCurrentDirectory . encodeString =<< getTmpPath
 
 createSymLink ::  MonadIO m => FilePath -> FilePath -> m ()

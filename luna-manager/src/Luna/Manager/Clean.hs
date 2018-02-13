@@ -4,6 +4,7 @@ module Luna.Manager.Clean where
 
 import Prologue hiding (FilePath)
 
+import Luna.Manager.Command.Options
 import Luna.Manager.System.Env (getTmpPath, EnvConfig)
 import Luna.Manager.System.Host (evalDefHostConfigs)
 
@@ -16,9 +17,6 @@ import qualified System.Signal as Signal
 import System.Directory (removeDirectoryRecursive)
 import Luna.Manager.Shell.Shelly (MonadSh)
 
-
-evalGetTmp :: (MonadIO m, MonadSh m) => m FilePath
-evalGetTmp = evalDefHostConfigs @'[EnvConfig] $ getTmpPath
 
 cleanUp :: MonadIO m => FilePath -> m ()
 cleanUp tmp = liftIO $ removeDirectoryRecursive $ encodeString tmp
