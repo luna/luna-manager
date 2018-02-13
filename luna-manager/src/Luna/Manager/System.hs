@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Luna.Manager.System where
@@ -13,11 +14,13 @@ import           Data.ByteString.Lazy         (ByteString, null)
 import           Data.ByteString.Lazy.Char8   (filter, unpack)
 import qualified Crypto.Hash                  as Crypto
 import qualified Crypto.Hash.Conduit          as Crypto
+import qualified Data.ByteArray               as ByteArray
 import           Data.Maybe                   (listToMaybe)
 import           Data.List                    (isInfixOf)
 import           Data.List.Split              (splitOn)
 import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text                    as Text
+import qualified Data.Text.Encoding           as Text
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), (<.>), encodeString, toText, parent, directory, dropExtension)
 import           System.Directory             (executable, setPermissions, getPermissions, doesDirectoryExist, doesPathExist, getHomeDirectory)
 import qualified System.Environment           as Environment
@@ -33,6 +36,10 @@ import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 
+
+---------------------------
+-- === Paths exports === --
+---------------------------
 
 data Shell = Bash | Zsh | Unknown deriving (Show)
 
@@ -126,13 +133,19 @@ exportPathWindows path = do
     let pathToexport = Path.dropTrailingPathSeparator $ encodeString $ parent path
         systemPath   = unpack pathenv
     unless (isInfixOf pathToexport systemPath) $ do
-        (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx PATH \"%PATH%;" ++ pathToexport ++ "\""
+        (exitCode, out, err) <- Process.readProcess $ Process.shell $ "setx PATH \"%PATH%;" <> pathToexport <> "\""
         unless (exitCode == ExitSuccess) $ Logger.warning $ "Path was not exported."
 
 makeExecutable :: MonadIO m => FilePath -> m ()
 makeExecutable file = unless (currentHost == Windows) $ liftIO $ do
         p <- getPermissions $ encodeString file
         setPermissions (encodeString file) (p {executable = True})
+
+
+------------------------------
+-- === Windows Services === --
+------------------------------
+
 
 runServicesWindows :: (LoggerMonad m, MonadSh m, MonadIO m, MonadShControl m) => FilePath -> FilePath -> m ()
 runServicesWindows path logsPath = Shelly.chdir path $ do
@@ -150,14 +163,39 @@ stopServicesWindows path = Shelly.chdir path $ do
             handler :: (LoggerMonad m, MonadSh m) => SomeException -> m ()
             handler ex = Logger.exception "System.stopServicesWindows" ex -- Shelly.liftSh $ print ex --TODO create proper error
 
+-----------------------
+-- === Checksums === --
+-----------------------
+
+-- === Errors === --
+
+data CouldNotDecodeDigestError = CouldNotDecodeDigestError {sha :: Text} deriving (Show)
+instance Exception CouldNotDecodeDigestError where
+    displayException (CouldNotDecodeDigestError sha) = "Decoding Digest Error: could not decode " <> (Text.unpack $ sha)
+
+decodeDigestError :: Text -> SomeException
+decodeDigestError = toException . CouldNotDecodeDigestError
+
+data SHAChecksumDoesNotMatchError = SHAChecksumDoesNotMatchError FilePath Text Text  deriving (Show)
+instance Exception SHAChecksumDoesNotMatchError where
+    displayException (SHAChecksumDoesNotMatchError file checksum expectedChecksum) =
+        "File " <> show file <> " checksum does not match with the one provided with package." <> "\n" <>
+        "Expected checksum: " <> Text.unpack expectedChecksum <> "\n" <>
+        "Calculated checksum: " <> Text.unpack checksum <> "\n" <>
+        "Installation interrupted."
+
+-- === Utils === --
+
 generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m) => FilePath -> m ()
 generateChecksum file = do
     sha <- Crypto.hashFile @_ @hash $ encodeString file
     let shaFilePath = dropExtension file <.>  "sha256"
     liftIO $ writeFile (encodeString shaFilePath) (show sha)
 
-checkChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m) => FilePath -> FilePath -> m Bool
+checkChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m, MonadThrow m, MonadException SomeException m) => FilePath -> FilePath -> m ()
 checkChecksum file shaFile = do
-    sha      <- Crypto.hashFile @m @hash $ encodeString file
-    shaSaved <- liftIO . readFile $ encodeString file
-    return $ (Text.pack $ show sha) == shaSaved
+    sha            <- Crypto.hashFile @m @hash $ encodeString file
+    shaSaved       <- liftIO . readFile $ encodeString file
+    digestShaSaved <- tryJust (decodeDigestError shaSaved) $ Crypto.digestFromByteString @hash $ Text.encodeUtf8 shaSaved
+    let shaString = Text.pack $ show sha
+    unless (sha == digestShaSaved) $ throwM $ toException $ SHAChecksumDoesNotMatchError file shaSaved shaString

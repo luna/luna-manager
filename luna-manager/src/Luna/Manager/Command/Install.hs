@@ -124,11 +124,6 @@ makeLenses ''UnresolvedDepsError
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
 
-data SHAChecksumDoesNotMatchError = SHAChecksumDoesNotMatchError deriving (Show)
-
-instance Exception SHAChecksumDoesNotMatchError where
-    displayException _ = "Package SHA-1 checksum does not match with the one provided with package. Installation interrupted."
-
 type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, Logger.LoggerMonad m)
 
 -- === Utils === --
@@ -188,15 +183,13 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     pkg      <- downloadWithProgressBar pkgPath
     pkgSha   <- downloadWithProgressBar $ toTextIgnore pkgShaPath
     when guiInstaller $ installationProgress 0
-    checksumMatch <- checkChecksum @Crypto.SHA256 pkg pkgSha
-    if checksumMatch then do
-        unpacked <- Archive.unpack 0.9 "installation_progress" pkg
-        case currentHost of
-             Linux   -> do
-                 Shelly.mkdir_p installPath
-                 Shelly.mv unpacked $ installPath </> convert appName
-             _  -> Shelly.mv unpacked  installPath
-        else throwM . toException $ SHAChecksumDoesNotMatchError 
+    checkChecksum @Crypto.SHA256 pkg pkgSha
+    unpacked <- Archive.unpack 0.9 "installation_progress" pkg
+    case currentHost of
+         Linux   -> do
+             Shelly.mkdir_p installPath
+             Shelly.mv unpacked $ installPath </> convert appName
+         _  -> Shelly.mv unpacked  installPath
 
 linkingCurrent :: MonadInstall m => AppType -> FilePath -> m ()
 linkingCurrent appType installPath = do

@@ -28,6 +28,7 @@ dependencies:
   - io-streams
   - lens
   - lens-utils
+  - memory
   - monad-control
   - mtl
   - network
