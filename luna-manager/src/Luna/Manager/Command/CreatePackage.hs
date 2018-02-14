@@ -210,6 +210,14 @@ runPkgBuildScript repoPath s3GuiURL = do
             Windows -> Shelly.cmd "py" buildPath $ ["--release"] ++ guiUrl
             _       -> Shelly.run_ buildPath $ ["--release"] ++ guiUrl
 
+removeGitFolders :: MonadCreatePackage m => FilePath -> m ()
+removeGitFolders path = do
+    Prologue.whenM (Shelly.test_d path) $ do
+        list <- Shelly.ls path
+        print list
+        mapM_ removeGitFolders list
+    when (dirname path == ".git") $ Shelly.rm_rf path
+
 copyFromDistToDistPkg :: MonadCreatePackage m => Text -> FilePath -> m ()
 copyFromDistToDistPkg appName repoPath = do
     Logger.log "Copying from dist to dist-package"
@@ -221,6 +229,7 @@ copyFromDistToDistPkg appName repoPath = do
     Shelly.rm_rf packageRepoFolder
     Shelly.mkdir_p $ parent packageRepoFolder
     Shelly.mv expandedCopmponents packageRepoFolder
+    removeGitFolders packageRepoFolder
 
 downloadAndUnpackDependency :: MonadCreatePackage m => FilePath -> ResolvedPackage -> m ()
 downloadAndUnpackDependency repoPath resolvedPackage = do
