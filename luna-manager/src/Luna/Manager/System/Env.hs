@@ -36,8 +36,8 @@ getCurrentPath = fromText . convert <$> liftIO System.getCurrentDirectory
 getTmpPath, getDownloadPath :: (MonadIO m, MonadGetters '[Options, EnvConfig] m, MonadSh m) => m FilePath
 getDownloadPath = getTmpPath
 getTmpPath      = do
-    userTmpPath <- view (globals.selectedTmpPath) <$> get @Options
-    cfgTmpPath  <- view localTempPath <$> get @EnvConfig
+    userTmpPath <- gets @Options   (globals.selectedTmpPath)
+    cfgTmpPath  <- gets @EnvConfig localTempPath
     let tmp = fromMaybe cfgTmpPath $ fromText <$> userTmpPath
     Shelly.mkdir_p tmp
     return tmp
