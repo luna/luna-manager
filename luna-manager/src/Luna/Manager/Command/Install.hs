@@ -126,7 +126,7 @@ instance Exception UnresolvedDepsError where
 
 data CouldNotGenerateSHAUriError = CouldNotGenerateSHAUriError {pkgPath :: Text} deriving (Show)
 instance Exception CouldNotGenerateSHAUriError where
-    displayException (CouldNotGenerateSHAUriError pkgPath) = "Generating SHA file URI error: could not generate SHA uri base on " <> (Text.unpack $ pkgPath)
+    displayException (CouldNotGenerateSHAUriError pkgPath) = "Generating SHA file URI error: could not generate SHA uri base on " <> Text.unpack pkgPath
 
 shaUriError :: Text -> SomeException
 shaUriError = toException . CouldNotGenerateSHAUriError
@@ -189,7 +189,7 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     pkgPathNoExtension <- tryJust (shaUriError pkgPath) $ case currentHost of
             Linux -> Text.stripSuffix "AppImage" pkgPath
             _     -> Text.stripSuffix "tar.gz" pkgPath
-    let pkgShaPath = pkgPathNoExtension <>  "sha256"
+    let pkgShaPath = pkgPathNoExtension <> "sha256"
     pkg      <- downloadWithProgressBar pkgPath
     pkgSha   <- downloadWithProgressBar pkgShaPath
     when guiInstaller $ installationProgress 0
