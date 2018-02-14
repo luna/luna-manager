@@ -179,9 +179,9 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     stopServices installPath appType
     when guiInstaller $ downloadProgress (Progress 0 1)
     Shelly.mkdir_p $ parent installPath
-    let pkgShaPath = dropExtension (fromText pkgPath) <.>  "sha256"
+    let pkgShaPath = (fst $ Text.breakOnEnd "." pkgPath) <>  "sha256"
     pkg      <- downloadWithProgressBar pkgPath
-    pkgSha   <- downloadWithProgressBar $ toTextIgnore pkgShaPath
+    pkgSha   <- downloadWithProgressBar pkgShaPath
     when guiInstaller $ installationProgress 0
     checkChecksum @Crypto.SHA256 pkg pkgSha
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg

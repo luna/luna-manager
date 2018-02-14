@@ -13,7 +13,7 @@ import           Data.ByteString.Lazy         (ByteString, null)
 import           Data.ByteString.Lazy.Char8   (filter, unpack)
 import qualified Crypto.Hash                  as Crypto
 import qualified Crypto.Hash.Conduit          as Crypto
-import qualified Data.ByteArray               as ByteArray
+import qualified Data.ByteString              as ByteString
 import           Data.Maybe                   (listToMaybe)
 import           Data.List                    (isInfixOf)
 import           Data.List.Split              (splitOn)
@@ -168,13 +168,6 @@ stopServicesWindows path = Shelly.chdir path $ do
 
 -- === Errors === --
 
-data CouldNotDecodeDigestError = CouldNotDecodeDigestError {sha :: Text} deriving (Show)
-instance Exception CouldNotDecodeDigestError where
-    displayException (CouldNotDecodeDigestError sha) = "Decoding Digest Error: could not decode " <> (Text.unpack $ sha)
-
-decodeDigestError :: Text -> SomeException
-decodeDigestError = toException . CouldNotDecodeDigestError
-
 data SHAChecksumDoesNotMatchError = SHAChecksumDoesNotMatchError FilePath Text Text  deriving (Show)
 instance Exception SHAChecksumDoesNotMatchError where
     displayException (SHAChecksumDoesNotMatchError file checksum expectedChecksum) =
@@ -191,10 +184,11 @@ generateChecksum file = do
     let shaFilePath = dropExtension file <.>  "sha256"
     liftIO $ writeFile (encodeString shaFilePath) (show sha)
 
+-- checking just strings because converting to ByteString will prevent user to check it without manager and
+-- comparing Digests is nontrivial due to lack of read function working opposite to Show in Crypto.Hash library
 checkChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m, MonadThrow m, MonadException SomeException m) => FilePath -> FilePath -> m ()
 checkChecksum file shaFile = do
     sha            <- Crypto.hashFile @m @hash $ encodeString file
-    shaSaved       <- liftIO . readFile $ encodeString file
-    digestShaSaved <- tryJust (decodeDigestError shaSaved) $ Crypto.digestFromByteString @hash $ Text.encodeUtf8 shaSaved
+    shaSaved       <- liftIO $ readFile $ encodeString shaFile
     let shaString = Text.pack $ show sha
-    unless (sha == digestShaSaved) $ throwM $ toException $ SHAChecksumDoesNotMatchError file shaSaved shaString
+    unless (shaString == shaSaved) $ throwM $ toException $ SHAChecksumDoesNotMatchError file shaSaved shaString
