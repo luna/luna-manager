@@ -106,18 +106,31 @@ run opts = do
             Nothing -> do
                 home <- liftIO $ System.getHomeDirectory
                 return $ convert home
-        appPath         <- expand $ convert workingPath </> (developCfg ^. devPath) </> (developCfg ^. appsPath) </> convert appName
-        stackFolderPath <- expand  $ convert workingPath </> (developCfg ^. devPath) </> (developCfg ^. toolsPath) </> (developCfg ^. stackLocalPath)
-        Shelly.mkdir_p $ parent stackFolderPath
-        downloadAndUnpackStack stackFolderPath
-        getLatestRepo appName appPath
-        Shelly.prependToPath stackFolderPath
-        Shelly.setenv "APP_PATH" $ Shelly.toTextIgnore appPath
-        let bootstrapPath      = Shelly.toTextIgnore $ appPath </> (developCfg ^. bootstrapFile)
+
+        devRootPath   <- workingPath </> (developCfg ^. devPath)
+        stackRootPath <- devRootPath </> ".stack"
+        stackFolder   <- (developCfg ^. toolsPath) </> (developCfg ^. stackLocalPath)
+        appPath       <- (developCfg ^. appsPath)  </> (convert appName)
+
+        stackRootVar   <- expand $ convert stackRootPath
+        appPathVar     <- expand $ convert devRootPath   </> appPath
+        stackFolderVar <- expand $ convert devRootPath   </> stackFolder
+        stackBinVar    <- expand $ convert stackRootPath </> "bin"
+
+        Shelly.mkdir_p $ parent stackFolderVar
+        downloadAndUnpackStack stackFolderVar
+        getLatestRepo appName appPathVar
+
+        Shelly.prependToPath stackFolderVar
+        Shelly.prependToPath stackBinVar
+
+        Shelly.setenv "LUNA_DEV_ROOT" $ Shelly.toTextIgnore devRootPath
+        Shelly.setenv "APP_PATH"      $ Shelly.toTextIgnore appPathVar
+
+        let bootstrapPath      = Shelly.toTextIgnore $ appPathVar </> (developCfg ^. bootstrapFile)
             bootstrapPackages  = ["base", "exceptions", "shelly", "text", "directory", "system-filepath"]
             bootstrapStackArgs = ["--resolver", "lts-8.2", "--install-ghc" , "runghc"]
                                  <> (bootstrapPackages >>= (\p -> ["--package", p]))
                                  <> [bootstrapPath]
         Shelly.run "stack" bootstrapStackArgs
         downloadDeps appName appPath
-
