@@ -124,6 +124,13 @@ makeLenses ''UnresolvedDepsError
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
 
+data CouldNotGenerateSHAUriError = CouldNotGenerateSHAUriError {pkgPath :: Text} deriving (Show)
+instance Exception CouldNotGenerateSHAUriError where
+    displayException (CouldNotGenerateSHAUriError pkgPath) = "Generating SHA file URI error: could not generate SHA uri base on " <> (Text.unpack $ pkgPath)
+
+createSHAUriError :: Text -> SomeException
+createSHAUriError = toException . CouldNotGenerateSHAUriError
+
 type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, Logger.LoggerMonad m)
 
 -- === Utils === --
@@ -179,9 +186,12 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     stopServices installPath appType
     when guiInstaller $ downloadProgress (Progress 0 1)
     Shelly.mkdir_p $ parent installPath
-    let pkgShaPath = (fst $ Text.breakOnEnd "." pkgPath) <>  "sha256"
+    pkgPathNoExtension <- case currentHost of
+            Linux -> (tryJust (createSHAUriError pkgPath) $ Text.stripSuffix "AppImage" pkgPath)
+            _     -> (tryJust (createSHAUriError pkgPath) $ Text.stripSuffix "tar.gz" pkgPath)
+    let pkgShaPath = pkgPathNoExtension <>  "sha256"
     pkg      <- downloadWithProgressBar pkgPath
-    pkgSha   <- downloadWithProgressBar pkgShaPath
+    pkgSha   <- downloadWithProgressBar pkgShaPath 
     when guiInstaller $ installationProgress 0
     checkChecksum @Crypto.SHA256 pkg pkgSha
     unpacked <- Archive.unpack 0.9 "installation_progress" pkg
