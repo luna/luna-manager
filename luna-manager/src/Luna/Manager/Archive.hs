@@ -16,6 +16,7 @@ import           Luna.Manager.Gui.InstallationProgress
 import qualified Luna.Manager.Logger as Logger
 import           Luna.Manager.Network
 import           Luna.Manager.Shell.Commands
+import           Luna.Manager.Shell.ProgressBar
 import           Luna.Manager.System.Host
 import           Luna.Manager.Command.Options (Options)
 import qualified Luna.Manager.Command.Options as Opts
@@ -56,7 +57,7 @@ unpackingException t e = toException $ UnpackingException t e
 
 unpack :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 unpack totalProgress progressFieldName file = do
-    Logger.log $ "Unpacking archive: " <> plainTextPath file
+    Logger.logInfo $ "Unpacking archive: " <> plainTextPath file
     ext          <- tryJust (extensionError file) $ extension file
     case currentHost of
         Windows -> case ext of
@@ -106,6 +107,17 @@ directProgressLogger progressFieldName totalProgress actualProgress = do
             let progress =  (fst x) * totalProgress
             print $ "{\"" <> (convert progressFieldName) <> "\":\"" <> (show progress) <> "\"}"
         Left err -> raise' ProgressException
+
+progressBarLogger :: Text.Text -> IO ()
+progressBarLogger pg = do 
+    let parsedProgress = Text.rational pg
+    case parsedProgress of
+        Right x -> do
+            let progress = (fst x) * (100 :: Double)
+            print progress
+            -- progressBar $ ProgressBar 50 progress 100
+        Left err -> raise' ProgressException 
+   
 
 unpackTarGzUnix :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 unpackTarGzUnix totalProgress progressFieldName file = do
@@ -160,7 +172,7 @@ untarWin totalProgress progressFieldName zipFile = do
         Shelly.mkdir_p name
         if guiInstaller
             then Shelly.log_stdout_with (directProgressLogger progressFieldName totalProgress) $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name-- (\stdout -> liftIO $ hGetContents stdout >> print "33")
-            else Shelly.switchVerbosity $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
+            else Shelly.log_stdout_with progressBarLogger $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
         listed <- Shelly.ls $ dir </> name
         return $ if length listed == 1 then head listed else dir </> name
 

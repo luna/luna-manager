@@ -1,5 +1,6 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
+
 module Luna.Manager.Command.Install where
 
 import Prologue hiding (txt, FilePath, toText, (<.>))
@@ -135,6 +136,12 @@ type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallCo
 
 -- === Utils === --
 
+systemProgress :: Double -> Double -> Double -> Double 
+systemProgress linuxPg darwinPg windowsPg = case currentHost of
+    Linux   -> linuxPg
+    Darwin  -> darwinPg
+    Windows -> windowsPg
+
 mkSystemPkgName :: Text -> Text
 mkSystemPkgName = case currentHost of
     Linux   -> id
@@ -194,7 +201,8 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     pkgSha   <- downloadWithProgressBar pkgShaPath
     when guiInstaller $ installationProgress 0
     checkChecksum @Crypto.SHA256 pkg pkgSha
-    unpacked <- Archive.unpack 0.9 "installation_progress" pkg
+    unpacked <- Archive.unpack (systemProgress 0.9 0.9 0.5) "installation_progress" pkg
+    Logger.logInfo $ "Copying files from " <> toTextIgnore unpacked <> " to " <> toTextIgnore installPath
     case currentHost of
          Linux   -> do
              Shelly.mkdir_p installPath
@@ -209,6 +217,7 @@ linkingCurrent appType installPath = do
 
 makeShortcuts :: MonadInstall m => FilePath -> Text -> m ()
 makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
+    Logger.logInfo "Creating Menu Start shortcut."
     bin         <- liftIO $ System.getSymbolicLinkTarget $ encodeString packageBinPath
     binAbsPath  <- Shelly.canonicalize $ (parent packageBinPath) </> (decodeString bin)
     userProfile <- liftIO $ Environment.getEnv "userprofile"
@@ -283,8 +292,6 @@ stopServices installPath appType = when (currentHost == Windows && appType == Gu
         testservices <- Shelly.test_d currentServices
         when testservices $ stopServicesWindows currentServices
 
-
-
 runServices :: MonadInstall m => FilePath -> AppType -> Text -> Text -> m ()
 runServices installPath appType appName version = when (currentHost == Windows && appType == GuiApp) $ do
     installConfig <- get @InstallConfig
@@ -315,8 +322,8 @@ registerUninstallInfo installPath = when (currentHost == Windows) $ do
         directory      = parent $ parent installPath -- if default, c:\Program Files\
     pkgHasRegister <- Shelly.test_f registerScript
     when pkgHasRegister $ do
-        let registerPowershell = "powershell -executionpolicy bypass -file \"" <> encodeString registerScript <> "\" \"" <> encodeString directory <> "\""
-        liftIO $ Process.runProcess_ $ Process.shell registerPowershell
+        let registerPowershell = "powershell -executionpolicy bypass -file \"" <> toTextIgnore registerScript <> "\" \"" <> toTextIgnore directory <> "\""
+        Logger.logProcess registerPowershell
 
 moveUninstallScript :: MonadInstall m => FilePath -> m ()
 moveUninstallScript installPath = when (currentHost == Windows) $ do
@@ -329,13 +336,20 @@ moveUninstallScript installPath = when (currentHost == Windows) $ do
 
 prepareWindowsPkgForRunning :: MonadInstall m => FilePath -> m ()
 prepareWindowsPkgForRunning installPath = do
+    installConfig <- get @InstallConfig
+    guiInstaller  <- Opts.guiInstallerOpt
+    when guiInstaller $ installationProgress 0.7
     copyDllFilesOnWindows installPath
+    when guiInstaller $ installationProgress 0.75
     copyWinSW installPath
+    when guiInstaller $ installationProgress 0.8
     registerUninstallInfo installPath
+    when guiInstaller $ installationProgress 0.85
     moveUninstallScript installPath
 
 copyUserConfig :: MonadInstall m => FilePath -> ResolvedPackage -> m ()
 copyUserConfig installPath package = do
+    Logger.logInfo "Copying user config to ~/.luna"
     installConfig <- get @InstallConfig
     let pkgName               = package ^. header . name
         pkgVersion            = showPretty $ package ^. header . version

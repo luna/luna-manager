@@ -56,7 +56,6 @@ updateProgress (Progress completed total) = await >>= maybe (return ()) (\chunk 
     yield chunk
     updateProgress pg)
 
---TODO: OSOBNA FUNKCJA PROGRESSBAR LIFTOWANA DO Conduit W MIEJSCU UZYCIA
 updateProgressBar :: MonadIO m => ProgressBar -> ConduitM ByteString ByteString m ()
 updateProgressBar (ProgressBar w completed pgTotal) = await >>= maybe (return ()) (\chunk -> do
     let len = ByteString.length chunk
