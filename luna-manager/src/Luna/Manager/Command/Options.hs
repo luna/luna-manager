@@ -107,14 +107,12 @@ evalOptionsParserT m = evalStateT m =<< parseOptions
 
 parseOptions :: MonadIO m => m Options
 parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser where
-    commands           = mconcat [cmdInstall, cmdMkpkg, cmdUpdate, cmdDevelop, cmdSwitchVersion, cmdNextVer, cmdPromote, cmdUninstall, cmdVersion]
+    commands           = mconcat [cmdInstall, cmdMkpkg, cmdDevelop, cmdNextVer, cmdPromote, cmdUninstall, cmdVersion]
     optsParser         = info (helper <*> optsProgram) (fullDesc <> header ("Luna ecosystem manager (" <> Info.version <> ")") <> progDesc Info.synopsis)
 
     -- Commands
     cmdInstall         = Opts.command "install"        . info optsInstall       $ progDesc "Install components. By default displays only the release versions."
     cmdUninstall       = Opts.command "uninstall"      . info (pure Uninstall)  $ progDesc "Uninstall Luna Studio completely"
-    cmdUpdate          = Opts.command "update"         . info (pure Update)     $ progDesc "Update components"
-    cmdSwitchVersion   = Opts.command "switch-version" . info optsSwitchVersion $ progDesc "Switch installed component version"
     cmdDevelop         = Opts.command "develop"        . info optsDevelop       $ progDesc "Setup development environment"
     cmdMkpkg           = Opts.command "make-package"   . info optsMkpkg         $ progDesc "Prepare installation package"
     cmdNextVer         = Opts.command "next-version"   . info optsNextVersion   $ progDesc "Get a newer version of a package, by default incrementing the build number (x.y.z.w)"
