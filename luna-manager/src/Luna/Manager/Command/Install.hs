@@ -136,12 +136,6 @@ type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallCo
 
 -- === Utils === --
 
-systemProgress :: Double -> Double -> Double -> Double 
-systemProgress linuxPg darwinPg windowsPg = case currentHost of
-    Linux   -> linuxPg
-    Darwin  -> darwinPg
-    Windows -> windowsPg
-
 mkSystemPkgName :: Text -> Text
 mkSystemPkgName = case currentHost of
     Linux   -> id
@@ -201,7 +195,7 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     pkgSha   <- downloadWithProgressBar pkgShaPath
     when guiInstaller $ installationProgress 0
     checkChecksum @Crypto.SHA256 pkg pkgSha
-    unpacked <- Archive.unpack (systemProgress 0.9 0.9 0.5) "installation_progress" pkg
+    unpacked <- Archive.unpack (if currentHost==Windows then 0.5 else 0.9) "installation_progress" pkg
     Logger.info $ "Copying files from " <> toTextIgnore unpacked <> " to " <> toTextIgnore installPath
     case currentHost of
          Linux   -> do
