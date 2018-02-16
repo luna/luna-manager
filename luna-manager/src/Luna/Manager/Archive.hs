@@ -114,7 +114,6 @@ progressBarLogger pg = do
     case parsedProgress of
         Right x -> do
             let progress = ceiling $ (fst x) * (100 :: Double)
-            -- print progress
             progressBar $ ProgressBar 50 progress 100
         Left err -> raise' ProgressException 
    
