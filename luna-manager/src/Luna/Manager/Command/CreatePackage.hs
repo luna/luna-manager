@@ -214,7 +214,6 @@ removeGitFolders :: MonadCreatePackage m => FilePath -> m ()
 removeGitFolders path = do
     Prologue.whenM (Shelly.test_d path) $ do
         list <- Shelly.ls path
-        print list
         mapM_ removeGitFolders list
     when (dirname path == ".git") $ Shelly.rm_rf path
 
