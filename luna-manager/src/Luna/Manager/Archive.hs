@@ -104,7 +104,7 @@ directProgressLogger progressFieldName totalProgress actualProgress = do
     let parsedActualProgress = Text.rational actualProgress
     case parsedActualProgress of
         Right x -> do
-            let progress =  (fst x) * totalProgress
+            let progress = fst x * totalProgress
             print $ "{\"" <> (convert progressFieldName) <> "\":\"" <> (show progress) <> "\"}"
         Left err -> raise' $ ProgressException err
 
@@ -113,7 +113,7 @@ progressBarLogger pg = do
     let parsedProgress = Text.rational pg
     case parsedProgress of
         Right x -> do
-            let progress = ceiling $ (fst x) * (100 :: Double)
+            let progress = ceiling $ fst x * (100 :: Double)
             progressBar $ ProgressBar 50 progress 100
         Left err -> raise' $ ProgressException err
 
