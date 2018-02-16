@@ -198,9 +198,9 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
             _     -> Text.stripSuffix "tar.gz" pkgPath
     let pkgShaPath = pkgPathNoExtension <> "sha256"
     pkg      <- downloadWithProgressBar pkgPath
-    -- pkgSha   <- downloadWithProgressBar pkgShaPath
+    pkgSha   <- downloadWithProgressBar pkgShaPath
     when guiInstaller $ installationProgress 0
-    -- checkChecksum @Crypto.SHA256 pkg pkgSha
+    checkChecksum @Crypto.SHA256 pkg pkgSha
     unpacked <- Archive.unpack (systemProgress 0.9 0.9 0.5) "installation_progress" pkg
     Logger.info $ "Copying files from " <> toTextIgnore unpacked <> " to " <> toTextIgnore installPath
     case currentHost of
