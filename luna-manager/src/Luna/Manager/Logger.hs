@@ -55,8 +55,8 @@ logToTmpFile msg = do
     fp <- logFilePath
     Sh.appendfile fp msg
 
-logInfo :: LoggerMonad m => Text -> m ()
-logInfo msg = do
+info :: LoggerMonad m => Text -> m ()
+info msg = do
     opts <- view globals <$> get @Options
     let gui  = opts ^. guiInstaller
         msg' = msg <> "\n"

@@ -198,11 +198,11 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
             _     -> Text.stripSuffix "tar.gz" pkgPath
     let pkgShaPath = pkgPathNoExtension <> "sha256"
     pkg      <- downloadWithProgressBar pkgPath
-    pkgSha   <- downloadWithProgressBar pkgShaPath
+    -- pkgSha   <- downloadWithProgressBar pkgShaPath
     when guiInstaller $ installationProgress 0
-    checkChecksum @Crypto.SHA256 pkg pkgSha
+    -- checkChecksum @Crypto.SHA256 pkg pkgSha
     unpacked <- Archive.unpack (systemProgress 0.9 0.9 0.5) "installation_progress" pkg
-    Logger.logInfo $ "Copying files from " <> toTextIgnore unpacked <> " to " <> toTextIgnore installPath
+    Logger.info $ "Copying files from " <> toTextIgnore unpacked <> " to " <> toTextIgnore installPath
     case currentHost of
          Linux   -> do
              Shelly.mkdir_p installPath
@@ -217,7 +217,7 @@ linkingCurrent appType installPath = do
 
 makeShortcuts :: MonadInstall m => FilePath -> Text -> m ()
 makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
-    Logger.logInfo "Creating Menu Start shortcut."
+    Logger.info "Creating Menu Start shortcut."
     bin         <- liftIO $ System.getSymbolicLinkTarget $ encodeString packageBinPath
     binAbsPath  <- Shelly.canonicalize $ (parent packageBinPath) </> (decodeString bin)
     userProfile <- liftIO $ Environment.getEnv "userprofile"
@@ -349,7 +349,7 @@ prepareWindowsPkgForRunning installPath = do
 
 copyUserConfig :: MonadInstall m => FilePath -> ResolvedPackage -> m ()
 copyUserConfig installPath package = do
-    Logger.logInfo "Copying user config to ~/.luna"
+    Logger.info "Copying user config to ~/.luna"
     installConfig <- get @InstallConfig
     let pkgName               = package ^. header . name
         pkgVersion            = showPretty $ package ^. header . version
