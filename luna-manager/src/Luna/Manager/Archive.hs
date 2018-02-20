@@ -117,17 +117,6 @@ progressBarLogger pg = do
             progressBar $ ProgressBar 50 progress 100
         Left err -> raise' $ ProgressException err
 
-progressBarLogger :: Text.Text -> IO ()
-progressBarLogger pg = do
-    let parsedProgress = Text.rational pg
-    case parsedProgress of
-        Right x -> do
-            let progress = (fst x) * (100 :: Double)
-            print progress
-            -- progressBar $ ProgressBar 50 progress 100
-        Left err -> raise' ProgressException
-
-
 unpackTarGzUnix :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 unpackTarGzUnix totalProgress progressFieldName file = do
     guiInstaller <- Opts.guiInstallerOpt

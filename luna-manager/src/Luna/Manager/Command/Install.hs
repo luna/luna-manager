@@ -136,12 +136,6 @@ type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallCo
 
 -- === Utils === --
 
-systemProgress :: Double -> Double -> Double -> Double
-systemProgress linuxPg darwinPg windowsPg = case currentHost of
-    Linux   -> linuxPg
-    Darwin  -> darwinPg
-    Windows -> windowsPg
-
 mkSystemPkgName :: Text -> Text
 mkSystemPkgName = case currentHost of
     Linux   -> id
