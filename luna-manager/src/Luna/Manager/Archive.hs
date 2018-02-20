@@ -44,20 +44,20 @@ instance Exception ExtensionError where
 extensionError :: FilePath -> SomeException
 extensionError = toException . ExtensionError
 
-data ProgressException = ProgressException deriving (Show)
+data ProgressException = ProgressException String deriving (Show)
 instance Exception ProgressException where
-    displayException exception = "Can not return progress."
+    displayException (ProgressException err) = "Can not return progress. " <> err
 
 data UnpackingException = UnpackingException Text SomeException deriving (Show)
 instance Exception UnpackingException where
-    displayException (UnpackingException file exception ) = "Archive cannot be unpacked: " <> convert file <> " because of: " <> displayException exception
+    displayException (UnpackingException file exception) = "Archive cannot be unpacked: " <> convert file <> " because of: " <> displayException exception
 
 unpackingException :: Text -> SomeException -> SomeException
 unpackingException t e = toException $ UnpackingException t e
 
 unpack :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 unpack totalProgress progressFieldName file = do
-    Logger.logInfo $ "Unpacking archive: " <> plainTextPath file
+    Logger.info $ "Unpacking archive: " <> plainTextPath file
     ext          <- tryJust (extensionError file) $ extension file
     case currentHost of
         Windows -> case ext of
@@ -104,20 +104,29 @@ directProgressLogger progressFieldName totalProgress actualProgress = do
     let parsedActualProgress = Text.rational actualProgress
     case parsedActualProgress of
         Right x -> do
-            let progress =  (fst x) * totalProgress
+            let progress = fst x * totalProgress
             print $ "{\"" <> (convert progressFieldName) <> "\":\"" <> (show progress) <> "\"}"
-        Left err -> raise' ProgressException
+        Left err -> raise' $ ProgressException err
 
 progressBarLogger :: Text.Text -> IO ()
-progressBarLogger pg = do 
+progressBarLogger pg = do
+    let parsedProgress = Text.rational pg
+    case parsedProgress of
+        Right x -> do
+            let progress = ceiling $ fst x * (100 :: Double)
+            progressBar $ ProgressBar 50 progress 100
+        Left err -> raise' $ ProgressException err
+
+progressBarLogger :: Text.Text -> IO ()
+progressBarLogger pg = do
     let parsedProgress = Text.rational pg
     case parsedProgress of
         Right x -> do
             let progress = (fst x) * (100 :: Double)
             print progress
             -- progressBar $ ProgressBar 50 progress 100
-        Left err -> raise' ProgressException 
-   
+        Left err -> raise' ProgressException
+
 
 unpackTarGzUnix :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 unpackTarGzUnix totalProgress progressFieldName file = do
@@ -167,11 +176,11 @@ untarWin totalProgress progressFieldName zipFile = do
         name = dir </> basename zipFile
 
     Shelly.mv script dir
-    
+
     Shelly.chdir dir $ do
         Shelly.mkdir_p name
         if guiInstaller
-            then Shelly.log_stdout_with (directProgressLogger progressFieldName totalProgress) $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name-- (\stdout -> liftIO $ hGetContents stdout >> print "33")
+            then Shelly.log_stdout_with (directProgressLogger progressFieldName totalProgress) $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name
             else Shelly.log_stdout_with progressBarLogger $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
         listed <- Shelly.ls $ dir </> name
         return $ if length listed == 1 then head listed else dir </> name

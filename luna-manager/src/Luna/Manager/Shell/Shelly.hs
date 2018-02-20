@@ -51,13 +51,10 @@ rm_rf path = case currentHost of
     Linux -> Sh.rm_rf path
     Darwin -> Sh.rm_rf path
     Windows -> do
-        Logger.log "Shelly.rm_rf"
-        Logger.logObject "path" path
-        isDirectory <- Sh.test_d path
         Prologue.whenM (Sh.test_d path) $ do
             list <- Sh.ls path
             mapM_ rm_rf list
-        Sh.rm_rf path
+        Prologue.whenM (Sh.test_e path) $ liftIO $ Process.runProcess_ $ Process.shell $ "powershell Remove-Item -Recurse -Force -Path " <> encodeString path
 
 switchVerbosity :: Logger.LoggerMonad m => m a -> m a
 switchVerbosity act = do

@@ -136,7 +136,7 @@ type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallCo
 
 -- === Utils === --
 
-systemProgress :: Double -> Double -> Double -> Double 
+systemProgress :: Double -> Double -> Double -> Double
 systemProgress linuxPg darwinPg windowsPg = case currentHost of
     Linux   -> linuxPg
     Darwin  -> darwinPg
@@ -201,8 +201,8 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     pkgSha   <- downloadWithProgressBar pkgShaPath
     when guiInstaller $ installationProgress 0
     checkChecksum @Crypto.SHA256 pkg pkgSha
-    unpacked <- Archive.unpack (systemProgress 0.9 0.9 0.5) "installation_progress" pkg
-    Logger.logInfo $ "Copying files from " <> toTextIgnore unpacked <> " to " <> toTextIgnore installPath
+    unpacked <- Archive.unpack (if currentHost==Windows then 0.5 else 0.9) "installation_progress" pkg
+    Logger.info $ "Copying files from " <> toTextIgnore unpacked <> " to " <> toTextIgnore installPath
     case currentHost of
          Linux   -> do
              Shelly.mkdir_p installPath
@@ -217,7 +217,7 @@ linkingCurrent appType installPath = do
 
 makeShortcuts :: MonadInstall m => FilePath -> Text -> m ()
 makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
-    Logger.logInfo "Creating Menu Start shortcut."
+    Logger.info "Creating Menu Start shortcut."
     bin         <- liftIO $ System.getSymbolicLinkTarget $ encodeString packageBinPath
     binAbsPath  <- Shelly.canonicalize $ (parent packageBinPath) </> (decodeString bin)
     userProfile <- liftIO $ Environment.getEnv "userprofile"
@@ -349,7 +349,7 @@ prepareWindowsPkgForRunning installPath = do
 
 copyUserConfig :: MonadInstall m => FilePath -> ResolvedPackage -> m ()
 copyUserConfig installPath package = do
-    Logger.logInfo "Copying user config to ~/.luna"
+    Logger.info "Copying user config to ~/.luna"
     installConfig <- get @InstallConfig
     let pkgName               = package ^. header . name
         pkgVersion            = showPretty $ package ^. header . version

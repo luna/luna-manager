@@ -55,12 +55,12 @@ logToTmpFile msg = do
     fp <- logFilePath
     Sh.appendfile fp msg
 
-logInfo :: LoggerMonad m => Text -> m ()
-logInfo msg = do
+info :: LoggerMonad m => Text -> m ()
+info msg = do
     opts <- view globals <$> get @Options
     let gui  = opts ^. guiInstaller
         msg' = msg <> "\n"
-    if (not gui) then liftIO $ logToStdout msg' else logToTmpFile msg'
+    if gui then logToTmpFile msg' else liftIO $ logToStdout msg'
 
 log :: LoggerMonad m => Text -> m ()
 log msg = do
@@ -72,12 +72,11 @@ log msg = do
     if verb && (not gui) then liftIO $ logToStdout msg' else logToTmpFile msg'
 
 logProcess :: LoggerMonad m => Text -> m ()
-logProcess cmd = do 
+logProcess cmd = do
     logToTmpFile $ cmd <> "\n"
-    (exit, out, err) <- Process.readProcess $ Process.shell $ unpack cmd 
-    logToTmpFile $ "output: " <> (pack $ show out) <> "\n"
-    logToTmpFile $ "error: "  <> (pack $ show err) <> "\n"
-
+    (exit, out, err) <- Process.readProcess $ Process.shell $ unpack cmd
+    logToTmpFile $ "output: " <> pack (show out) <> "\n"
+    logToTmpFile $ "error: "  <> pack (show err) <> "\n"
 
 logToJSON :: MonadIO m => Text -> m ()
 logToJSON = liftIO . print . encode . WarningMessage
