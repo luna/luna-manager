@@ -20,7 +20,7 @@ import           Luna.Manager.Network
 import           Luna.Manager.Shell.Question
 import qualified Luna.Manager.Shell.Shelly         as Shelly
 import           Luna.Manager.Shell.Shelly         (toTextIgnore, MonadSh, MonadShControl)
-import           Luna.Manager.System               (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows, checkChecksum)
+import           Luna.Manager.System               (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows, checkChecksum, shaUriError)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
@@ -124,13 +124,6 @@ makeLenses ''UnresolvedDepsError
 
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
-
-data CouldNotGenerateSHAUriError = CouldNotGenerateSHAUriError {pkgPath :: Text} deriving (Show)
-instance Exception CouldNotGenerateSHAUriError where
-    displayException (CouldNotGenerateSHAUriError pkgPath) = "Generating SHA file URI error: could not generate SHA uri base on " <> Text.unpack pkgPath
-
-shaUriError :: Text -> SomeException
-shaUriError = toException . CouldNotGenerateSHAUriError
 
 type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, Logger.LoggerMonad m)
 

@@ -168,6 +168,13 @@ stopServicesWindows path = Shelly.chdir path $ do
 
 -- === Errors === --
 
+data CouldNotGenerateSHAUriError = CouldNotGenerateSHAUriError {pkgPath :: Text} deriving (Show)
+instance Exception CouldNotGenerateSHAUriError where
+    displayException (CouldNotGenerateSHAUriError pkgPath) = "Generating SHA file URI error: could not generate SHA uri base on " <> Text.unpack pkgPath
+
+shaUriError :: Text -> SomeException
+shaUriError = toException . CouldNotGenerateSHAUriError
+
 data SHAChecksumDoesNotMatchError = SHAChecksumDoesNotMatchError FilePath Text Text  deriving (Show)
 instance Exception SHAChecksumDoesNotMatchError where
     displayException (SHAChecksumDoesNotMatchError file checksum expectedChecksum) =
@@ -178,11 +185,14 @@ instance Exception SHAChecksumDoesNotMatchError where
 
 -- === Utils === --
 
-generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m) => FilePath -> m ()
+generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m, MonadException SomeException m) => FilePath -> m ()
 generateChecksum file = do
     sha <- Crypto.hashFile @m @hash $ encodeString file
-    let shaFilePath = dropExtension file <.>  "sha256"
-    liftIO $ writeFile (encodeString shaFilePath) (show sha)
+    shaFileNoExtension <- tryJust (shaUriError $ Shelly.toTextIgnore file) $ case currentHost of
+            Linux -> Text.stripSuffix "AppImage" $ Shelly.toTextIgnore file
+            _     -> Text.stripSuffix "tar.gz" $ Shelly.toTextIgnore file
+    let shaFilePath = shaFileNoExtension <> "sha256"
+    liftIO $ writeFile (convert shaFilePath) (show sha)
 
 -- checking just strings because converting to ByteString will prevent user to check it without manager and
 -- comparing Digests is nontrivial due to lack of read function working opposite to Show in Crypto.Hash library
