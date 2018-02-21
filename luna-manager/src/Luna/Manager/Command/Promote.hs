@@ -105,6 +105,9 @@ promoteLinux pkgPath repoPath name versionOld versionNew = do
     Logger.log "Moving the AppImage"
     Shelly.mv (convert aiNewName) baseDir `Exception.catchAny` (\(e :: SomeException) ->
         Logger.warning $ "Failed to move the AppImage.\n" <> (convert $ displayException e))
+        
+    Logger.log "Generating checksum"
+    generateChecksum  @Crypto.SHA256 $ baseDir </> Shelly.fromText aiNewName
 
     Logger.log "Cleaning up"
     (Shelly.rm_rf appDir >> Shelly.rm_rf appImageTool) `Exception.catchAny` (\(e :: SomeException) ->
