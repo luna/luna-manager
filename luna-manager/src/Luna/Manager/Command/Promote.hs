@@ -6,6 +6,7 @@ import Prologue hiding (FilePath, (<.>))
 
 import           Control.Exception.Safe            as Exception
 import           Control.Monad.State.Layered
+import qualified Crypto.Hash                  as Crypto
 import qualified Data.Text                         as Text
 import           Filesystem.Path.CurrentOS         (FilePath, parent, encodeString, fromText, (</>), (<.>), filename)
 
@@ -20,7 +21,9 @@ import           Luna.Manager.Component.Repository (RepoConfig)
 import           Luna.Manager.Component.Version    (Version)
 import qualified Luna.Manager.Component.Repository as Repository
 import qualified Luna.Manager.Shell.Shelly         as Shelly
-import           Luna.Manager.System               (makeExecutable)
+-- import           Luna.Manager.System               (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows, checkChecksum, shaUriError)
+
+import           Luna.Manager.System               (makeExecutable, generateChecksum)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host          (currentHost, System(..))
 import           Luna.Manager.System.Path          (expand)
@@ -52,7 +55,6 @@ renameVersion path repoPath versionOld versionNew = do
     Logger.log $ "Writing new version number: " <> prettyVersion
     liftIO $ writeFile versionFile (convert prettyVersion)
     let argsList = [encodeString path, Text.unpack $ showPretty versionOld, Text.unpack prettyVersion]
-    print argsList
     case currentHost of
       Windows -> Shelly.cmd "py" promoteScript argsList
       _       -> Shelly.cmd promoteScript argsList
@@ -72,8 +74,7 @@ promote' pkgPath repoPath name versionOld versionNew = do
     Logger.log $ "Compressing the package"
     let newName = newPackageName pkgPath versionNew
     compressed <- Archive.pack correctPath newName
-    print newName
-    -- generateChecksum  @Crypto.SHA256 newName
+    generateChecksum  @Crypto.SHA256 $ (parent correctPath) </> Shelly.fromText (newName <> ".tar.gz")
 
     Logger.log "Cleaning up"
     Shelly.rm_rf correctPath `Exception.catchAny` (\(e :: SomeException) ->
