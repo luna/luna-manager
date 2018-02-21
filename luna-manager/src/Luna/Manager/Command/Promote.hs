@@ -51,7 +51,8 @@ renameVersion path repoPath versionOld versionNew = do
 
     Logger.log $ "Writing new version number: " <> prettyVersion
     liftIO $ writeFile versionFile (convert prettyVersion)
-    let argsList = ["package_path=" <> encodeString path, "old_version=" <> (Text.unpack $ showPretty versionOld), "nev_version=" <> Text.unpack prettyVersion]
+    let argsList = [encodeString path, Text.unpack $ showPretty versionOld, Text.unpack prettyVersion]
+    print argsList
     case currentHost of
       Windows -> Shelly.cmd "py" promoteScript argsList
       _       -> Shelly.cmd promoteScript argsList
@@ -71,6 +72,8 @@ promote' pkgPath repoPath name versionOld versionNew = do
     Logger.log $ "Compressing the package"
     let newName = newPackageName pkgPath versionNew
     compressed <- Archive.pack correctPath newName
+    print newName
+    -- generateChecksum  @Crypto.SHA256 newName
 
     Logger.log "Cleaning up"
     Shelly.rm_rf correctPath `Exception.catchAny` (\(e :: SomeException) ->
