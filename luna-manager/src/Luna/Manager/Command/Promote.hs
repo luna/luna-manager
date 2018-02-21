@@ -21,7 +21,6 @@ import           Luna.Manager.Component.Repository (RepoConfig)
 import           Luna.Manager.Component.Version    (Version)
 import qualified Luna.Manager.Component.Repository as Repository
 import qualified Luna.Manager.Shell.Shelly         as Shelly
--- import           Luna.Manager.System               (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows, checkChecksum, shaUriError)
 
 import           Luna.Manager.System               (makeExecutable, generateChecksum)
 import           Luna.Manager.System.Env
