@@ -414,6 +414,21 @@ askUserEmail = liftIO $ do
              <> " but will help us greatly in the early alpha stage):"
     Text.getLine
 
+mainBin :: MonadInstall m => Text -> Text -> FilePath -> AppType -> m FilePath
+mainBin appName version binPath appType = do
+    installPath <- prepareInstallPath appType binPath appName version
+    return $ installPath </> "bin" </> "main" </> fromText appName
+
+askToRunApp :: MonadInstall m => Text -> Text -> FilePath -> AppType -> m ()
+askToRunApp appName version binPath appType = do
+    liftIO $ print $  "Do you want to run " <> appName <> "? yes/no [yes]"
+    ans <- liftIO $ Text.getLine
+    if (ans == "yes" || ans == "") then do
+        bin <- mainBin appName version binPath appType
+        Shelly.cmd bin
+    else return ()
+
+
 -- === Running === --
 
 run :: (MonadInstall m) => InstallOpts -> m ()
@@ -485,3 +500,5 @@ run opts = do
                 resolvedApp = ResolvedPackage (PackageHeader appName version) appPkgDesc (appPkg ^. appType)
                 allApps = resolvedApp : appsToInstall
             mapM_ (installApp opts) $ allApps
+            installConfig <- get @InstallConfig
+            askToRunApp appName appVersion (installConfig ^. defaultBinPathGuiApp) (appPkg ^. appType)
