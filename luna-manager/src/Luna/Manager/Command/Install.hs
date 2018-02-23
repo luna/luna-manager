@@ -147,7 +147,7 @@ prepareInstallPath :: MonadInstall m => AppType -> FilePath -> Text -> Text -> m
 prepareInstallPath appType appPath appName appVersion = expand $ case currentHost of
     Linux   -> appPath </> convert appName </> convert appVersion
     Windows -> case appType of
-        GuiApp -> appPath </> convert (mkSystemPkgName appName) </> convert appVersion
+        GuiApp   -> appPath </> convert (mkSystemPkgName appName) </> convert appVersion
         BatchApp -> appPath </> convert appName </> convert appVersion
     Darwin  -> case appType of
         GuiApp   -> appPath </> convert ((mkSystemPkgName appName) <> ".app") </> "Contents" </> "Resources" </> convert appVersion
@@ -414,24 +414,43 @@ askUserEmail = liftIO $ do
              <> " but will help us greatly in the early alpha stage):"
     Text.getLine
 
-mainBin :: MonadInstall m => Text -> Text -> FilePath -> AppType -> m FilePath
-mainBin appName version binPath appType = do
-    installPath <- prepareInstallPath appType binPath appName version
-    return $ installPath </> "bin" </> "main" </> fromText appName
+runApp :: MonadInstall m => Text -> Text -> AppType -> m ()
+runApp appName version appType = do
+    installConfig <- get @InstallConfig
+    installPath <- prepareInstallPath appType (installConfig ^. defaultBinPathGuiApp) appName version
+    case currentHost of
+        Darwin -> Shelly.cmd $ installPath </> "bin" </> "main" </> fromText appName
+        Linux  -> Shelly.cmd $ installPath </> fromText appName
 
-askToRunApp :: MonadInstall m => Text -> Text -> FilePath -> AppType -> m ()
-askToRunApp appName version binPath appType = do
-    liftIO $ print $  "Do you want to run " <> appName <> "? yes/no [yes]"
-    ans <- liftIO $ Text.getLine
-    if (ans == "yes" || ans == "") then do
-        bin <- mainBin appName version binPath appType
-        Shelly.cmd bin
-    else return ()
+
+askToRunApp :: MonadInstall m => Text -> Text -> AppType -> m ()
+askToRunApp appName version appType = case appType of
+    BatchApp -> return ()
+    GuiApp   -> do
+        guiInstaller <- Opts.guiInstallerOpt
+        if guiInstaller then do
+            print $ encode $ ApplicationRun appName
+            liftIO $ hFlush stdout
+            doesRun <- liftIO $ Text.getLine
+            liftIO $ Logger.logToFile "/home/sylwia/tmp/manager.log" doesRun
+            -- when (doesRun ) $ do
+            liftIO $ Logger.logToFile "/home/sylwia/tmp/manager.log" "runApp"
+            Shelly.silently $ runApp appName version appType
+            liftIO $ Logger.logToFile "/home/sylwia/tmp/manager.log" "sendCloseEvent"
+            print $ encode $ ApplicationClose appName
+            -- let runOpt = JSON.decode $ BSL.fromStrict doesRun :: Maybe Run
+            -- when (isJust runOpt) $ runApp appName version appType
+            else do
+                liftIO $ print $  "Do you want to run " <> appName <> "? yes/no [yes]"
+                ans <- liftIO $ Text.getLine
+                if (ans == "yes" || ans == "") then do
+                    runApp appName version appType
+                else return ()
 
 
 -- === Running === --
 
-run :: (MonadInstall m) => InstallOpts -> m ()
+run :: MonadInstall m => InstallOpts -> m ()
 run opts = do
     userInfoPath <- gets @InstallConfig userInfoFile
     guiInstaller <- Opts.guiInstallerOpt
@@ -466,6 +485,7 @@ run opts = do
             mapM_ (installApp opts) $ allApps
             print $ encode $ InstallationProgress 1
             liftIO $ hFlush stdout
+            askToRunApp appName (showPretty appVersion) (appPkg ^. appType)
             Analytics.mpTrackEvent "LunaInstaller.Finished"
 
         else do
@@ -500,5 +520,5 @@ run opts = do
                 resolvedApp = ResolvedPackage (PackageHeader appName version) appPkgDesc (appPkg ^. appType)
                 allApps = resolvedApp : appsToInstall
             mapM_ (installApp opts) $ allApps
-            installConfig <- get @InstallConfig
-            askToRunApp appName appVersion (installConfig ^. defaultBinPathGuiApp) (appPkg ^. appType)
+
+            askToRunApp appName appVersion (appPkg ^. appType)
