@@ -20,7 +20,7 @@ import           Luna.Manager.Network
 import           Luna.Manager.Shell.Question
 import qualified Luna.Manager.Shell.Shelly         as Shelly
 import           Luna.Manager.Shell.Shelly         (toTextIgnore, MonadSh, MonadShControl)
-import           Luna.Manager.System               (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows, checkChecksum, shaUriError)
+import           Luna.Manager.System               (makeExecutable, exportPath, askToExportPath, checkShell, runServicesWindows, stopServicesWindows, checkChecksum, shaUriError)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
@@ -261,13 +261,14 @@ linkingLocalBin :: (MonadInstall m, MonadIO m) => FilePath -> Text -> m ()
 linkingLocalBin currentBin appName = do
     home          <- getHomePath
     installConfig <- get @InstallConfig
+    gui           <- Opts.guiInstallerOpt
     case currentHost of
         Windows -> do
-            exportPathWindows currentBin
+            if gui then exportPath currentBin else askToExportPath currentBin
         _       -> do
             localBin <- expand (installConfig ^. localBinPath)
             linking currentBin $ localBin </> convert appName
-            exportPathUnix localBin
+            if gui then exportPath localBin else askToExportPath localBin
 
 -- === Windows specific === --
 
@@ -336,7 +337,7 @@ prepareWindowsPkgForRunning installPath = do
 
 copyUserConfig :: MonadInstall m => FilePath -> ResolvedPackage -> m ()
 copyUserConfig installPath package = do
-    Logger.info "Copying user config to ~/.luna"
+    unless (currentHost == Linux) $ Logger.info "Copying user config to ~/.luna"
     installConfig <- get @InstallConfig
     let pkgName               = package ^. header . name
         pkgVersion            = showPretty $ package ^. header . version
@@ -416,7 +417,7 @@ askUserEmail = liftIO $ do
 
 -- === Running === --
 
-run :: (MonadInstall m) => InstallOpts -> m ()
+run :: MonadInstall m => InstallOpts -> m ()
 run opts = do
     userInfoPath <- gets @InstallConfig userInfoFile
     guiInstaller <- Opts.guiInstallerOpt
