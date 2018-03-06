@@ -421,9 +421,8 @@ runApp appName version appType = do
     installConfig <- get @InstallConfig
     installPath <- prepareInstallPath appType (installConfig ^. defaultBinPathGuiApp) appName version
     runPath <- case currentHost of
-        Darwin  -> return $ installPath </> "bin" </> "main" </> fromText appName
-        Linux   -> return $ installPath </> fromText appName
-        Windows -> return $ installPath </> fromText appName -- fix path on windows!!
+        Linux -> return $ installPath </> fromText appName
+        _     -> return $ installPath </> "bin" </> "main" </> fromText appName
     threadID <- liftIO $ forkIO $ Process.runProcess_ $ Process.shell $ encodeString $ runPath
     Logger.log $ Text.pack $ show threadID
 
