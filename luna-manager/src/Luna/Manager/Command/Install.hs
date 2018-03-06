@@ -25,6 +25,8 @@ import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
 
+
+import           Control.Concurrent (forkIO)
 import qualified Control.Exception.Safe as Exception
 import           Control.Lens.Aeson
 import           Control.Monad.Raise
@@ -411,17 +413,19 @@ readVersion v = case readPretty v of
 askUserEmail :: MonadIO m => m Text
 askUserEmail = liftIO $ do
     putStrLn $  "Please enter your email address (it is optional"
-             <> " but will help us greatly in the early alpha stage):"
+             <> " but will help us greatly in the early beta stage):"
     Text.getLine
 
 runApp :: MonadInstall m => Text -> Text -> AppType -> m ()
 runApp appName version appType = do
     installConfig <- get @InstallConfig
     installPath <- prepareInstallPath appType (installConfig ^. defaultBinPathGuiApp) appName version
-    case currentHost of
-        Darwin -> Shelly.cmd $ installPath </> "bin" </> "main" </> fromText appName
-        Linux  -> Shelly.cmd $ installPath </> fromText appName
-
+    runPath <- case currentHost of
+        Darwin  -> return $ installPath </> "bin" </> "main" </> fromText appName
+        Linux   -> return $ installPath </> fromText appName
+        Windows -> return $ installPath </> fromText appName -- fix path on windows!!
+    threadID <- liftIO $ forkIO $ Process.runProcess_ $ Process.shell $ encodeString $ runPath
+    Logger.log $ Text.pack $ show threadID
 
 askToRunApp :: MonadInstall m => Text -> Text -> AppType -> m ()
 askToRunApp appName version appType = case appType of
@@ -429,17 +433,18 @@ askToRunApp appName version appType = case appType of
     GuiApp   -> do
         guiInstaller <- Opts.guiInstallerOpt
         if guiInstaller then do
+            Logger.log  "APPLICATION_RUN"
+            Logger.log $ Text.pack $ show $ encode $ ApplicationRun appName
             print $ encode $ ApplicationRun appName
             liftIO $ hFlush stdout
-            doesRun <- liftIO $ Text.getLine
-            liftIO $ Logger.logToFile "/home/sylwia/tmp/manager.log" doesRun
-            -- when (doesRun ) $ do
-            liftIO $ Logger.logToFile "/home/sylwia/tmp/manager.log" "runApp"
-            Shelly.silently $ runApp appName version appType
-            liftIO $ Logger.logToFile "/home/sylwia/tmp/manager.log" "sendCloseEvent"
-            print $ encode $ ApplicationClose appName
-            -- let runOpt = JSON.decode $ BSL.fromStrict doesRun :: Maybe Run
-            -- when (isJust runOpt) $ runApp appName version appType
+            doesRun <- liftIO $ BS.getLine
+            Logger.log $ Text.pack $ show doesRun
+            Logger.log "runApp"
+            let runOpt = JSON.decode $ BSL.fromStrict doesRun :: Maybe Run
+            Logger.log $ Text.pack $ show $ runOpt
+            when (isJust runOpt) $ Shelly.silently $ runApp appName version appType
+            Logger.log "sendCloseEvent"
+            print $ encode $ ApplicationClose True
             else do
                 liftIO $ print $  "Do you want to run " <> appName <> "? yes/no [yes]"
                 ans <- liftIO $ Text.getLine
