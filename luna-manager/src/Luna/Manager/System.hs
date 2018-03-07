@@ -107,9 +107,9 @@ getShExportFile = do
 
 askToExportPath :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m, MonadCatch m) => FilePath -> m()
 askToExportPath pathToExport = do
-    print $ "Do you want to export " <> Shelly.toTextIgnore pathToExport <> "? [yes]/no"
+    liftIO $ Text.putStrLn $ "Do you want to export " <> Shelly.toTextIgnore pathToExport <> "? [yes]/no"
     toExport <- liftIO $ Text.getLine
-    if (toExport == "yes" || toExport == "y" || toExport == "" ) then exportPath pathToExport else return ()
+    when (toExport == "yes" || toExport == "" ) $ exportPath pathToExport
 
 exportPath :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m, MonadCatch m) => FilePath -> m ()
 exportPath pathToExport = case currentHost of
