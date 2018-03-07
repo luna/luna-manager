@@ -53,6 +53,7 @@ dependencies:
   - unordered-containers
   - uuid
   - yaml
+  - random
 
 default-extensions:
     - AllowAmbiguousTypes

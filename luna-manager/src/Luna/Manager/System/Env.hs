@@ -14,6 +14,9 @@ import qualified System.Directory as System
 import           Control.Monad.Raise
 import           System.IO.Error
 
+import System.Random
+import System.IO.Unsafe
+
 --------------------------
 -- === EnvConfig === --
 --------------------------
@@ -78,13 +81,16 @@ copyDir src dst = do
         mapM_ (flip Shelly.cp_r dst) listedDirectory
     else Shelly.cp src dst
 
+randomFolderNameEnd :: Text
+randomFolderNameEnd = convert $ take 10 $ randomRs ('a','z') $ unsafePerformIO newStdGen
+
 
 -- === Instances === --
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig EnvConfig sys arch m where
     defaultHostConfig = EnvConfig <$> tmp where
-        tmp = (</> "luna") <$> decodeString <$> liftIO System.getTemporaryDirectory
+        tmp = (</> (fromText $ "luna-" <> randomFolderNameEnd)) <$> decodeString <$> liftIO System.getTemporaryDirectory
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig EnvConfig 'Windows arch m where
     -- | Too long paths are often problem on Windows, therefore we use C:\tmp to store temporary data
-    defaultHostConfig = return $ EnvConfig "C:\\tmp\\luna"
+    defaultHostConfig = return $ EnvConfig $ fromText $ "C:\\tmp\\luna-" <> randomFolderNameEnd
