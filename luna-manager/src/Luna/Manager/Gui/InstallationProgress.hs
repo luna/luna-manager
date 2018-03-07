@@ -18,15 +18,15 @@ newtype InstallationProgress = InstallationProgress { installation_progress :: F
 instance ToJSON   InstallationProgress
 instance FromJSON InstallationProgress
 
-data ApplicationRun = ApplicationRun { application_run :: Text} deriving (Show, Generic)
+newtype ApplicationRun = ApplicationRun { application_run :: Text} deriving (Show, Generic)
 
 instance ToJSON   ApplicationRun
 
-data ApplicationClose = ApplicationClose { application_close :: Bool } deriving (Show, Generic)
+newtype ApplicationClose = ApplicationClose { application_close :: Bool } deriving (Show, Generic)
 
 instance ToJSON ApplicationClose
 
-data Run = Run { run :: Text } deriving (Generic, Show)
+newtype Run = Run { run :: Text } deriving (Generic, Show)
 
 instance ToJSON   Run
 instance FromJSON Run

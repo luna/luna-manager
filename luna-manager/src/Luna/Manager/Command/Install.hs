@@ -420,36 +420,26 @@ runApp :: MonadInstall m => Text -> Text -> AppType -> m ()
 runApp appName version appType = do
     installConfig <- get @InstallConfig
     installPath <- prepareInstallPath appType (installConfig ^. defaultBinPathGuiApp) appName version
-    runPath <- case currentHost of
-        Linux -> return $ installPath </> fromText appName
-        _     -> return $ installPath </> "bin" </> "main" </> fromText appName
+    let runPath = installPath </> (case currentHost of Linux -> ""; _ -> "bin" </> "main") </> fromText appName
     threadID <- liftIO $ forkIO $ Process.runProcess_ $ Process.shell $ encodeString $ runPath
     Logger.log $ Text.pack $ show threadID
 
 askToRunApp :: MonadInstall m => Text -> Text -> AppType -> m ()
-askToRunApp appName version appType = case appType of
-    BatchApp -> return ()
-    GuiApp   -> do
-        guiInstaller <- Opts.guiInstallerOpt
-        if guiInstaller then do
-            Logger.log  "APPLICATION_RUN"
-            Logger.log $ Text.pack $ show $ encode $ ApplicationRun appName
-            print $ encode $ ApplicationRun appName
-            liftIO $ hFlush stdout
-            doesRun <- liftIO $ BS.getLine
-            Logger.log $ Text.pack $ show doesRun
-            Logger.log "runApp"
-            let runOpt = JSON.decode $ BSL.fromStrict doesRun :: Maybe Run
-            Logger.log $ Text.pack $ show $ runOpt
-            when (isJust runOpt) $ Shelly.silently $ runApp appName version appType
-            Logger.log "sendCloseEvent"
-            print $ encode $ ApplicationClose True
-            else do
-                liftIO $ print $  "Do you want to run " <> appName <> "? yes/no [yes]"
-                ans <- liftIO $ Text.getLine
-                if (ans == "yes" || ans == "") then do
-                    runApp appName version appType
-                else return ()
+askToRunApp appName version appType = when (appType == GuiApp) $ do
+    guiInstaller <- Opts.guiInstallerOpt
+    if guiInstaller then do
+        Logger.log $ "ApplicationRun json" <> (Text.pack $ show $ encode $ ApplicationRun appName)
+        print $ encode $ ApplicationRun appName
+        liftIO $ hFlush stdout
+        doesRun <- liftIO $ BS.getLine
+        Logger.log $ "ApplicationRun answear " <> (Text.pack $ show doesRun)
+        let runOpt = JSON.decode $ BSL.fromStrict doesRun :: Maybe Run
+        when (isJust runOpt) $ Shelly.silently $ runApp appName version appType
+        print $ encode $ ApplicationClose True
+        else do
+            liftIO $ Text.putStrLn $  "Do you want to run " <> appName <> "? yes/no [yes]"
+            ans <- liftIO $ Text.getLine
+            when (ans == "yes" || ans == "") $ runApp appName version appType
 
 
 -- === Running === --
