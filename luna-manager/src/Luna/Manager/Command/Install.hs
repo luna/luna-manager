@@ -20,36 +20,35 @@ import           Luna.Manager.Network
 import           Luna.Manager.Shell.Question
 import qualified Luna.Manager.Shell.Shelly         as Shelly
 import           Luna.Manager.Shell.Shelly         (toTextIgnore, MonadSh, MonadShControl)
-import           Luna.Manager.System               (makeExecutable, exportPathUnix, exportPathWindows, checkShell, runServicesWindows, stopServicesWindows, exportPathWindows, checkChecksum, shaUriError)
+import           Luna.Manager.System               (makeExecutable, exportPath, askToExportPath, checkShell, runServicesWindows, stopServicesWindows, checkChecksum, shaUriError)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
 
-
-import           Control.Concurrent (forkIO)
-import qualified Control.Exception.Safe as Exception
+import           Control.Concurrent                (forkIO)
+import qualified Control.Exception.Safe            as Exception
 import           Control.Lens.Aeson
 import           Control.Monad.Raise
 import           Control.Monad.State.Layered
-import           Control.Monad.Trans.Resource (MonadBaseControl)
-import qualified Crypto.Hash                  as Crypto
-import qualified Data.Aeson          as JSON
-import           Data.Aeson (ToJSON, toJSON, toEncoding, encode)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.Char as Char
-import qualified Data.Map as Map
-import           Data.Maybe (listToMaybe)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import qualified Data.Yaml as Yaml
-import           Filesystem.Path.CurrentOS (FilePath, (</>), (<.>), encodeString, decodeString, toText, basename, hasExtension, parent, dropExtension)
-import qualified System.Directory as System
-import qualified System.Environment as Environment
-import qualified System.Process.Typed as Process
-import           System.Exit (exitSuccess, exitFailure, ExitCode(..))
-import           System.Info (arch)
-import           System.IO (hFlush, stdout, stderr, hPutStrLn)
+import           Control.Monad.Trans.Resource      (MonadBaseControl)
+import qualified Crypto.Hash                       as Crypto
+import qualified Data.Aeson                        as JSON
+import           Data.Aeson                        (ToJSON, toJSON, toEncoding, encode)
+import qualified Data.ByteString                   as BS
+import qualified Data.ByteString.Lazy              as BSL
+import qualified Data.Char                         as Char
+import qualified Data.Map                          as Map
+import           Data.Maybe                        (listToMaybe)
+import qualified Data.Text                         as Text
+import qualified Data.Text.IO                      as Text
+import qualified Data.Yaml                         as Yaml
+import           Filesystem.Path.CurrentOS         (FilePath, (</>), (<.>), encodeString, decodeString, toText, basename, hasExtension, parent, dropExtension)
+import qualified System.Directory                  as System
+import qualified System.Environment                as Environment
+import qualified System.Process.Typed              as Process
+import           System.Exit                       (exitSuccess, exitFailure, ExitCode(..))
+import           System.Info                       (arch)
+import           System.IO                         (hFlush, stdout, stderr, hPutStrLn)
 
 default(Text.Text)
 
@@ -209,8 +208,8 @@ makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
     Logger.info "Creating Menu Start shortcut."
     bin         <- liftIO $ System.getSymbolicLinkTarget $ encodeString packageBinPath
     binAbsPath  <- Shelly.canonicalize $ (parent packageBinPath) </> (decodeString bin)
-    userProfile <- liftIO $ Environment.getEnv "userprofile"
-    let menuPrograms = (decodeString userProfile) </> "AppData" </> "Roaming" </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
+    appData     <- liftIO $ Environment.getEnv "appdata"
+    let menuPrograms = (decodeString appData) </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
     exitCode <- liftIO $ Process.runProcess $ Process.shell  ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"")
     unless (exitCode == ExitSuccess) $ Logger.warning $ "Menu Start shortcut was not created. Powershell could not be found in the $PATH"
 
@@ -263,13 +262,14 @@ linkingLocalBin :: (MonadInstall m, MonadIO m) => FilePath -> Text -> m ()
 linkingLocalBin currentBin appName = do
     home          <- getHomePath
     installConfig <- get @InstallConfig
+    gui           <- Opts.guiInstallerOpt
     case currentHost of
         Windows -> do
-            exportPathWindows currentBin
+            if gui then exportPath currentBin else askToExportPath currentBin
         _       -> do
             localBin <- expand (installConfig ^. localBinPath)
             linking currentBin $ localBin </> convert appName
-            exportPathUnix localBin
+            if gui then exportPath localBin else askToExportPath localBin
 
 -- === Windows specific === --
 
@@ -338,7 +338,7 @@ prepareWindowsPkgForRunning installPath = do
 
 copyUserConfig :: MonadInstall m => FilePath -> ResolvedPackage -> m ()
 copyUserConfig installPath package = do
-    Logger.info "Copying user config to ~/.luna"
+    unless (currentHost == Linux) $ Logger.info "Copying user config to ~/.luna"
     installConfig <- get @InstallConfig
     let pkgName               = package ^. header . name
         pkgVersion            = showPretty $ package ^. header . version

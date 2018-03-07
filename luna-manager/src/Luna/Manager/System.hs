@@ -20,6 +20,7 @@ import           Data.List.Split              (splitOn)
 import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
+import qualified Data.Text.IO                 as Text
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), (<.>), encodeString, toText, parent, directory, dropExtension)
 import           System.Directory             (executable, setPermissions, getPermissions, doesDirectoryExist, doesPathExist, getHomeDirectory)
 import qualified System.Environment           as Environment
@@ -104,6 +105,17 @@ getShExportFile = do
     checkedFiles <- mapM runControlCheck files
     return $ listToMaybe $ catMaybes checkedFiles
 
+askToExportPath :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m, MonadCatch m) => FilePath -> m()
+askToExportPath pathToExport = do
+    liftIO $ Text.putStrLn $ "Do you want to export " <> Shelly.toTextIgnore pathToExport <> "? [yes]/no"
+    toExport <- liftIO $ Text.getLine
+    when (toExport == "yes" || toExport == "" ) $ exportPath pathToExport
+
+exportPath :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m, MonadCatch m) => FilePath -> m ()
+exportPath pathToExport = case currentHost of
+    Windows -> exportPathWindows pathToExport
+    _       -> exportPathUnix pathToExport
+
 --TODO extract common logic for all unix terminals
 exportPathUnix :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m, MonadCatch m) => FilePath -> m ()
 exportPathUnix pathToExport = do
@@ -125,7 +137,7 @@ exportPathUnix pathToExport = do
                     (liftIO $ appendFile path exportToAppend)
         Nothing -> warn
 
-exportPathWindows :: (LoggerMonad m, MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
+exportPathWindows :: (MonadIO m, MonadBaseControl IO m, LoggerMonad m) => FilePath -> m ()
 exportPathWindows path = do
     Logger.log "System.exportPathWindows"
     (exitCode1, pathenv, err1) <- Process.readProcess $ "echo %PATH%"

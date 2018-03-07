@@ -9,6 +9,7 @@ import qualified Data.Text                    as Text
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), decodeString, splitDirectories)
 import qualified Safe
 import qualified System.Directory             as Dir
+import qualified System.Environment           as Environment
 
 import           Control.Monad.State.Layered
 import qualified Luna.Manager.Command.Install as Install
@@ -108,7 +109,7 @@ uninstallElectronCaches = do
 uninstallStartMenuEntry :: MonadUninstall m => m ()
 uninstallStartMenuEntry = case currentHost of
     Windows ->  do
-        appdata <- Text.pack <$> liftIO (Dir.getAppUserDataDirectory "")
+        appdata <- Text.pack <$> liftIO (Environment.getEnv "appdata")
         Logger.log "Removing Luna Studio shortcut in Start Menu"
         let shortcut = Shelly.fromText appdata
                    </> "Microsoft"
