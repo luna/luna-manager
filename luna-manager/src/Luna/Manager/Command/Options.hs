@@ -43,6 +43,7 @@ data InstallOpts = InstallOpts
     , _selectedVersion          :: Maybe Text
     , _selectedInstallationPath :: Maybe Text
     , _selectedUserEmail        :: Maybe Text
+    , _localConfig              :: Maybe Text
     , _nightlyInstallation      :: Bool
     , _devInstallation          :: Bool
     } deriving (Show)
@@ -93,7 +94,7 @@ guiInstallerOpt = view (globals . guiInstaller) <$> get @Options
 
 -- === Instances === --
 
-instance Default InstallOpts where def = InstallOpts def def def def False False
+instance Default InstallOpts where def = InstallOpts def def def def def False False
 
 
 ------------------------------
@@ -141,6 +142,7 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
                                            <*> (optional . strOption $ long "version"   <> metavar "VERSION"   <> help "Version to install")
                                            <*> (optional . strOption $ long "path"      <> metavar "PATH"      <> help "Installation path")
                                            <*> (optional . strOption $ long "email"     <> metavar "EMAIL"     <> help "Email of the user.")
+                                           <*> (optional . strOption $ long "config"    <> metavar "CFG"       <> help "Local installation config")
                                            <*> Opts.switch (long "nightly" <> help "Include nightly builds in the list of builds available for installation.")
                                            <*> Opts.switch (long "dev"     <> help "Include developer builds in the list of builds available for installation.")
     optsNextVersion    = NextVersion       <$> optsNextVersion'

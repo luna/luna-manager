@@ -42,6 +42,7 @@ import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
 import qualified Data.Yaml                         as Yaml
 import           Filesystem.Path.CurrentOS         (FilePath, (</>), (<.>), encodeString, decodeString, toText, basename, hasExtension, parent, dropExtension)
+import qualified Network.URI                       as URI
 import qualified System.Directory                  as System
 import qualified System.Environment                as Environment
 import qualified System.Process.Typed              as Process
@@ -173,6 +174,18 @@ checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion = do
             then liftIO $ exitSuccess
             else checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion
 
+data ResolvePackagePathException = ResolvePackagePathException Text deriving (Show)
+instance Exception ResolvePackagePathException where
+    displayException (ResolvePackagePathException file) = "Couldn't download file: " <> convert file <> " invalid URI address"
+
+downloadIfUri :: MonadInstall m => URIPath -> m FilePath
+downloadIfUri path = do
+    doesFileExist <- Shelly.test_f $ fromText path
+    if doesFileExist then return $ fromText path
+        else if URI.isURI $ convert path
+            then downloadWithProgressBar path
+            else throwM $ ResolvePackagePathException path
+
 downloadAndUnpackApp :: MonadInstall m => URIPath -> FilePath -> Text -> AppType -> Version -> m ()
 downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     guiInstaller <- Opts.guiInstallerOpt
@@ -184,8 +197,9 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
             Linux -> Text.stripSuffix "AppImage" pkgPath
             _     -> Text.stripSuffix "tar.gz" pkgPath
     let pkgShaPath = pkgPathNoExtension <> "sha256"
-    pkg      <- downloadWithProgressBar pkgPath
-    pkgSha   <- downloadWithProgressBar pkgShaPath
+    pkg    <- downloadIfUri pkgPath
+    pkgSha <- downloadIfUri pkgShaPath
+
     when guiInstaller $ installationProgress 0
     checkChecksum @Crypto.SHA256 pkg pkgSha
     unpacked <- Archive.unpack (if currentHost==Windows then 0.5 else 0.9) "installation_progress" pkg
@@ -421,7 +435,7 @@ run :: MonadInstall m => InstallOpts -> m ()
 run opts = do
     userInfoPath <- gets @InstallConfig userInfoFile
     guiInstaller <- Opts.guiInstallerOpt
-    repo         <- getRepo
+    repo <- maybe getRepo (parseConfig . convert) (opts ^. Opts.localConfig)
     if guiInstaller then do
         Initilize.generateInitialJSON repo =<< (Analytics.userInfoExists userInfoPath)
         liftIO $ hFlush stdout
