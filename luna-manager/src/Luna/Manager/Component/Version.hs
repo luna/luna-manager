@@ -72,7 +72,7 @@ instance Pretty Version where
     readPretty t = case Text.splitOn "." t of
         [ma, mi]   -> cerr $ Version <$> tryReads ma <*> tryReads mi <*> pure Nothing
         (ma:mi:nn) -> cerr $ Version <$> tryReads ma <*> tryReads mi <*> Right (hush $ readPretty $ Text.intercalate "." nn)
-        _           -> Left "Incorrect version format"
+        _          -> Left "Incorrect version format"
         where cerr = mapLeft convert
 
 -- JSON
