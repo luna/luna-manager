@@ -92,4 +92,3 @@ instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig EnvConfig 'Windows ar
     -- | Too long paths are often problem on Windows, therefore we use C:\tmp to store temporary data
     defaultHostConfig = EnvConfig <$> lunaTmp where
         lunaTmp = decodeString <$> (liftIO $ createTempDirectory "C:\\tmp" "luna")
-        -- return $ EnvConfig lunaTmp
