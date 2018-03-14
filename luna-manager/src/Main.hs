@@ -5,10 +5,11 @@ module Main where
 import Prologue hiding (FilePath)
 import Control.Monad.Raise
 import Luna.Manager.Clean
-import Luna.Manager.Command.Options (evalOptionsParserT, parseOptions)
-import Luna.Manager.Command         (chooseCommand)
-import Luna.Manager.System.Host     (evalDefHostConfig)
-import Luna.Manager.System.Env      (getTmpPath, EnvConfig)
+import Luna.Manager.Command.Options      (evalOptionsParserT, parseOptions)
+import Luna.Manager.Command              (chooseCommand)
+import Luna.Manager.Component.Version.TH (getVersion)
+import Luna.Manager.System.Host          (evalDefHostConfig)
+import Luna.Manager.System.Env           (getTmpPath, EnvConfig)
 
 
 import Control.Concurrent (myThreadId)
@@ -17,6 +18,7 @@ import qualified Control.Exception.Safe as Exception
 import qualified Luna.Manager.Shell.Shelly as Shelly
 import System.Exit (exitSuccess, exitFailure)
 import System.IO (hFlush, stdout, stderr, hPutStrLn)
+
 
 main :: IO ()
 main = run
@@ -31,5 +33,5 @@ run = Shelly.shelly $ do
 
 handleTopLvlError :: (MonadIO m, MonadMask m, Shelly.MonadSh m) => SomeException -> m ()
 handleTopLvlError e = do
-    liftIO $ hPutStrLn stderr $ displayException e
+    liftIO $ hPutStrLn stderr $ (displayException e) <> "\nManager version: " <> $(getVersion)
     Shelly.quietExit 1
