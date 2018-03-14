@@ -45,6 +45,7 @@ dependencies:
   - split
   - system-filepath
   - template-haskell
+  - temporary
   - text
   - time
   - transformers
@@ -53,7 +54,6 @@ dependencies:
   - unordered-containers
   - uuid
   - yaml
-  - random
 
 default-extensions:
     - AllowAmbiguousTypes
