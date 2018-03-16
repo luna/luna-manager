@@ -92,6 +92,6 @@ instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig EnvConfig 'Windows ar
     -- | Too long paths are often problem on Windows, therefore we use C:\tmp to store temporary data
     defaultHostConfig = do
         let tmp = "C:\\tmp"
-        Shelly.shelly $ Shelly.mkdir tmp_p
+        Shelly.shelly $ Shelly.mkdir_p tmp
         lunaTmp <- liftIO $ createTempDirectory (encodeString tmp) "luna"
         return $ EnvConfig $ decodeString lunaTmp
