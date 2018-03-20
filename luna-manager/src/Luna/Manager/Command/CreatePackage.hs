@@ -397,12 +397,12 @@ run opts = do
     modify_ @PackageConfig (buildFromHead .~ (opts ^. Opts.buildFromHead))
 
     let cfgFolderPath = parent $ convert (opts ^. Opts.cfgPath)
-        appsToPack    = config ^. apps
+        appToPack     = head $ config ^. apps
         s3GuiUrl      = opts ^. Opts.guiURL
 
-    resolved <- mapM (resolvePackageApp config) appsToPack
+    resolved <- resolvePackageApp config appToPack
 
-    mapM_ (createPkg cfgFolderPath s3GuiUrl) resolved
+    createPkg cfgFolderPath s3GuiUrl resolved
     repo <- getRepo
-    let updatedConfig = foldl' updateConfig config resolved
+    let updatedConfig = updateConfig config resolved
     generateConfigYamlWithNewPackage repo updatedConfig $ cfgFolderPath </> "config.yaml"

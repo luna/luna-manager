@@ -50,6 +50,7 @@ data InstallOpts = InstallOpts
 
 data MakePackageOpts = MakePackageOpts
     { _cfgPath       :: Text
+    , _pkgVersion    :: Text
     , _guiURL        :: Maybe Text
     , _permitNoTags  :: Bool
     , _buildFromHead :: Bool
@@ -128,6 +129,7 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
                                            <*> (optional . strOption $ long "tmp" <> metavar "TMP_PATH" <> help "Temporary folder path.")
     optsMkpkg          = MakePackage       <$> optsMkpkg'
     optsMkpkg'         = MakePackageOpts   <$> strArgument (metavar "CONFIG"  <> help "Config (luna-package.yaml) file path, usually found in the Luna Studio repo")
+                                           <*> strArgument (metavar "VERSION" <> help "Package version")
                                            <*> (optional . strOption $ long "gui" <> metavar "GUI_URL" <> help "Path to gui package on S3")
                                            <*> Opts.switch (long "permit-no-tags"  <> help "Do not throw an error if there is no tag for this version. Use with care.")
                                            <*> Opts.switch (long "build-from-head" <> help "Build bypassing the tag-based flow, using HEAD. Use with care.")

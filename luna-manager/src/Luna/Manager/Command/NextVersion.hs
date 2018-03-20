@@ -24,6 +24,8 @@ import           Luna.Manager.Network
 import qualified Luna.Manager.Shell.Shelly         as Shelly
 import           Luna.Manager.System.Env
 
+import           Control.Monad.Raise
+import           Luna.Manager.Component.Pretty
 default (Text.Text)
 
 
@@ -58,17 +60,31 @@ getNewVersion prInfo = case prInfo ^. newVersion of
 wrapException :: MonadNextVersion m => Either Text Version -> m (Either VersionUpgradeException Version)
 wrapException = return . first VersionUpgradeException
 
-latestVersion :: MonadNextVersion m => Text -> TargetVersionType -> m Version
-latestVersion appName targetVersionType = do
+readMAybeVersion :: Text -> Maybe Version
+readMAybeVersion v = case readPretty v of
+    Left e  -> Nothing
+    Right v -> Just v
+
+latestVersion :: (MonadNextVersion m,MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> FilePath -> TargetVersionType -> m Version
+latestVersion appName appPath targetVersionType = do
     let filterFunc = case targetVersionType of
             Release -> Version.isNightly
             Nightly -> Version.isDev
             Dev     -> const True
-    repo     <- Repo.getRepo
-    versions <- Repo.getFullVersionsList repo appName
-    return $ case filter filterFunc versions of
-            (v:_) -> v
-            _     -> def :: Version
+    Shelly.chdir appPath $ do
+        tagsList <- Text.splitOn "\n" <$> Shelly.cmd "git" "tag" "-l"
+        print "read version:"
+        print tagsList
+
+        let vLixt = catMaybes $ readMAybeVersion <$> tagsList
+
+        print $ maximum vLixt
+    -- repo     <- Repo.getRepo
+    -- versions <- Repo.getFullVersionsList repo appName
+        return $ case filter filterFunc (reverse vLixt) of
+                (v:_) -> v
+                _     -> def :: Version
+
 
 nextVersion :: MonadNextVersion m => PromotionInfo -> m (Either VersionUpgradeException PromotionInfo)
 nextVersion prInfo@(PromotionInfo _ targetVersionType latestVersion _ _) = do
@@ -84,21 +100,21 @@ getAppName cfg = case cfg ^? apps . ix 0 of
     Just app -> Right app
     Nothing  -> Left $ VersionUpgradeException "Unable to determine the app to upgrade."
 
-saveVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
-saveVersion cfgFile prInfo = do
-    config  <- Repo.parseConfig cfgFile
-    version <- tryRight' $ getNewVersion prInfo
-    let name      = prInfo ^. appName
-        newConfig = config & packages . ix name . versions %~ Map.mapKeys (\_ -> version)
-    Repo.saveYamlToFile newConfig cfgFile
+-- saveVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
+-- saveVersion cfgFile prInfo = do
+--     config  <- Repo.parseConfig cfgFile
+--     version <- tryRight' $ getNewVersion prInfo
+--     let name      = prInfo ^. appName
+--         newConfig = config & packages . ix name . versions %~ Map.mapKeys (\_ -> version)
+--     Repo.saveYamlToFile newConfig cfgFile
 
-commitVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
-commitVersion appPath prInfo = do
-    version <- tryRight' $ getNewVersion prInfo
-    let msg = "New version: " <> (showPretty version)
-    Shelly.chdir appPath $ do
-        Shelly.cmd "git" "add" "luna-package.yaml"
-        Shelly.cmd "git" "commit" "-m" msg
+-- commitVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
+-- commitVersion appPath prInfo = do
+--     version <- tryRight' $ getNewVersion prInfo
+--     let msg = "New version: " <> (showPretty version)
+--     Shelly.chdir appPath $ do
+--         Shelly.cmd "git" "add" "luna-package.yaml"
+--         Shelly.cmd "git" "commit" "-m" msg
 
 tagVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
 tagVersion appPath prInfo = do
@@ -110,7 +126,7 @@ tagVersion appPath prInfo = do
                       else [showPretty $ prInfo ^. oldVersion]
 
     Shelly.chdir appPath $ Shelly.unlessM (tagExists versionTxt) $ do
-        commitVersion appPath prInfo
+        -- commitVersion appPath prInfo
         Shelly.run_ "git" (["tag", versionTxt] ++ tagSource)
 
 createNextVersion :: MonadNextVersion m => FilePath -> TargetVersionType -> Maybe Text -> m PromotionInfo
@@ -118,7 +134,7 @@ createNextVersion cfgPath verType commitM = do
     let appPath = parent cfgPath
     config    <- Repo.parseConfig cfgPath
     name      <- tryRight' $ getAppName config
-    latestVer <- latestVersion name verType
+    latestVer <- latestVersion name appPath verType
     liftIO $ Text.putStrLn $ "The latest version is: " <> (showPretty latestVer)
     let promotionInfo = PromotionInfo { _appName     = name
                                       , _versionType = verType
@@ -129,7 +145,7 @@ createNextVersion cfgPath verType commitM = do
 
     newInfo <- nextVersion promotionInfo >>= tryRight'
     liftIO $ print newInfo
-    saveVersion cfgPath newInfo
+    -- saveVersion cfgPath newInfo
     tagVersion  appPath newInfo
     return newInfo
 
