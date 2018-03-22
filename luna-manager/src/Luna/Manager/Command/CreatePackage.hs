@@ -404,10 +404,8 @@ run opts = do
 
     resolved <- Repository.resolvePackageApp config appToPack
     let resWithVersion = resolved & Repository.resolvedApp . Repository.header . Repository.version .~ version
-    -- createPkg cfgFolderPath s3GuiUrl resWithVersion
+    createPkg cfgFolderPath s3GuiUrl resWithVersion
 
-    -- print resWithVersion
     repo <- Repository.getRepo
     let updateConfig = Repository.updateConfig config resWithVersion
-    -- print updateConfigA
     Repository.generateConfigYamlWithNewPackage repo updateConfig $ cfgFolderPath </> "config.yaml"
