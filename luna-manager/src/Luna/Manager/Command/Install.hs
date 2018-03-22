@@ -414,15 +414,6 @@ installApp' binPath package = do
     let appName = mkSystemPkgName pkgName <> ".app"
     touchApp (convert binPath </> convert appName) appType
 
-data VersionException = VersionException Text  deriving (Show)
-instance Exception VersionException where
-    displayException (VersionException v ) = "Unknown version: " <> show v
-
-readVersion :: (MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> m Version
-readVersion v = case readPretty v of
-    Left e  -> throwM $ VersionException v
-    Right v -> return $ v
-
 -- Prompt user for the email, unless we already have it.
 askUserEmail :: MonadIO m => m Text
 askUserEmail = liftIO $ do

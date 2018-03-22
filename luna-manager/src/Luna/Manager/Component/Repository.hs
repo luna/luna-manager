@@ -66,7 +66,7 @@ data AppType = BatchApp | GuiApp | Lib deriving (Show, Generic, Eq)
 data Repo          = Repo          { _packages :: Map Text Package , _apps     :: [Text]                            } deriving (Show, Generic, Eq)
 data Package       = Package       { _synopsis :: Text             , _appType  :: AppType , _versions :: VersionMap } deriving (Show, Generic, Eq)
 data PackageDesc   = PackageDesc   { _deps     :: [PackageHeader]  , _path     :: Text                              } deriving (Show, Generic, Eq)
-data PackageHeader = PackageHeader { _name     :: Text             , _version  :: Version                           } deriving (Show, Generic, Eq)
+data PackageHeader = PackageHeader { _name     :: Text             , _version  :: Version                     } deriving (Show, Generic, Eq)
 type VersionMap    = Map Version (Map SysDesc PackageDesc)
 
 -- Helpers
@@ -249,9 +249,11 @@ updateConfig config resolvedApplication =
         applicationPartPackagePath = appName <> "/releases/download/" <> showPretty (view version appHeader) <> "/" <> appName <> "-" <> showPretty currentHost <> "-" <> showPretty (view version appHeader)
         extension = if currentHost == Linux then ".AppImage" else ".tar.gz"
         githubReleasePath = mainPackagePath <> applicationPartPackagePath <> extension
-        updatedConfig  = config & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ githubReleasePath
+        updatedVersion = config & packages . ix appName . versions %~ Map.mapKeys (\_ -> (view version appHeader))
+        updatedConfig  = updatedVersion & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ githubReleasePath
         filteredConfig = updatedConfig & packages . ix appName . versions . ix (view version appHeader)  %~ Map.filterWithKey (\k _ -> k == currentSysDesc   )
     in filteredConfig
+
 
 -- === Instances === --
 

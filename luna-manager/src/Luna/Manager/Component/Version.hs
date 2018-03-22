@@ -12,6 +12,9 @@ import           Data.Maybe          (isNothing)
 import qualified Data.Text           as Text
 import Control.Error.Util (hush)
 
+import qualified Control.Exception.Safe            as Exception
+import           Control.Monad.Raise
+
 ------------------------
 -- === Versioning === --
 ------------------------
@@ -56,6 +59,16 @@ promoteToRelease v = if not (isNightly v)
     then Left  "Cannot promote to release if the build is not a nightly build"
     else Right $ nextRelease v
     where nextRelease = (info .~ Nothing) . (minor %~ (+1))
+
+
+data VersionException = VersionException Text  deriving (Show)
+instance Exception VersionException where
+    displayException (VersionException v ) = "Unknown version: " <> show v
+
+readVersion :: (MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> m Version
+readVersion v = case readPretty v of
+    Left e  -> throwM $ VersionException v
+    Right v -> return $ v
 
 -- === Instances === --
 
