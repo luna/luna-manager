@@ -249,9 +249,9 @@ updateConfig config resolvedApplication =
         applicationPartPackagePath = appName <> "/releases/download/" <> showPretty (view version appHeader) <> "/" <> appName <> "-" <> showPretty currentHost <> "-" <> showPretty (view version appHeader)
         extension = if currentHost == Linux then ".AppImage" else ".tar.gz"
         githubReleasePath = mainPackagePath <> applicationPartPackagePath <> extension
-        updatedVersion = config & packages . ix appName . versions %~ Map.mapKeys (\_ -> (view version appHeader))
-        updatedConfig  = updatedVersion & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ githubReleasePath
-        filteredConfig = updatedConfig & packages . ix appName . versions . ix (view version appHeader)  %~ Map.filterWithKey (\k _ -> k == currentSysDesc   )
+        updatedVersionCfg = config & packages . ix appName . versions %~ Map.mapKeys (\_ -> (view version appHeader))
+        updatedConfig     = updatedVersionCfg & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ githubReleasePath
+        filteredConfig    = updatedConfig & packages . ix appName . versions . ix (view version appHeader)  %~ Map.filterWithKey (\k _ -> k == currentSysDesc   )
     in filteredConfig
 
 
