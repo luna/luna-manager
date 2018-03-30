@@ -68,7 +68,7 @@ instance Exception VersionException where
 readVersion :: (MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> m Version
 readVersion v = case readPretty v of
     Left e  -> throwM $ VersionException v
-    Right v -> return $ v
+    Right v -> return v
 
 -- === Instances === --
 

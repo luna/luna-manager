@@ -61,9 +61,7 @@ wrapException :: MonadNextVersion m => Either Text Version -> m (Either VersionU
 wrapException = return . first VersionUpgradeException
 
 readMaybeVersion :: Text -> Maybe Version
-readMaybeVersion v = case readPretty v of
-    Left e  -> Nothing
-    Right v -> Just v
+readMaybeVersion v = hush $ readPretty v
 
 latestVersion :: (MonadNextVersion m,MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> FilePath -> TargetVersionType -> m Version
 latestVersion appName appPath targetVersionType = do
@@ -74,8 +72,8 @@ latestVersion appName appPath targetVersionType = do
     Shelly.chdir appPath $ do
         tagsList <- Text.splitOn "\n" <$> Shelly.cmd "git" "tag" "-l"
 
-        let vLixt = catMaybes $ readMaybeVersion <$> tagsList
-        return $ case filter filterFunc (reverse vLixt) of
+        let vList = catMaybes $ readMaybeVersion <$> tagsList
+        return $ case filter filterFunc (reverse vList) of
                 (v:_) -> v
                 _     -> def :: Version
 

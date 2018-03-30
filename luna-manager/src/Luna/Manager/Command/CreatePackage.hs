@@ -27,7 +27,7 @@ import qualified Data.Text                      as Text
 import qualified Data.Yaml                      as Yaml
 import qualified Luna.Manager.Command.Options   as Opts
 import qualified Luna.Manager.Shell.Shelly      as Shelly
-import qualified Safe                           as Safe
+import qualified Safe
 import qualified System.Process.Typed           as Process
 import System.Exit
 import System.Directory                         (renameDirectory)
@@ -94,6 +94,10 @@ instance Monad m => MonadHostConfig PackageConfig 'Windows arch m where
     defaultHostConfig = reconfig <$> defaultHostConfigFor @Linux where
         reconfig cfg = cfg & defaultPackagePath .~ "C:\\lp"
                            & buildScriptPath    .~ "scripts_build\\build.py"
+
+data NoAppException = NoAppException deriving(Show)
+instance Exception NoAppException  where
+    displayException NoAppException = "No Applicattions defined to create package."
 
 data AppimageException = AppimageException SomeException deriving (Show)
 instance Exception AppimageException where
@@ -399,13 +403,15 @@ run opts = do
     modify_ @PackageConfig (buildFromHead .~ (opts ^. Opts.buildFromHead))
 
     let cfgFolderPath = parent $ convert (opts ^. Opts.cfgPath)
-        appToPack     = head $ config ^. Repository.apps
+        appToPack     = Safe.headMay $ config ^. Repository.apps
         s3GuiUrl      = opts ^. Opts.guiURL
+    case appToPack of
+        Nothing -> throwM NoAppException
+        Just a -> do
+            resolved <- Repository.resolvePackageApp config a
+            let resolvedWithVersion = resolved & Repository.resolvedApp . Repository.header . Repository.version .~ version
+            createPkg cfgFolderPath s3GuiUrl resolvedWithVersion
 
-    resolved <- Repository.resolvePackageApp config appToPack
-    let resolvedWithVersion = resolved & Repository.resolvedApp . Repository.header . Repository.version .~ version
-    createPkg cfgFolderPath s3GuiUrl resolvedWithVersion
-
-    repo <- Repository.getRepo
-    let updateConfig = Repository.updateConfig config resolvedWithVersion
-    Repository.generateConfigYamlWithNewPackage repo updateConfig $ cfgFolderPath </> "config.yaml"
+            repo <- Repository.getRepo
+            let updateConfig = Repository.updateConfig config resolvedWithVersion
+            Repository.generateConfigYamlWithNewPackage repo updateConfig $ cfgFolderPath </> "config.yaml"
