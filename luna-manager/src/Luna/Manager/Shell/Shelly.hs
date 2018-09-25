@@ -51,10 +51,11 @@ rm_rf path = case currentHost of
     Linux -> Sh.rm_rf path
     Darwin -> Sh.rm_rf path
     Windows -> do
-        Prologue.whenM (Sh.test_d path) $ do
-            list <- Sh.ls path
-            mapM_ rm_rf list
-        Prologue.whenM (Sh.test_e path) $ liftIO $ Process.runProcess_ $ Process.shell $ "powershell Remove-Item -Recurse -Force -Path " <> encodeString path
+        Prologue.whenM (Sh.test_d path) $ cmd_on_quoted_path "rmdir /s /q "
+        Prologue.whenM (Sh.test_e path) $ cmd_on_quoted_path "rm "
+        where
+            cmd_on_quoted_path cmd = liftIO $ Process.runProcess_ $ Process.shell $ cmd <> quoted_path
+            quoted_path = "\"" <> encodeString path <> "\""
 
 switchVerbosity :: Logger.LoggerMonad m => m a -> m a
 switchVerbosity act = do
