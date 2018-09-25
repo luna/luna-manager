@@ -45,17 +45,17 @@ mv src dst = case currentHost of
         Logger.logObject "dst" dst
         Sh.mv src dst
 
+runCommand :: (MonadIO m) => String -> FilePath -> m ()
+runCommand cmd path = liftIO $ Process.runProcess_ $ Process.shell $ cmd <> quoted_path
+    where quotedPath = "\"" <> encodeString path <> "\""
 
 rm_rf :: (Logger.LoggerMonad m, MonadIO m, MonadSh m, MonadCatch m) => FilePath -> m ()
 rm_rf path = case currentHost of
     Linux -> Sh.rm_rf path
     Darwin -> Sh.rm_rf path
     Windows -> do
-        Prologue.whenM (Sh.test_d path) $ cmd_on_quoted_path "rmdir /s /q "
-        Prologue.whenM (Sh.test_e path) $ cmd_on_quoted_path "rm "
-        where
-            cmd_on_quoted_path cmd = liftIO $ Process.runProcess_ $ Process.shell $ cmd <> quoted_path
-            quoted_path = "\"" <> encodeString path <> "\""
+        Prologue.whenM (Sh.test_d path) $ runCommand "rmdir /s /q " path
+        Prologue.whenM (Sh.test_e path) $ runCommand "rm " path
 
 switchVerbosity :: Logger.LoggerMonad m => m a -> m a
 switchVerbosity act = do
