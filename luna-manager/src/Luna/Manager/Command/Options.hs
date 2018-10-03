@@ -136,7 +136,7 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
     optsSwitchVersion  = SwitchVersion     <$> optsSwitchVersion'
     optsSwitchVersion' = SwitchVersionOpts <$> strArgument (metavar "VERSION" <> help "Target version to switch to")
     optsDevelop        = Develop           <$> optsDevelop'
-    optsDevelop'       = DevelopOpts       <$> (strArgument $ metavar "CONFIG" <> help "Config (luna-package.yaml) file path, usually found in the Luna Studio repo")
+    optsDevelop'       = DevelopOpts       <$> (strArgument $ metavar "APPLICATION" <> help "Name of the application to install. Example: luna-studio")
                                            <*> (optional . strOption $ long "path" <> metavar "PATH" <> help "Path under which the new repository will be created and set up.")
                                            <*> Opts.switch (long "download-dependencies" <> help "Instead of setting up the fresh repo, just download the external dependencies into the existing repo.")
     optsInstall        = Install           <$> optsInstall'

@@ -100,19 +100,20 @@ run opts = do
         path <- tryJust (toException PathException) (opts ^. repositoryPath)
         downloadDeps appName $ convert path
     else do
-        let path = opts ^. repositoryPath
-        workingPath <- case path of
-            Just workingPath -> return workingPath
-            Nothing -> do
-                home <- liftIO $ System.getHomeDirectory
-                return $ convert home
-        appPath         <- expand $ convert workingPath </> (developCfg ^. devPath) </> (developCfg ^. appsPath) </> convert appName
-        stackFolderPath <- expand  $ convert workingPath </> (developCfg ^. devPath) </> (developCfg ^. toolsPath) </> (developCfg ^. stackLocalPath)
+        workingPath <- case opts ^. repositoryPath of
+            Just wp -> return wp
+            Nothing -> convert <$> liftIO System.getHomeDirectory
+        putStrLn $ "workingPath: " <> show workingPath
+        let basePath = convert workingPath </> (developCfg ^. devPath)
+        putStrLn $ "basePath: " <> show basePath
+        appPath         <- expand $ basePath </> (developCfg ^. appsPath) </> convert appName
+        putStrLn $ "appPath: " <> show appPath
+        stackFolderPath <- expand $ basePath </> (developCfg ^. toolsPath) </> (developCfg ^. stackLocalPath)
         Shelly.mkdir_p $ parent stackFolderPath
         downloadAndUnpackStack stackFolderPath
         getLatestRepo appName appPath
         Shelly.prependToPath stackFolderPath
-        Shelly.setenv "APP_PATH" $ Shelly.toTextIgnore appPath
+        Shelly.setenv "APP_PATH" $ Shelly.toTextIgnore basePath
         let bootstrapPath      = Shelly.toTextIgnore $ appPath </> (developCfg ^. bootstrapFile)
             bootstrapPackages  = ["base", "exceptions", "shelly", "text", "directory", "system-filepath"]
             bootstrapStackArgs = ["--resolver", "lts-8.2", "--install-ghc" , "runghc"]
