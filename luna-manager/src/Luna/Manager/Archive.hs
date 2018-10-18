@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 module Luna.Manager.Archive where
 
-import           Prologue hiding (FilePath, (<.>))
+import           Prologue hiding (FilePath)
 
 import           Luna.Manager.Shell.Shelly (MonadSh)
 import           Control.Monad.Raise
@@ -12,7 +12,7 @@ import           Control.Error.Util (hush)
 import           Data.Aeson (encode)
 import           Data.Either (either)
 import           Data.IORef
-import           Filesystem.Path.CurrentOS (FilePath, (<.>), (</>), encodeString, toText, fromText, filename, directory, extension, basename, parent, dirname)
+import           Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, toText, fromText, filename, directory, extension, basename, parent, dirname)
 import qualified Filesystem.Path.CurrentOS as FP
 import           Luna.Manager.Gui.InstallationProgress
 import qualified Luna.Manager.Logger as Logger
@@ -227,8 +227,11 @@ gzipWindows folder appName = do
 sevenZipWindows :: UnpackContext m => FilePath -> Text -> m FilePath
 sevenZipWindows folder appName = Shelly.chdir (parent folder) $ do
     script <- download7Zip
-    Shelly.switchVerbosity $ Shelly.cmd script "a" folder
-    return $ Shelly.fromText appName <.> "7z"
+    let zipFileName = appName <> ".7z"
+        filePattern = ".\\" <> (Shelly.toTextIgnore folder) <> "\\*"
+    Shelly.switchVerbosity $
+        Shelly.cmd script "a" "-t7z" zipFileName filePattern
+    return $ Shelly.fromText zipFileName
 
 unpackRPM :: UnpackContext m => FilePath -> FilePath -> m ()
 unpackRPM file filepath = liftIO $ do
