@@ -245,7 +245,10 @@ updateConfig config resolvedApplication =
         appName    = appHeader ^. name
         mainPackagePath = "https://github.com/luna/"
         applicationPartPackagePath = appName <> "/releases/download/" <> showPretty (view version appHeader) <> "/" <> appName <> "-" <> showPretty currentHost <> "-" <> showPretty (view version appHeader)
-        extension = if currentHost == Linux then ".AppImage" else ".tar.gz"
+        extension = case currentHost of
+            Linux   -> ".AppImage"
+            Darwin  -> ".tar.gz"
+            Windows -> ".7z"
         githubReleasePath = mainPackagePath <> applicationPartPackagePath <> extension
         updatedVersionCfg = config & packages . ix appName . versions %~ Map.mapKeys (\_ -> (view version appHeader))
         updatedConfig     = updatedVersionCfg & packages . ix appName . versions . ix (view version appHeader) . ix currentSysDesc . path .~ githubReleasePath

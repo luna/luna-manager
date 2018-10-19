@@ -20,7 +20,7 @@ import           Luna.Manager.Network
 import           Luna.Manager.Shell.Question
 import qualified Luna.Manager.Shell.Shelly         as Shelly
 import           Luna.Manager.Shell.Shelly         (toTextIgnore, MonadSh, MonadShControl)
-import           Luna.Manager.System               (makeExecutable, exportPath, askToExportPath, checkShell, runServicesWindows, stopServicesWindows, checkChecksum, shaUriError)
+import           Luna.Manager.System               (makeExecutable, exportPath, askToExportPath, checkShell, runServicesWindows, stopServicesWindows, checkChecksum, shaUriError, stripArchiveExtension)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
@@ -194,10 +194,7 @@ downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
     stopServices installPath appType
     when guiInstaller $ downloadProgress (Progress 0 1)
     Shelly.mkdir_p $ parent installPath
-    pkgPathNoExtension <- tryJust (shaUriError pkgPath) $ case currentHost of
-            Linux -> Text.stripSuffix "AppImage" pkgPath
-            _     -> Text.stripSuffix "tar.gz" pkgPath
-    let pkgShaPath = pkgPathNoExtension <> "sha256"
+    let pkgShaPath = stripArchiveExtension pkgPath <> ".sha256"
     pkg    <- downloadIfUri pkgPath
     pkgSha <- downloadIfUri pkgShaPath
 

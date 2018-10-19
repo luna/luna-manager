@@ -197,18 +197,18 @@ instance Exception SHAChecksumDoesNotMatchError where
 
 -- === Utils === --
 
-stripExtensions :: FilePath -> Text
-stripExtensions path = fromMaybe textPath stripped
+stripArchiveExtension :: Text -> Text
+stripArchiveExtension path = fromMaybe path stripped
     where
-        textPath = Shelly.toTextIgnore path
         suffixes = [".7z", ".zip", ".tar.gz", ".tar.xz", ".tar.bz"] :: [Text]
-        tryStrip = flip Text.stripSuffix textPath
+        tryStrip = flip Text.stripSuffix path
         stripped = listToMaybe . catMaybes . map tryStrip $ suffixes
 
 generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m, MonadException SomeException m) => FilePath -> m ()
 generateChecksum file = do
     sha <- Crypto.hashFile @m @hash $ encodeString file
-    let shaFilePath = stripExtensions file <> ".sha256"
+    let fileTextPath = Shelly.toTextIgnore file
+    let shaFilePath  = stripArchiveExtension fileTextPath <> ".sha256"
     liftIO $ writeFile (convert shaFilePath) (show sha)
 
 -- checking just strings because converting to ByteString will prevent user to check it without manager and
