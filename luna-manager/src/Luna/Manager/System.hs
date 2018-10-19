@@ -14,7 +14,7 @@ import           Data.ByteString.Lazy.Char8   (filter, unpack)
 import qualified Crypto.Hash                  as Crypto
 import qualified Crypto.Hash.Conduit          as Crypto
 import qualified Data.ByteString              as ByteString
-import           Data.Maybe                   (listToMaybe)
+import           Data.Maybe                   (listToMaybe, catMaybes)
 import           Data.List                    (isInfixOf)
 import           Data.List.Split              (splitOn)
 import           Data.Text.IO                 (appendFile, readFile)
@@ -197,11 +197,19 @@ instance Exception SHAChecksumDoesNotMatchError where
 
 -- === Utils === --
 
+stripExtensions :: FilePath -> Text
+stripExtensions path = fromMaybe textPath stripped
+    where
+        textPath = Shelly.toTextIgnore path
+        suffixes = [".7z", ".zip", ".tar.gz", ".tar.xz", ".tar.bz"] :: [Text]
+        tryStrip = flip Text.stripSuffix textPath
+        stripped = listToMaybe . catMaybes . map tryStrip $ suffixes
+
 generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m, MonadException SomeException m) => FilePath -> m ()
 generateChecksum file = do
     sha <- Crypto.hashFile @m @hash $ encodeString file
-    let shaFilePath = dropExtensions file <.> "sha256"
-    liftIO $ writeFile (convert $ Shelly.toTextIgnore shaFilePath) (show sha)
+    let shaFilePath = stripExtensions file <> ".sha256"
+    liftIO $ writeFile (convert shaFilePath) (show sha)
 
 -- checking just strings because converting to ByteString will prevent user to check it without manager and
 -- comparing Digests is nontrivial due to lack of read function working opposite to Show in Crypto.Hash library
