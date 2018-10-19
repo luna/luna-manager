@@ -228,7 +228,7 @@ sevenZipWindows :: UnpackContext m => FilePath -> Text -> m FilePath
 sevenZipWindows folder appName = Shelly.chdir (parent folder) $ do
     script <- download7Zip
     let zipFileName = appName <> ".7z"
-        filePattern = ".\\" <> (Shelly.toTextIgnore folder) <> "\\*"
+        filePattern = (Shelly.toTextIgnore folder) <> "\\*"
     Shelly.switchVerbosity $
         Shelly.cmd script "a" "-t7z" zipFileName filePattern
     return $ Shelly.fromText zipFileName
