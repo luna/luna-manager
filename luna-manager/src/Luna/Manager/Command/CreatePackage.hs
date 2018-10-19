@@ -389,7 +389,7 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
                   Linux -> createAppimage appName appVersion appPath
                   _     -> Archive.pack mainAppDir $ finalPackageName appName appVersion
 
-    putStrLn $ "Generated package: " <> show package
+    Logger.log $ "Generated package: " <> (convert $ show package)
 
     generateChecksum  @Crypto.SHA256 package
 
