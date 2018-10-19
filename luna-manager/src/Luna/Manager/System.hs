@@ -21,7 +21,7 @@ import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
 import qualified Data.Text.IO                 as Text
-import           Filesystem.Path.CurrentOS    (FilePath, (</>), (<.>), encodeString, toText, parent, directory, dropExtension)
+import           Filesystem.Path.CurrentOS    (FilePath, (</>), (<.>), encodeString, toText, parent, directory, dropExtension, dropExtensions)
 import           System.Directory             (executable, setPermissions, getPermissions, doesDirectoryExist, doesPathExist, getHomeDirectory)
 import qualified System.Environment           as Environment
 import           System.Exit
@@ -200,11 +200,8 @@ instance Exception SHAChecksumDoesNotMatchError where
 generateChecksum :: forall hash m . (Crypto.HashAlgorithm hash, MonadIO m, MonadException SomeException m) => FilePath -> m ()
 generateChecksum file = do
     sha <- Crypto.hashFile @m @hash $ encodeString file
-    shaFileNoExtension <- tryJust (shaUriError $ Shelly.toTextIgnore file) $ case currentHost of
-            Linux -> Text.stripSuffix "AppImage" $ Shelly.toTextIgnore file
-            _     -> Text.stripSuffix "tar.gz" $ Shelly.toTextIgnore file
-    let shaFilePath = shaFileNoExtension <> "sha256"
-    liftIO $ writeFile (convert shaFilePath) (show sha)
+    let shaFilePath = dropExtensions file <.> "sha256"
+    liftIO $ writeFile (convert $ Shelly.toTextIgnore shaFilePath) (show sha)
 
 -- checking just strings because converting to ByteString will prevent user to check it without manager and
 -- comparing Digests is nontrivial due to lack of read function working opposite to Show in Crypto.Hash library
