@@ -5,6 +5,7 @@ module Luna.Manager.Archive where
 import           Prologue hiding (FilePath, (<.>))
 
 import           Luna.Manager.Shell.Shelly (MonadSh)
+import           Control.Concurrent        (threadDelay)
 import           Control.Monad.Raise
 import           Control.Monad.State.Layered
 import qualified Control.Exception.Safe as Exception
@@ -193,6 +194,8 @@ unSevenZzipWin :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePa
 unSevenZzipWin totalProgress progressFieldName zipFile = do
     guiInstaller <- Opts.guiInstallerOpt
     script       <- download7Zip
+
+    liftIO $ threadDelay 30000000 -- sleep for 30s
 
     if guiInstaller
         then do
