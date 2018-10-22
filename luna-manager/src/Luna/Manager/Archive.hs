@@ -199,12 +199,13 @@ unSevenZzipWin totalProgress progressFieldName zipFile = do
         name     =  dir </> basename zipFile
         path2str :: FilePath -> String
         path2str = convert . Shelly.toTextIgnore
-        -- dirParam = "-w\"" <> (Shelly.toTextIgnore dir) <> "\""
 
-    -- liftIO $ threadDelay 30000000 -- sleep for 30s
+    liftIO $ callProcess (path2str script)
+           [ "x"
+           , "-o" <> path2str name
+           , "-y", path2str zipFile
+           ]
 
-    liftIO $ callProcess (path2str script) ["x", "-o" <> path2str name, "-y", path2str zipFile]
-        
     return name
 
 pack :: UnpackContext m => FilePath -> Text -> m FilePath
