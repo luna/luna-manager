@@ -217,8 +217,9 @@ linkingCurrent appType installPath = do
 makeShortcuts :: MonadInstall m => FilePath -> Text -> m ()
 makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
     Logger.info "Creating Menu Start shortcut."
-    bin         <- liftIO $ System.getSymbolicLinkTarget $ encodeString packageBinPath
-    binAbsPath  <- Shelly.canonicalize $ (parent packageBinPath) </> (decodeString bin)
+    let binName = Shelly.fromText appName <.> "exe"
+        binPath = (parent $ parent packageBinPath) </> "public" </> (Shelly.fromText appName)
+    binAbsPath  <- Shelly.canonicalize $ binPath </> binName
     appData     <- liftIO $ Environment.getEnv "appdata"
     let menuPrograms = (decodeString appData) </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
     exitCode <- liftIO $ Process.runProcess $ Process.shell  ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"")
