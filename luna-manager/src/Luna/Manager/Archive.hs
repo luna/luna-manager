@@ -203,10 +203,9 @@ unSevenZzipWin totalProgress progressFieldName zipFile = do
 
     -- liftIO $ threadDelay 30000000 -- sleep for 30s
 
-    liftIO $ callProcess (path2str script) ["x", "-o" <> path2str dir, "-y", path2str zipFile]
+    liftIO $ callProcess (path2str script) ["x", "-o" <> path2str name, "-y", path2str zipFile]
         
-    listed <- Shelly.ls $ dir </> name
-    return $ if length listed == 1 then head listed else dir </> name
+    return name
 
 pack :: UnpackContext m => FilePath -> Text -> m FilePath
 pack = case currentHost of
