@@ -30,6 +30,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Read     as Text
 import qualified Luna.Manager.Shell.Shelly as Shelly
 import qualified System.Process.Typed as Process
+import           System.Process       (callProcess)
 import           System.Exit
 import           System.IO (hFlush, stdout, hGetContents)
 default (Text.Text)
@@ -196,20 +197,14 @@ unSevenZzipWin totalProgress progressFieldName zipFile = do
     script       <- download7Zip
     let dir      =  directory zipFile
         name     =  dir </> basename zipFile
-        dirParam = "-w\"" <> (Shelly.toTextIgnore dir) <> "\""
+        path2str :: FilePath -> String
+        path2str = convert . Shelly.toTextIgnore
+        -- dirParam = "-w\"" <> (Shelly.toTextIgnore dir) <> "\""
 
-    liftIO $ threadDelay 30000000 -- sleep for 30s
+    -- liftIO $ threadDelay 30000000 -- sleep for 30s
 
-    if guiInstaller
-        then do
-            let logger = directProgressLogger progressFieldName totalProgress
-            Shelly.log_stdout_with logger $ Shelly.cmd script "x" dirParam zipFile
-        else do
-            let handler err = throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err)
-                act         = Shelly.cmd script "x" dirParam zipFile
-            Shelly.log_stdout_with progressBarLogger $
-                Exception.catchAny act handler
-
+    liftIO $ callProcess (path2str script) ["x", path2str zipFile]
+        
     listed <- Shelly.ls $ dir </> name
     return $ if length listed == 1 then head listed else dir </> name
 
