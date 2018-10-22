@@ -85,7 +85,7 @@ copyDir src dst = do
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig EnvConfig sys arch m where
     defaultHostConfig = do
         sysTmp  <- liftIO System.getTemporaryDirectory
-        lunaTmp <- liftIO $ createTempDirectory sysTmp "luna"
+        lunaTmp <- liftIO $ createTempDirectory sysTmp "lu na"
         return $ EnvConfig $ decodeString lunaTmp
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig EnvConfig 'Windows arch m where
