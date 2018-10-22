@@ -194,21 +194,22 @@ unSevenZzipWin :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePa
 unSevenZzipWin totalProgress progressFieldName zipFile = do
     guiInstaller <- Opts.guiInstallerOpt
     script       <- download7Zip
+    let dir      =  directory zipFile
+        name     =  dir </> basename zipFile
+        dirParam = "-w\"" <> (Shelly.toTextIgnore dir) <> "\""
 
     liftIO $ threadDelay 30000000 -- sleep for 30s
 
     if guiInstaller
         then do
             let logger = directProgressLogger progressFieldName totalProgress
-            Shelly.log_stdout_with logger $ Shelly.cmd script "x" zipFile
+            Shelly.log_stdout_with logger $ Shelly.cmd script "x" dirParam zipFile
         else do
             let handler err = throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err)
-                act         = Shelly.cmd script "x" zipFile
+                act         = Shelly.cmd script "x" dirParam zipFile
             Shelly.log_stdout_with progressBarLogger $
                 Exception.catchAny act handler
 
-    let dir  = directory zipFile
-        name = dir </> basename zipFile
     listed <- Shelly.ls $ dir </> name
     return $ if length listed == 1 then head listed else dir </> name
 
