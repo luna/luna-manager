@@ -8,7 +8,7 @@ import Luna.Manager.Gui.DownloadProgress (Progress(..))
 import Luna.Manager.System.Env
 import Luna.Manager.Shell.ProgressBar
 import Luna.Manager.System.Path
-import Luna.Manager.Shell.Shelly (MonadSh, MonadShControl)
+import Luna.Manager.Shell.Shelly (MonadSh, MonadShControl, toTextIgnore)
 
 import Control.Monad.Raise
 import Control.Monad.State.Layered
@@ -27,6 +27,7 @@ import Network.HTTP.Types (hContentLength)
 import qualified Data.ByteString.Char8 as ByteStringChar (unpack, writeFile)
 import qualified Data.Text as Text
 import qualified Control.Exception.Safe as Exception
+import System.Directory (doesFileExist)
 
 -- === Errors === --
 
@@ -52,13 +53,16 @@ type MonadNetwork m = (MonadIO m, MonadGetters '[Options, EnvConfig] m, MonadExc
 
 downloadFromURL :: MonadNetwork m => URIPath -> Text -> m FilePath
 downloadFromURL address info = do
-    let go = withJust (takeFileNameFromURL address) $ \name -> do
+    let fileExists :: MonadIO m => FilePath -> m Bool
+        fileExists = liftIO . doesFileExist . convert . toTextIgnore
+        go = withJust (takeFileNameFromURL address) $ \name -> do
             Logger.log $ info <>" (" <> address <> ")"
             dest    <- (</> (fromText name)) <$> getDownloadPath
-            manager <- newHTTPManager
-            request <- HTTP.parseUrlThrow (convert address)
-            resp    <- httpLbs request manager
-            liftIO $ ByteStringL.writeFile (encodeString dest) $ HTTP.responseBody resp
+            unlessM (fileExists dest) $ do
+                manager <- newHTTPManager
+                request <- HTTP.parseUrlThrow (convert address)
+                resp    <- httpLbs request manager
+                liftIO $ ByteStringL.writeFile (encodeString dest) $ HTTP.responseBody resp
             return dest
     go `Exception.catchAny` \e -> throwM (DownloadException address e)  where
 
