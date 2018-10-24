@@ -228,7 +228,7 @@ sevenZipWindows folder appName = do
     let dir = parent folder
     Shelly.chdir dir $ do
         script <- download7Zip
-        let zipFileName = (Shelly.fromText appName) <.> "7z"
+        let zipFileName = Shelly.fromText appName <.> "7z"
             filePattern = folder </> "*"
         Shelly.switchVerbosity $
             Shelly.cmd script "a" "-t7z" zipFileName filePattern
