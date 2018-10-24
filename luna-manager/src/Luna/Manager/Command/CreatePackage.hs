@@ -291,7 +291,6 @@ downloadExternalPkgs cfgFolderPath resolvedApp opts = do
     let repoPath = getRepoPath cfgFolderPath resolvedApp
         tgtPath  = repoPath </> "env"
         pkgUrls = opts ^. Opts.extPkgUrls
-    putStrLn $ "REPO PATH: " <> show repoPath
 
     forM pkgUrls $ \pu -> do
         archive <- downloadFromURL pu "External package: "
