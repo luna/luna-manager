@@ -218,7 +218,7 @@ makeShortcuts :: MonadInstall m => FilePath -> Text -> m ()
 makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
     Logger.info "Creating Menu Start shortcut."
     let binName = Shelly.fromText appName <.> "exe"
-        binPath = (parent $ parent packageBinPath) </> "public" </> (Shelly.fromText appName)
+        binPath = parent (parent packageBinPath) </> "public" </> Shelly.fromText appName
     binAbsPath  <- Shelly.canonicalize $ binPath </> binName
     appData     <- liftIO $ Environment.getEnv "appdata"
     let menuPrograms = (decodeString appData) </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
