@@ -35,7 +35,6 @@ dependencies:
   - optparse-applicative
   - optparse-applicative
   - path
-  - process
   - prologue
   - resourcet
   - safe
