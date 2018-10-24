@@ -200,7 +200,7 @@ instance Exception SHAChecksumDoesNotMatchError where
 stripArchiveExtension :: Text -> Text
 stripArchiveExtension path = fromMaybe path stripped
     where
-        suffixes = [".7z", ".zip", ".tar.gz", ".tar.xz", ".tar.bz"] :: [Text]
+        suffixes = [".7z", ".zip", ".tar.gz", ".tar.xz", ".tar.bz", ".AppImage"] :: [Text]
         tryStrip = flip Text.stripSuffix path
         stripped = listToMaybe . catMaybes . map tryStrip $ suffixes
 

@@ -18,6 +18,7 @@ import           Luna.Manager.System.Env      (EnvConfig)
 import qualified Luna.Manager.System.Env      as System
 
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, decodeString, toText, parent)
+import           System.IO                    (stdout, stderr, withFile, IOMode(AppendMode), Handle)
 import           System.Process.Typed         as Process
 import           System.Exit
 
@@ -49,6 +50,33 @@ runCommand :: (MonadIO m) => String -> FilePath -> m ()
 runCommand cmd path = liftIO $ Process.runProcess_ $ Process.shell $ cmd <> quotedPath
     where quotedPath = "\"" <> encodeString path <> "\""
 
+runProcess :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
+runProcess path args = do
+    opts <- view globals <$> State.get @Options
+    let verb   = opts ^. verbose
+        gui    = opts ^. guiInstaller
+    if verb && (not gui)
+        then runProcessStdout path args
+        else runProcessFile   path args
+
+runProcessStdout :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
+runProcessStdout path args = runProcess_ $ _createProcess path args stdout stderr
+
+runProcessFile :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
+runProcessFile path args = do
+    file <- Logger.logFilePath
+    liftIO $ withFile (pathToStr path) AppendMode $ \fp ->
+        runProcess_ $ _createProcess path args fp fp
+
+_createProcess :: FilePath -> [Text] -> Handle -> Handle
+               -> Process.ProcessConfig () () ()
+_createProcess path args hOut hErr =
+    let args' = map convert args :: [String]
+    in Process.setStdin  Process.closed
+     $ Process.setStdout (Process.useHandleOpen hOut)
+     $ Process.setStderr (Process.useHandleOpen hErr)
+     $ proc (pathToStr path) args'
+
 rm_rf :: (Logger.LoggerMonad m, MonadIO m, MonadSh m, MonadCatch m) => FilePath -> m ()
 rm_rf path = case currentHost of
     Linux -> Sh.rm_rf path
@@ -70,3 +98,6 @@ switchVerbosity act = do
 -- based on the `verbose` option
 run  command args = switchVerbosity $ Sh.run  command args
 run_ command args = switchVerbosity $ Sh.run_ command args
+
+pathToStr :: FilePath -> String
+pathToStr = convert . Sh.toTextIgnore
