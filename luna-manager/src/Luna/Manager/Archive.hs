@@ -91,7 +91,7 @@ unzipUnix file = do
         Shelly.mkdir_p name
         Shelly.cp file name
         Shelly.chdir (dir </> name) $ do
-            out <- Shelly.switchVerbosity $ Shelly.cmd  "unzip" $ dir </> name </> filename file
+            out <- Shelly.silently $ Shelly.cmd  "unzip" $ dir </> name </> filename file
             Shelly.rm $ dir </> name </> filename file
             listed <- Shelly.ls $ dir </> name
             if length listed == 1 then return $ head listed else return $ dir </> name
@@ -137,7 +137,7 @@ unpackTarGzUnix totalProgress progressFieldName file = do
                     Shelly.log_stderr_with (countingFilesLogger progressFieldName totalProgress currentUnpackingFileNumber $ fst x)
                                          $ Shelly.cmd "tar" "-xvpzf" (Shelly.toTextIgnore file) "--strip=1" "-C" (Shelly.toTextIgnore name)
                 Left err -> throwM (UnpackingException (Shelly.toTextIgnore file) (toException $ Exception.StringException err callStack ))
-        else (Shelly.switchVerbosity $ Shelly.cmd  "tar" "-xpzf" file "--strip=1" "-C" name) `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore file) $ toException err))
+        else (Shelly.silently $ Shelly.cmd  "tar" "-xpzf" file "--strip=1" "-C" name) `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore file) $ toException err))
         listed <- Shelly.ls $ dir </> name
         if length listed == 1 then return $ head listed else return $ dir </> name
 
