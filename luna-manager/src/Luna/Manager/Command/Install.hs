@@ -478,9 +478,10 @@ run opts = do
                 let e = UnresolvedDepsError unresolvedLibs
                 Logger.exception "Install.run" $ toException e
                 raise' e
-            let appsToInstall = filter (( <$> (^. header . name)) (`elem` (repo ^.apps))) pkgsToInstall
-                resolvedApp   = ResolvedPackage (PackageHeader appName appVersion) appDesc (appPkg ^. appType)
-                allApps       = resolvedApp : appsToInstall
+            let isToInstall pkg = (pkg ^. header . name) `elem` (repo ^. apps)
+                appsToInstall   = filter isToInstall pkgsToInstall
+                resolvedApp     = ResolvedPackage (PackageHeader appName appVersion) appDesc (appPkg ^. appType)
+                allApps         = resolvedApp : appsToInstall
             Logger.logObject "[run] allApps" allApps
 
             mapM_ (installApp opts) $ allApps
