@@ -4,7 +4,7 @@ module Luna.Manager.Archive where
 
 import           Prologue hiding (FilePath, (<.>))
 
-import           Luna.Manager.Shell.Shelly (MonadSh)
+import           Luna.Manager.Shell.Shelly (MonadSh, runProcess)
 import           Control.Concurrent        (threadDelay)
 import           Control.Monad.Raise
 import           Control.Monad.State.Layered
@@ -30,7 +30,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Read     as Text
 import qualified Luna.Manager.Shell.Shelly as Shelly
 import qualified System.Process.Typed as Process
-import           System.Process       (callProcess)
 import           System.Exit
 import           System.IO (hFlush, stdout, hGetContents)
 default (Text.Text)
@@ -91,7 +90,7 @@ unzipUnix file = do
         Shelly.mkdir_p name
         Shelly.cp file name
         Shelly.chdir (dir </> name) $ do
-            out <- Shelly.silently $ Shelly.cmd  "unzip" $ dir </> name </> filename file
+            out <- Shelly.switchVerbosity $ Shelly.cmd  "unzip" $ dir </> name </> filename file
             Shelly.rm $ dir </> name </> filename file
             listed <- Shelly.ls $ dir </> name
             if length listed == 1 then return $ head listed else return $ dir </> name
@@ -137,7 +136,7 @@ unpackTarGzUnix totalProgress progressFieldName file = do
                     Shelly.log_stderr_with (countingFilesLogger progressFieldName totalProgress currentUnpackingFileNumber $ fst x)
                                          $ Shelly.cmd "tar" "-xvpzf" (Shelly.toTextIgnore file) "--strip=1" "-C" (Shelly.toTextIgnore name)
                 Left err -> throwM (UnpackingException (Shelly.toTextIgnore file) (toException $ Exception.StringException err callStack ))
-        else (Shelly.silently $ Shelly.cmd  "tar" "-xpzf" file "--strip=1" "-C" name) `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore file) $ toException err))
+        else (Shelly.switchVerbosity $ Shelly.cmd  "tar" "-xpzf" file "--strip=1" "-C" name) `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore file) $ toException err))
         listed <- Shelly.ls $ dir </> name
         if length listed == 1 then return $ head listed else return $ dir </> name
 
@@ -197,15 +196,10 @@ unSevenZzipWin totalProgress progressFieldName zipFile = do
     script       <- download7Zip
     let dir      =  directory zipFile
         name     =  dir </> basename zipFile
-        path2str :: FilePath -> String
-        path2str = convert . Shelly.toTextIgnore
 
-    liftIO $ callProcess (path2str script)
-           [ "x"
-           , "-o" <> path2str name
-           , "-y", path2str zipFile
-           ]
-
+    runProcess script [ "x", "-o" <> Shelly.toTextIgnore name
+                      , "-y", Shelly.toTextIgnore zipFile
+                      ]
     return name
 
 pack :: UnpackContext m => FilePath -> Text -> m FilePath
@@ -228,7 +222,7 @@ sevenZipWindows folder appName = do
     let dir = parent folder
     Shelly.chdir dir $ do
         script <- download7Zip
-        let zipFileName = (Shelly.fromText appName) <.> "7z"
+        let zipFileName = Shelly.fromText appName <.> "7z"
             filePattern = folder </> "*"
         Shelly.switchVerbosity $
             Shelly.cmd script "a" "-t7z" zipFileName filePattern
