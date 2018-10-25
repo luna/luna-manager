@@ -279,7 +279,7 @@ isNewestVersion appVersion appName = do
 
 
 getRepoPath :: FilePath -> Repository.ResolvedApplication -> FilePath
-getRepoPath cfgFolderPath resolvedApp = if (desc ^. Repository.path) == "./"
+getRepoPath cfgFolderPath resolvedApp = if desc ^. Repository.path == "./"
         then cfgFolderPath
         else convert (desc ^. Repository.path)
     where desc = resolvedApp ^. Repository.resolvedApp . Repository.desc
