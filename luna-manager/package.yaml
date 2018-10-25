@@ -34,7 +34,6 @@ dependencies:
   - network-uri
   - optparse-applicative
   - path
-  - process
   - prologue
   - resourcet
   - safe
