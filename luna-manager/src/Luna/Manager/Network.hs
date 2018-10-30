@@ -63,6 +63,7 @@ execExists = liftIO . (fmap isJust) . findExecutable . convert
 downloadToTmp :: (MonadIO m, MonadGetter EnvConfig m, Logger.LoggerMonad m) 
               => URIPath -> m FilePath
 downloadToTmp url = do
+    liftIO $ putStrLn "DOWNLOADING USING CURL"
     tmp <- getTmpPath
     let filePathTxt = fromJust $ takeFileNameFromURL url
         filePath    = fromText filePathTxt
