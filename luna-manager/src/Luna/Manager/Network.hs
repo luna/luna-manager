@@ -27,7 +27,7 @@ import Network.HTTP.Types (hContentLength)
 import qualified Data.ByteString.Char8 as ByteStringChar (unpack, writeFile)
 import qualified Data.Text as Text
 import qualified Control.Exception.Safe as Exception
-import System.Directory (doesFileExist, findExecutable)
+import System.Directory (doesFileExist)
 
 -- === Errors === --
 
@@ -51,32 +51,8 @@ takeFileNameFromURL url = convert <$> name where
 
 type MonadNetwork m = (MonadIO m, MonadGetters '[Options, EnvConfig] m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadThrow m,  MonadBaseControl IO m)
 
-downloadTo :: (Logger.LoggerMonad m, MonadIO m) => URIPath -> Text -> m ()
-downloadTo url destFilePath = runProcess "curl" ["-fSL", "-o", destFilePath, url]
-
 fileExists :: MonadIO m => FilePath -> m Bool
 fileExists = liftIO . doesFileExist . pathToStr
-
-execExists :: MonadIO m => Text -> m Bool
-execExists = liftIO . (fmap isJust) . findExecutable . convert
-
-downloadToTmp :: (MonadIO m, MonadGetter EnvConfig m, Logger.LoggerMonad m) 
-              => URIPath -> m FilePath
-downloadToTmp url = do
-    liftIO $ putStrLn "DOWNLOADING USING CURL"
-    tmp <- getTmpPath
-    let filePathTxt = fromJust $ takeFileNameFromURL url
-        filePath    = fromText filePathTxt
-    unlessM (fileExists filePath) $ do
-        url `downloadTo` filePathTxt
-    return filePath
-
-download :: (MonadNetwork m, Logger.LoggerMonad m) => URIPath -> m FilePath
-download url = do
-    hasCurl <- execExists "curl"
-    if hasCurl 
-        then downloadToTmp   url
-        else downloadFromURL url ""
 
 downloadFromURL :: MonadNetwork m => URIPath -> Text -> m FilePath
 downloadFromURL address info = do

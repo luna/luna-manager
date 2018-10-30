@@ -184,9 +184,9 @@ download7Zip = do
         dll2Path   = "http://packages.luna-lang.org/windows/7z/7zxa.dll"
     
     guiInstaller <- Opts.guiInstallerOpt
-    script       <- download scriptPath
-    _            <- download dll1Path
-    _            <- download dll2Path
+    script       <- downloadFromURL scriptPath "Downloading archiving tool"
+    _            <- downloadFromURL dll1Path   "Downloading the DLL-s (1)"
+    _            <- downloadFromURL dll2Path   "Downloading the DLL-s (2)"
 
     return script
 
