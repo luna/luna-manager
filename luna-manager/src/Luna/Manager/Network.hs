@@ -8,7 +8,7 @@ import Luna.Manager.Gui.DownloadProgress (Progress(..))
 import Luna.Manager.System.Env
 import Luna.Manager.Shell.ProgressBar
 import Luna.Manager.System.Path
-import Luna.Manager.Shell.Shelly (MonadSh, MonadShControl, toTextIgnore)
+import Luna.Manager.Shell.Shelly (MonadSh, MonadShControl, toTextIgnore, pathToStr, runProcess)
 
 import Control.Monad.Raise
 import Control.Monad.State.Layered
@@ -27,7 +27,7 @@ import Network.HTTP.Types (hContentLength)
 import qualified Data.ByteString.Char8 as ByteStringChar (unpack, writeFile)
 import qualified Data.Text as Text
 import qualified Control.Exception.Safe as Exception
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, findExecutable)
 
 -- === Errors === --
 
@@ -51,11 +51,35 @@ takeFileNameFromURL url = convert <$> name where
 
 type MonadNetwork m = (MonadIO m, MonadGetters '[Options, EnvConfig] m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadThrow m,  MonadBaseControl IO m)
 
+downloadTo :: (Logger.LoggerMonad m, MonadIO m) => URIPath -> Text -> m ()
+downloadTo url destFilePath = runProcess "curl" ["-fSL", "-o", destFilePath, url]
+
+fileExists :: MonadIO m => FilePath -> m Bool
+fileExists = liftIO . doesFileExist . pathToStr
+
+execExists :: MonadIO m => Text -> m Bool
+execExists = liftIO . (fmap isJust) . findExecutable . convert
+
+downloadToTmp :: (MonadIO m, MonadGetter EnvConfig m, Logger.LoggerMonad m) 
+              => URIPath -> m FilePath
+downloadToTmp url = do
+    tmp <- getTmpPath
+    let filePathTxt = fromJust $ takeFileNameFromURL url
+        filePath    = fromText filePathTxt
+    unlessM (fileExists filePath) $ do
+        url `downloadTo` filePathTxt
+    return filePath
+
+download :: (MonadNetwork m, Logger.LoggerMonad m) => URIPath -> m FilePath
+download url = do
+    hasCurl <- execExists "curl"
+    if hasCurl 
+        then downloadToTmp   url
+        else downloadFromURL url ""
+
 downloadFromURL :: MonadNetwork m => URIPath -> Text -> m FilePath
 downloadFromURL address info = do
-    let fileExists :: MonadIO m => FilePath -> m Bool
-        fileExists = liftIO . doesFileExist . convert . toTextIgnore
-        go = withJust (takeFileNameFromURL address) $ \name -> do
+    let go = withJust (takeFileNameFromURL address) $ \name -> do
             Logger.log $ info <>" (" <> address <> ")"
             dest    <- (</> (fromText name)) <$> getDownloadPath
             unlessM (fileExists dest) $ do
@@ -64,7 +88,7 @@ downloadFromURL address info = do
                 resp    <- httpLbs request manager
                 liftIO $ ByteStringL.writeFile (encodeString dest) $ HTTP.responseBody resp
             return dest
-    go `Exception.catchAny` \e -> throwM (DownloadException address e)  where
+    go `Exception.catchAny` \e -> throwM (DownloadException address e)
 
 newHTTPManager :: MonadIO m => m HTTP.Manager
 newHTTPManager = liftIO . HTTP.newManager $ HTTP.tlsManagerSettings { HTTP.managerResponseTimeout = HTTP.responseTimeoutMicro 30000000}
