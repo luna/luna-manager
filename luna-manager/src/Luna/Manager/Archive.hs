@@ -30,7 +30,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Read     as Text
 import qualified Luna.Manager.Shell.Shelly as Shelly
 import qualified System.Process.Typed as Process
-import System.Process (callProcess)
 import           System.Exit
 import           System.IO (hFlush, stdout, hGetContents)
 default (Text.Text)
@@ -194,13 +193,13 @@ download7Zip = do
 unSevenZzipWin :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 unSevenZzipWin totalProgress progressFieldName zipFile = do
     guiInstaller <- Opts.guiInstallerOpt
-    script       <- pathToStr <$> download7Zip
+    script       <- download7Zip
     let dir      =  directory zipFile
         name     =  dir </> basename zipFile
 
-    liftIO $ callProcess script [ "x", "-o" <> pathToStr name
-                                , "-y", pathToStr zipFile
-                                ]
+    runProcess script [ "x", "-o" <> Shelly.toTextIgnore name
+                      , "-y", Shelly.toTextIgnore zipFile
+                      ]
     return name
 
 pack :: UnpackContext m => FilePath -> Text -> m FilePath

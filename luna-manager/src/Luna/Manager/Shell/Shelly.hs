@@ -19,7 +19,8 @@ import qualified Luna.Manager.System.Env      as System
 
 import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, decodeString, toText, parent)
 import           System.IO                    (stdout, stderr, withFile, IOMode(AppendMode), Handle)
-import           System.Process.Typed         as Process
+import qualified System.Process               as Process
+import qualified System.Process.Typed         as TypedProcess
 import           System.Exit
 
 deriving instance MonadSh   m => MonadSh (StateT s m)
@@ -46,36 +47,18 @@ mv src dst = case currentHost of
         Logger.logObject "dst" dst
         Sh.mv src dst
 
-runCommand :: (MonadIO m) => String -> FilePath -> m ()
-runCommand cmd path = liftIO $ Process.runProcess_ $ Process.shell $ cmd <> quotedPath
+runCommand :: MonadIO m => String -> FilePath -> m ()
+runCommand cmd path = liftIO $ TypedProcess.runProcess_
+                             $ TypedProcess.shell $ cmd <> quotedPath
     where quotedPath = "\"" <> encodeString path <> "\""
 
 runProcess :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
 runProcess path args = do
-    opts <- view globals <$> State.get @Options
-    let verb   = opts ^. verbose
-        gui    = opts ^. guiInstaller
-    if verb && (not gui)
-        then runProcessStdout path args
-        else runProcessFile   path args
-
-runProcessStdout :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
-runProcessStdout path args = runProcess_ $ _createProcess path args stdout stderr
-
-runProcessFile :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
-runProcessFile path args = do
-    file <- Logger.logFilePath
-    liftIO $ withFile (pathToStr path) AppendMode $ \fp ->
-        runProcess_ $ _createProcess path args fp fp
-
-_createProcess :: FilePath -> [Text] -> Handle -> Handle
-               -> Process.ProcessConfig () () ()
-_createProcess path args hOut hErr =
-    let args' = map convert args :: [String]
-    in Process.setStdin  Process.closed
-     $ Process.setStdout (Process.useHandleOpen hOut)
-     $ Process.setStderr (Process.useHandleOpen hErr)
-     $ proc (pathToStr path) args'
+    let pathStr = pathToStr path
+        argsStr = map convert args
+    (_, out, err) <- liftIO $ Process.readProcessWithExitCode pathStr argsStr ""
+    Logger.log $ convert out
+    Logger.log $ convert err
 
 rm_rf :: (Logger.LoggerMonad m, MonadIO m, MonadSh m, MonadCatch m) => FilePath -> m ()
 rm_rf path = case currentHost of
