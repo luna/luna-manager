@@ -82,4 +82,4 @@ executables:
   luna-manager:
     main:          Main.hs
     source-dirs:   src
-    ghc-options: -threaded
+    ghc-options: -threaded -Wunused-imports

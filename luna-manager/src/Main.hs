@@ -2,22 +2,21 @@
 
 module Main where
 
-import Prologue hiding (FilePath)
 import Control.Monad.Raise
 import Luna.Manager.Clean
-import Luna.Manager.Command.Options      (evalOptionsParserT, parseOptions)
 import Luna.Manager.Command              (chooseCommand)
+import Luna.Manager.Command.Options      (evalOptionsParserT, parseOptions)
 import Luna.Manager.Component.Version.TH (getVersion)
+import Luna.Manager.System.Env           (EnvConfig, getTmpPath)
 import Luna.Manager.System.Host          (evalDefHostConfig)
-import Luna.Manager.System.Env           (getTmpPath, EnvConfig)
+import Prologue                          hiding (FilePath)
 
 
-import Control.Concurrent (myThreadId)
-import Control.Monad.State.Layered
-import qualified Control.Exception.Safe as Exception
-import qualified Luna.Manager.Shell.Shelly as Shelly
-import System.Exit (exitSuccess, exitFailure)
-import System.IO (hFlush, stdout, stderr, hPutStrLn)
+import           Control.Concurrent          (myThreadId)
+import qualified Control.Exception.Safe      as Exception
+import           Control.Monad.State.Layered
+import qualified Luna.Manager.Shell.Shelly   as Shelly
+import           System.IO                   (hPutStrLn, stderr)
 
 
 main :: IO ()

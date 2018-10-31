@@ -4,14 +4,13 @@ module Luna.Manager.Command.CreatePackage where
 
 import Prologue hiding (FilePath, (<.>))
 
-import Control.Lens.Aeson
+import Control.Lens.Aeson             ()
 import Control.Monad                  (forM)
-import Control.Monad.Raise
 import Control.Monad.State.Layered
 import Data.Maybe                     (maybeToList)
-import Filesystem.Path.CurrentOS      (FilePath, decodeString, dirname,
-                                       encodeString, filename, null, parent,
-                                       splitDirectories, (<.>), (</>))
+import Filesystem.Path.CurrentOS      (FilePath, dirname, encodeString,
+                                       filename, null, parent, splitDirectories,
+                                       (<.>), (</>))
 import Luna.Manager.Command.Options   (MakePackageOpts, Options,
                                        guiInstallerOpt)
 import Luna.Manager.Component.Pretty
@@ -22,16 +21,14 @@ import Luna.Manager.System            (generateChecksum, makeExecutable)
 import Luna.Manager.System.Env
 import Luna.Manager.System.Host
 import Luna.Manager.System.Path
-import System.Directory               (listDirectory, renameDirectory)
+import System.Directory               (listDirectory)
 import System.Environment             (getEnv)
 import System.Exit
 
 import qualified Control.Exception.Safe            as Exception
 import qualified Crypto.Hash                       as Crypto
 import qualified Data.ByteString.Lazy.Char8        as BSLChar
-import qualified Data.Map                          as Map
 import qualified Data.Text                         as Text
-import qualified Data.Yaml                         as Yaml
 import qualified Luna.Manager.Archive              as Archive
 import qualified Luna.Manager.Command.Options      as Opts
 import qualified Luna.Manager.Component.Repository as Repository
