@@ -2,32 +2,28 @@ module Luna.Manager.Network where
 
 import Prologue hiding (FilePath, fromText)
 
-import Luna.Manager.Command.Options (Options, guiInstallerOpt)
-import qualified Luna.Manager.Logger as Logger
-import Luna.Manager.Gui.DownloadProgress (Progress(..))
-import Luna.Manager.System.Env
-import Luna.Manager.Shell.ProgressBar
-import Luna.Manager.System.Path
-import Luna.Manager.Shell.Shelly (MonadSh, MonadShControl, toTextIgnore, pathToStr, runProcess)
+import qualified Control.Exception.Safe     as Exception
+import qualified Data.ByteString.Char8      as ByteStringChar (unpack)
+import qualified Data.ByteString.Lazy.Char8 as ByteStringL
+import qualified Luna.Manager.Logger        as Logger
+import qualified Network.HTTP.Conduit       as HTTP
+import qualified Network.URI                as URI
 
 import Control.Monad.Raise
 import Control.Monad.State.Layered
+import Control.Monad.Trans.Resource      (MonadBaseControl, runResourceT)
+import Data.Conduit                      (($$+-), ($=+))
+import Data.Conduit.Binary               (sinkFile)
 import Filesystem.Path.CurrentOS
-import qualified Network.HTTP.Conduit       as HTTP
-import           Network.HTTP.Conduit       (httpLbs)
-import qualified Network.URI                as URI
-import qualified Data.ByteString.Lazy.Char8 as ByteStringL
-
-import Control.Monad.Trans.Resource ( MonadBaseControl, runResourceT)
-
-import Data.Conduit (($$+-),($=+))
-import Data.Conduit.List (sinkNull)
-import Data.Conduit.Binary (sinkFile)
-import Network.HTTP.Types (hContentLength)
-import qualified Data.ByteString.Char8 as ByteStringChar (unpack, writeFile)
-import qualified Data.Text as Text
-import qualified Control.Exception.Safe as Exception
-import System.Directory (doesFileExist)
+import Luna.Manager.Command.Options      (Options, guiInstallerOpt)
+import Luna.Manager.Gui.DownloadProgress (Progress (..))
+import Luna.Manager.Shell.ProgressBar
+import Luna.Manager.Shell.Shelly         (MonadSh, MonadShControl)
+import Luna.Manager.System.Env
+import Luna.Manager.System.Path
+import Network.HTTP.Conduit              (httpLbs)
+import Network.HTTP.Types                (hContentLength)
+import System.Directory                  (doesFileExist)
 
 -- === Errors === --
 
@@ -52,7 +48,7 @@ takeFileNameFromURL url = convert <$> name where
 type MonadNetwork m = (MonadIO m, MonadGetters '[Options, EnvConfig] m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadThrow m,  MonadBaseControl IO m)
 
 fileExists :: MonadIO m => FilePath -> m Bool
-fileExists = liftIO . doesFileExist . pathToStr
+fileExists = liftIO . doesFileExist . encodeString
 
 downloadFromURL :: MonadNetwork m => URIPath -> Text -> m FilePath
 downloadFromURL address info = do

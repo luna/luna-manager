@@ -7,9 +7,9 @@ import Control.Lens.Aeson             ()
 import Control.Monad                  (forM)
 import Control.Monad.State.Layered
 import Data.Maybe                     (maybeToList)
-import Filesystem.Path.CurrentOS      (FilePath, dirname, encodeString,
-                                       filename, null, parent, splitDirectories,
-                                       (<.>), (</>))
+import Filesystem.Path.CurrentOS      (FilePath, decodeString, dirname,
+                                       encodeString, filename, null, parent,
+                                       splitDirectories, (<.>), (</>))
 import Luna.Manager.Command.Options   (MakePackageOpts, Options,
                                        guiInstallerOpt)
 import Luna.Manager.Component.Pretty
@@ -320,8 +320,10 @@ signWindowsBinaries :: MonadCreatePackage m
                     => FilePath -> FilePath -> m ()
 signWindowsBinaries privateBinFolder mainBin = do
     signWindowsBinary $ Shelly.toTextIgnore mainBin
-    binaries <- liftIO . listDirectory $ Shelly.pathToStr privateBinFolder
-    forM_ binaries (signWindowsBinary . convert)
+    binaries <- liftIO . listDirectory $ encodeString privateBinFolder
+    forM_ binaries $ \b -> do
+        let fullPath  = privateBinFolder </> decodeString b
+        signWindowsBinary $ Shelly.toTextIgnore fullPath
 
 
 ------------------------------
