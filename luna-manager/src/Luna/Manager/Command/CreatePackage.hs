@@ -1,5 +1,4 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
-{-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Command.CreatePackage where
 
 import Prologue hiding (FilePath, (<.>))
