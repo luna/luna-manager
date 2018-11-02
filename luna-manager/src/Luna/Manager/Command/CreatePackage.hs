@@ -292,12 +292,15 @@ downloadExternalPkgs cfgFolderPath resolvedApp opts = do
         tgtPath  = repoPath </> "env"
         pkgUrls = opts ^. Opts.extPkgUrls
 
-    forM pkgUrls $ \pu -> do
-        archive <- downloadFromURL pu "External package: "
-        folder  <- Archive.unpack 1.0 "unpacking_progress" archive
-        Shelly.cp_r folder tgtPath
-        return $ tgtPath </> filename folder
+    pkgs <- forM pkgUrls $ \pu -> do
+        archive     <- downloadFromURL pu "External package: "
+        folder      <- Archive.unpack 1.0 "unpacking_progress" archive
+        dirContents <- Shelly.ls folder
+        forM dirContents $ \f -> do
+            Shelly.cp_r f tgtPath
+            return $ tgtPath </> filename f
 
+    return $ concat pkgs
 
 ------------------------------
 -- === linkingLibsMacOS === --
