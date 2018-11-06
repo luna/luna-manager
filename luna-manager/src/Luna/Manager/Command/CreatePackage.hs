@@ -435,7 +435,7 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
 
     when (currentHost == Windows) $ do
         let appName' = convert appName
-            binary   = (publicBinsFolder </> appName' </> appName' <.> "exe")
+            binary   = publicBinsFolder </> appName' </> appName' <.> "exe"
         signWindowsBinaries privateBinsFolder binary
 
     when (currentHost == Darwin) $
