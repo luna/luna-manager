@@ -1,37 +1,33 @@
-{-# LANGUAGE ExtendedDefaultRules  #-}
-{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Archive where
 
-import           Prologue hiding (FilePath, (<.>))
+import Prologue hiding (FilePath, (<.>))
 
-import           Luna.Manager.Shell.Shelly (MonadSh, runProcess, pathToStr)
-import           Control.Concurrent        (threadDelay)
+import qualified Control.Exception.Safe         as Exception
 import           Control.Monad.Raise
 import           Control.Monad.State.Layered
-import qualified Control.Exception.Safe as Exception
-import           Control.Error.Util (hush)
-import           Data.Aeson (encode)
-import           Data.Either (either)
+import qualified Data.ByteString.Lazy           as BSL
+import qualified Data.ByteString.Lazy.Char8     as BSLChar
+import           Data.Either                    (either)
 import           Data.IORef
-import           Filesystem.Path.CurrentOS (FilePath, (</>), (<.>), encodeString, toText, fromText, filename, directory, extension, basename, parent, dirname)
-import qualified Filesystem.Path.CurrentOS as FP
-import           Luna.Manager.Gui.InstallationProgress
-import qualified Luna.Manager.Logger as Logger
+import qualified Data.Text                      as Text
+import qualified Data.Text.Encoding             as Text
+import qualified Data.Text.Read                 as Text
+import           Filesystem.Path.CurrentOS      (FilePath, basename, directory,
+                                                 encodeString, extension,
+                                                 filename, parent, (<.>), (</>))
+import qualified Filesystem.Path.CurrentOS      as FP
+import           Luna.Manager.Command.Options   (Options)
+import qualified Luna.Manager.Command.Options   as Opts
+import qualified Luna.Manager.Logger            as Logger
 import           Luna.Manager.Network
-import           Luna.Manager.Shell.Commands
 import           Luna.Manager.Shell.ProgressBar
+import           Luna.Manager.Shell.Shelly      (MonadSh, runProcess)
+import qualified Luna.Manager.Shell.Shelly      as Shelly
 import           Luna.Manager.System.Host
-import           Luna.Manager.Command.Options (Options)
-import qualified Luna.Manager.Command.Options as Opts
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Lazy.Char8 as BSLChar
-import qualified Data.Text          as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Read     as Text
-import qualified Luna.Manager.Shell.Shelly as Shelly
-import qualified System.Process.Typed as Process
 import           System.Exit
-import           System.IO (hFlush, stdout, hGetContents)
+import qualified System.Process.Typed           as Process
 default (Text.Text)
 
 type UnpackContext m = (MonadGetter Options m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m, MonadException SomeException m, MonadThrow m, MonadCatch m)
@@ -182,7 +178,7 @@ download7Zip = do
     let scriptPath = "http://packages.luna-lang.org/windows/7z/7za.exe"
         dll1Path   = "http://packages.luna-lang.org/windows/7z/7za.dll"
         dll2Path   = "http://packages.luna-lang.org/windows/7z/7zxa.dll"
-    
+
     guiInstaller <- Opts.guiInstallerOpt
     script       <- downloadFromURL scriptPath "Downloading archiving tool"
     _            <- downloadFromURL dll1Path   "Downloading the DLL-s (1)"

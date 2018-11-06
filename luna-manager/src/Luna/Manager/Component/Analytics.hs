@@ -12,41 +12,42 @@ module Luna.Manager.Component.Analytics (
     userInfoExists
 ) where
 
-import           Prologue                      hiding ((.=), FilePath)
+import Prologue hiding (FilePath, (.=))
 
-import           Control.Exception.Safe        (handleAny, catchAnyDeep)
-import           Control.Lens.Aeson            (lensJSONToJSON, lensJSONToEncoding, lensJSONParse)
-import           Control.Monad.State.Layered   as SL
-import           Control.Monad.Trans.Resource  (MonadBaseControl)
-import           Data.Aeson                    (FromJSON, ToJSON, toEncoding, toJSON, (.=))
-import qualified Data.Aeson                    as JSON
-import           Data.ByteString               (ByteString)
-import qualified Data.ByteString               as BS
-import           Data.ByteString.Lazy          (toStrict)
-import qualified Data.ByteString.Lazy          as BSL
-import qualified Data.ByteString.Base64        as Base64
-import           Data.Maybe                    (maybeToList)
-import           Data.Text                     (Text)
-import qualified Data.Text                     as Text
-import           Data.UUID                     (UUID)
-import qualified Data.UUID                     as UUID
-import qualified Data.UUID.V1                  as UUID
-import qualified Data.UUID.V4                  as UUID
-import           Filesystem.Path.CurrentOS     (FilePath)
-import qualified Filesystem.Path.CurrentOS     as FilePath
-import qualified Network.HTTP.Simple           as HTTP
-import           Safe                          (atMay, headMay)
-import qualified System.IO                     as SIO
+import           Control.Exception.Safe       (catchAnyDeep, handleAny)
+import           Control.Lens.Aeson           (lensJSONParse,
+                                               lensJSONToEncoding,
+                                               lensJSONToJSON)
+import           Control.Monad.State.Layered  as SL
+import           Control.Monad.Trans.Resource (MonadBaseControl)
+import           Data.Aeson                   (FromJSON, ToJSON, toEncoding,
+                                               toJSON, (.=))
+import qualified Data.Aeson                   as JSON
+import           Data.ByteString              (ByteString)
+import qualified Data.ByteString              as BS
+import qualified Data.ByteString.Base64       as Base64
+import           Data.ByteString.Lazy         (toStrict)
+import qualified Data.ByteString.Lazy         as BSL
+import           Data.Text                    (Text)
+import qualified Data.Text                    as Text
+import           Data.UUID                    (UUID)
+import qualified Data.UUID                    as UUID
+import qualified Data.UUID.V1                 as UUID
+import qualified Data.UUID.V4                 as UUID
+import           Filesystem.Path.CurrentOS    (FilePath)
+import qualified Filesystem.Path.CurrentOS    as FilePath
+import qualified Network.HTTP.Simple          as HTTP
+import           Safe                         (atMay, headMay)
+import qualified System.IO                    as SIO
 
-import           Luna.Manager.Command.Options  (Options)
-import           Luna.Manager.Component.Pretty (showPretty)
-import qualified Luna.Manager.Logger           as Logger
-import           Luna.Manager.Logger           (LoggerMonad)
-import           Luna.Manager.Shell.Shelly     (MonadSh, MonadShControl)
-import qualified Luna.Manager.Shell.Shelly     as Shelly
+import           Luna.Manager.Command.Options (Options)
+import           Luna.Manager.Logger          (LoggerMonad)
+import qualified Luna.Manager.Logger          as Logger
+import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
+import qualified Luna.Manager.Shell.Shelly    as Shelly
+import           Luna.Manager.System.Env      (EnvConfig)
 import           Luna.Manager.System.Host
-import           Luna.Manager.System.Env       (EnvConfig)
-import           Luna.Manager.System.Path      (expand)
+import           Luna.Manager.System.Path     (expand)
 
 default(Text)
 

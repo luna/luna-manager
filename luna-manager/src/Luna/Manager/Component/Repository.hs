@@ -2,30 +2,27 @@ module Luna.Manager.Component.Repository where
 
 import Prologue hiding (FilePath)
 
-import Luna.Manager.Component.Version
-import Luna.Manager.Command.Options
-import Luna.Manager.System.Host
-import Luna.Manager.System.Path
-import Luna.Manager.System.Env
-import Luna.Manager.Component.Pretty
-import Luna.Manager.Network
-import qualified Luna.Manager.Logger as Logger
-import Luna.Manager.Shell.Shelly (toTextIgnore, MonadSh, MonadShControl)
+import           Luna.Manager.Command.Options
+import           Luna.Manager.Component.Pretty
+import           Luna.Manager.Component.Version
+import qualified Luna.Manager.Logger            as Logger
+import           Luna.Manager.Network
+import           Luna.Manager.Shell.Shelly      (toTextIgnore)
+import           Luna.Manager.System.Env
+import           Luna.Manager.System.Host
+import           Luna.Manager.System.Path
 
-import Control.Lens.Aeson
-import Control.Monad.Raise
-import Control.Monad.State.Layered
-import Data.Map                      (Map)
-import Data.Aeson                    (FromJSON, ToJSON, FromJSONKey, ToJSONKey, parseJSON)
-import qualified Data.ByteString     as BS
-import qualified Data.Map            as Map
-import qualified Data.Text           as Text
-import qualified Data.Yaml           as Yaml
-import qualified Data.Aeson          as JSON
-import qualified Data.Aeson.Types    as JSON
-import qualified Data.Aeson.Encoding as JSON
-import Filesystem.Path.CurrentOS (encodeString, decodeString, FilePath)
-import Luna.Manager.Shell.Shelly (toTextIgnore)
+import           Control.Lens.Aeson
+import           Control.Monad.Raise
+import           Control.Monad.State.Layered
+import           Data.Aeson                  (FromJSON, ToJSON, parseJSON)
+import qualified Data.Aeson                  as JSON
+import qualified Data.ByteString             as BS
+import           Data.Map                    (Map)
+import qualified Data.Map                    as Map
+import qualified Data.Text                   as Text
+import qualified Data.Yaml                   as Yaml
+import           Filesystem.Path.CurrentOS   (FilePath, encodeString)
 
 ------------------------
 -- === Errors === --

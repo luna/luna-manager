@@ -2,25 +2,24 @@
 {-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Command.Develop where
 
-import Prologue hiding (FilePath)
-import Luna.Manager.Command.Options
-import Luna.Manager.Network
-import Luna.Manager.System.Env
-import Control.Monad.Raise
-import Control.Monad.State.Layered
-import Data.Text                   (Text)
-import Luna.Manager.Shell.Shelly   (MonadSh, MonadShControl)
-import Filesystem.Path.CurrentOS   (FilePath, (</>), encodeString, decodeString, toText, basename, hasExtension, parent)
-import qualified System.Directory as System
-import qualified Luna.Manager.Shell.Shelly as Shelly
-import qualified Luna.Manager.Archive      as Archive
+import           Control.Monad.Raise
+import           Control.Monad.State.Layered
+import           Data.Text                    (Text)
+import           Filesystem.Path.CurrentOS    (FilePath, parent, (</>))
+import qualified Luna.Manager.Archive         as Archive
+import           Luna.Manager.Command.Options
+import           Luna.Manager.Network
+import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
+import qualified Luna.Manager.Shell.Shelly    as Shelly
+import           Luna.Manager.System.Env
+import           Prologue                     hiding (FilePath)
+import qualified System.Directory             as System
 
-import Luna.Manager.Component.Repository
+import Control.Monad.Trans.Resource       (MonadBaseControl)
 import Luna.Manager.Command.CreatePackage
-import Luna.Manager.Component.Version
+import Luna.Manager.Component.Repository
 import Luna.Manager.System.Host
-import Luna.Manager.System.Path (expand)
-import Control.Monad.Trans.Resource ( MonadBaseControl)
+import Luna.Manager.System.Path           (expand)
 
 import qualified Data.Text as T
 default (T.Text)

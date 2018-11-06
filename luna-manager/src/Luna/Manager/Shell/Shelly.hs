@@ -3,25 +3,20 @@ module Luna.Manager.Shell.Shelly (module Luna.Manager.Shell.Shelly, module X) wh
 
 import Prologue hiding (FilePath)
 
-import qualified Control.Exception.Safe       as Exception
-import           Control.Monad.Raise          (MonadException, raise)
-import           Control.Monad.State.Layered  as State
-import qualified Control.Monad.State.Lazy     as S
-import           Shelly.Lifted                as X hiding (mv, run, run_, rm_rf)
-import qualified Shelly.Lifted                as Sh
-import           Unsafe.Coerce
+import qualified Control.Exception.Safe      as Exception
+import           Control.Monad.Raise         (MonadException, raise)
+import           Control.Monad.State.Layered as State
+import qualified Control.Monad.State.Lazy    as S
+import           Shelly.Lifted               as X hiding (mv, rm_rf, run, run_)
+import qualified Shelly.Lifted               as Sh
 
 import           Luna.Manager.Command.Options
 import qualified Luna.Manager.Logger          as Logger
 import           Luna.Manager.System.Host
-import           Luna.Manager.System.Env      (EnvConfig)
-import qualified Luna.Manager.System.Env      as System
 
-import           Filesystem.Path.CurrentOS    (FilePath, (</>), encodeString, decodeString, toText, parent)
-import           System.IO                    (stdout, stderr, withFile, IOMode(AppendMode), Handle)
-import qualified System.Process               as Process
-import qualified System.Process.Typed         as TypedProcess
-import           System.Exit
+import           Filesystem.Path.CurrentOS (FilePath, encodeString)
+import qualified System.Process            as Process
+import qualified System.Process.Typed      as TypedProcess
 
 deriving instance MonadSh   m => MonadSh (StateT s m)
 instance          Exception e => MonadException e Sh.Sh where raise = Exception.throwM
@@ -54,7 +49,7 @@ runCommand cmd path = liftIO $ TypedProcess.runProcess_
 
 runProcess :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
 runProcess path args = do
-    let pathStr = pathToStr path
+    let pathStr = encodeString path
         argsStr = map convert args
     (_, out, err) <- liftIO $ Process.readProcessWithExitCode pathStr argsStr ""
     Logger.log $ convert out
@@ -81,6 +76,3 @@ switchVerbosity act = do
 -- based on the `verbose` option
 run  command args = switchVerbosity $ Sh.run  command args
 run_ command args = switchVerbosity $ Sh.run_ command args
-
-pathToStr :: FilePath -> String
-pathToStr = convert . Sh.toTextIgnore

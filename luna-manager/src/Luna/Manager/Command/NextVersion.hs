@@ -1,31 +1,30 @@
-{-# LANGUAGE ExtendedDefaultRules  #-}
-{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Command.NextVersion where
 
-import Prologue                                    hiding (FilePath)
+import Prologue hiding (FilePath)
 
-import           Control.Exception.Base            (Exception, throwIO)
-import           Control.Monad.Raise               (tryRight')
+import           Control.Exception.Base      (Exception)
+import           Control.Monad.Raise         (tryRight')
 import           Control.Monad.State.Layered
-import           Data.Bifunctor                    (first, second)
-import qualified Data.Map                          as Map
-import           Data.Maybe                        (maybeToList)
-import qualified Data.Text                         as Text
-import qualified Data.Text.IO                      as Text
-import           Filesystem.Path.CurrentOS         (FilePath, parent)
+import           Data.Bifunctor              (first, second)
+import           Data.Maybe                  (maybeToList)
+import qualified Data.Text                   as Text
+import qualified Data.Text.IO                as Text
+import           Filesystem.Path.CurrentOS   (FilePath, parent)
 
-import           Luna.Manager.Command.Options      (Options, NextVersionOpts)
+import           Luna.Manager.Command.Options      (NextVersionOpts, Options)
 import qualified Luna.Manager.Command.Options      as Opts
 import           Luna.Manager.Component.Pretty     (showPretty)
 import           Luna.Manager.Component.Repository as Repo
+import           Luna.Manager.Component.Version    (Version)
 import qualified Luna.Manager.Component.Version    as Version
-import           Luna.Manager.Component.Version    (Version, VersionInfo)
 import           Luna.Manager.Network
 import qualified Luna.Manager.Shell.Shelly         as Shelly
 import           Luna.Manager.System.Env
 
-import           Control.Monad.Raise
-import           Luna.Manager.Component.Pretty
+import Control.Monad.Raise
+import Luna.Manager.Component.Pretty
 default (Text.Text)
 
 

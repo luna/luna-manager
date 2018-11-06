@@ -1,43 +1,42 @@
-{-# LANGUAGE ExtendedDefaultRules  #-}
-{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
 module Luna.Manager.Command.CreatePackage where
 
-import           Control.Lens.Aeson
-import           Control.Monad (forM)
-import           Control.Monad.Raise
-import           Control.Monad.State.Layered
-import           Filesystem.Path.CurrentOS (FilePath, (</>), encodeString, decodeString, parent, splitDirectories, null, filename, dirname, splitDirectories)
-import           Luna.Manager.Archive as Archive
-import           Luna.Manager.Command.Options (Options, MakePackageOpts, guiInstallerOpt)
-import qualified Luna.Manager.Logger as Logger
-import           Luna.Manager.Component.Pretty
-import qualified Luna.Manager.Component.Repository as Repository
-import           Luna.Manager.Component.Version    (readVersion)
-import           Luna.Manager.Network
-import           Luna.Manager.System            (makeExecutable, generateChecksum)
-import           Luna.Manager.System.Env
-import           Luna.Manager.System.Host
-import           Luna.Manager.System.Path
-import           Luna.Manager.Component.Version (Version)
-import           Luna.Manager.Component.Pretty
-import           Prologue                       hiding (FilePath)
-import qualified Crypto.Hash                    as Crypto
-import qualified Data.Map                       as Map
-import           Data.Maybe                     (maybeToList)
-import qualified Data.Text                      as Text
-import qualified Data.Yaml                      as Yaml
-import qualified Luna.Manager.Command.Options   as Opts
-import qualified Luna.Manager.Shell.Shelly      as Shelly
-import qualified Safe
-import qualified System.Process.Typed           as Process
-import System.Exit
-import System.Directory                         (renameDirectory)
-import Luna.Manager.Shell.Shelly                (MonadSh)
-import qualified Control.Exception.Safe         as Exception
-import qualified Data.ByteString.Lazy.Char8     as BSLChar
+import Prologue hiding (FilePath, (<.>))
 
-import qualified Data.Text as T
-default (T.Text)
+import Control.Lens.Aeson             ()
+import Control.Monad                  (forM)
+import Control.Monad.State.Layered
+import Data.Maybe                     (maybeToList)
+import Filesystem.Path.CurrentOS      (FilePath, decodeString, dirname,
+                                       encodeString, filename, null, parent,
+                                       splitDirectories, (<.>), (</>))
+import Luna.Manager.Command.Options   (MakePackageOpts, Options,
+                                       guiInstallerOpt)
+import Luna.Manager.Component.Pretty
+import Luna.Manager.Component.Version (Version, readVersion)
+import Luna.Manager.Network
+import Luna.Manager.Shell.Shelly      (MonadSh, runProcess)
+import Luna.Manager.System            (generateChecksum, makeExecutable)
+import Luna.Manager.System.Env
+import Luna.Manager.System.Host
+import Luna.Manager.System.Path
+import System.Directory               (listDirectory)
+import System.Environment             (getEnv)
+import System.Exit
+
+import qualified Control.Exception.Safe            as Exception
+import qualified Crypto.Hash                       as Crypto
+import qualified Data.ByteString.Lazy.Char8        as BSLChar
+import qualified Data.Text                         as Text
+import qualified Luna.Manager.Archive              as Archive
+import qualified Luna.Manager.Command.Options      as Opts
+import qualified Luna.Manager.Component.Repository as Repository
+import qualified Luna.Manager.Logger               as Logger
+import qualified Luna.Manager.Shell.Shelly         as Shelly
+import qualified Safe
+import qualified System.Process.Typed              as Process
+
+default (Text.Text)
 
 ----------------------------
 -- === Package config === --
@@ -45,26 +44,34 @@ default (T.Text)
 
 -- === Definition === --
 
-data PackageConfig = PackageConfig { _defaultPackagePath     :: FilePath
-                                   , _buildScriptPath        :: FilePath
-                                   , _thirdPartyPath         :: FilePath
-                                   , _libPath                :: FilePath
-                                   , _componentsToCopy       :: FilePath
-                                   , _configFolder           :: FilePath
-                                   , _binFolder              :: FilePath
-                                   , _binsPrivate            :: FilePath
-                                   , _mainBin                :: FilePath
-                                   , _utilsFolder            :: FilePath
-                                   , _logoFileName           :: Text
-                                   , _desktopFileName        :: Text
-                                   , _versionFileName        :: FilePath
-                                   , _permitNoTags           :: Bool
-                                   , _buildFromHead          :: Bool
+data PackageConfig = PackageConfig { _defaultPackagePath :: FilePath
+                                   , _buildScriptPath    :: FilePath
+                                   , _thirdPartyPath     :: FilePath
+                                   , _libPath            :: FilePath
+                                   , _componentsToCopy   :: FilePath
+                                   , _configFolder       :: FilePath
+                                   , _binFolder          :: FilePath
+                                   , _binsPrivate        :: FilePath
+                                   , _binsPublic         :: FilePath
+                                   , _mainBin            :: FilePath
+                                   , _utilsFolder        :: FilePath
+                                   , _logoFileName       :: Text
+                                   , _desktopFileName    :: Text
+                                   , _versionFileName    :: FilePath
+                                   , _permitNoTags       :: Bool
+                                   , _buildFromHead      :: Bool
                                    }
 
 makeLenses ''PackageConfig
 
-type MonadCreatePackage m = (MonadGetter Options m, MonadStates '[EnvConfig, PackageConfig, Repository.RepoConfig] m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m)
+type MonadCreatePackage m =
+    ( MonadGetter Options m
+    , MonadStates '[EnvConfig, PackageConfig, Repository.RepoConfig] m
+    , MonadNetwork m
+    , MonadSh m
+    , Shelly.MonadShControl m
+    , MonadIO m
+    )
 
 
 -- === Instances === --
@@ -79,6 +86,7 @@ instance Monad m => MonadHostConfig PackageConfig 'Linux arch m where
         , _configFolder       = "config"
         , _binFolder          = "bin"
         , _binsPrivate        = "private"
+        , _binsPublic         = "public"
         , _mainBin            = "main"
         , _utilsFolder        = "resources"
         , _logoFileName       = "logo.svg"
@@ -302,6 +310,26 @@ downloadExternalPkgs cfgFolderPath resolvedApp opts = do
 
     return $ concat pkgs
 
+signWindowsBinary :: MonadCreatePackage m => Text -> m ()
+signWindowsBinary binPath = do
+    let signTool     =  "c:\\Program Files (x86)\\Windows Kits\\10\\bin\\x64\\signtool.exe"
+        timestampUrl = "http://timestamp.comodoca.com/authenticode"
+    certPath <- liftIO $ convert <$> getEnv "CERT_PATH"
+    certPass <- liftIO $ convert <$> getEnv "CERT_PASS"
+    runProcess signTool [ "sign", "/v", "/f", certPath, "/p", certPass
+                        , "/t", timestampUrl, binPath
+                        ]
+
+signWindowsBinaries :: MonadCreatePackage m
+                    => FilePath -> FilePath -> m ()
+signWindowsBinaries privateBinFolder mainBin = do
+    signWindowsBinary $ Shelly.toTextIgnore mainBin
+    binaries <- liftIO . listDirectory $ encodeString privateBinFolder
+    forM_ binaries $ \b -> do
+        let fullPath  = privateBinFolder </> decodeString b
+        signWindowsBinary $ Shelly.toTextIgnore fullPath
+
+
 ------------------------------
 -- === linkingLibsMacOS === --
 ------------------------------
@@ -358,7 +386,7 @@ prepareVersion appPath version = Shelly.switchVerbosity $ do
     -- check out to the commit pointed by the version tag, if it exists
     permitNoTagsFlag <- gets @PackageConfig permitNoTags
     let versionTxt  = showPretty version
-        tagExists t = not . T.null <$> Shelly.cmd "git" "tag" "-l" t
+        tagExists t = not . Text.null <$> Shelly.cmd "git" "tag" "-l" t
     Shelly.chdir appPath $ do
         exists <- tagExists versionTxt
         Logger.log $ "Tag " <> versionTxt <> " " <> (if exists then "exists" else "does not exist.")
@@ -404,11 +432,18 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     mainAppDir <- case currentHost of
         Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
         _       -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
-    let binsFolder  = mainAppDir </> (pkgConfig ^. binFolder) </> (pkgConfig ^. binsPrivate)
-        libsFolder  = mainAppDir </> (pkgConfig ^. libPath)
+    let binsFolder = mainAppDir </> (pkgConfig ^. binFolder)
+        privateBinsFolder = binsFolder </> (pkgConfig ^. binsPrivate)
+        publicBinsFolder  = binsFolder </> (pkgConfig ^. binsPublic)
+        libsFolder        = mainAppDir </> (pkgConfig ^. libPath)
 
+    when (currentHost == Windows) $ do
+        let appName' = convert appName
+            binary   = publicBinsFolder </> appName' </> appName' <.> "exe"
+        signWindowsBinaries privateBinsFolder binary
 
-    when (currentHost == Darwin) $ Shelly.silently $ linkLibs binsFolder libsFolder
+    when (currentHost == Darwin) $
+        Shelly.silently $ linkLibs privateBinsFolder libsFolder
 
     package <- case currentHost of
                   Linux -> createAppimage appName appVersion appPath

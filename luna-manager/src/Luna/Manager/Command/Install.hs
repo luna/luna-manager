@@ -3,53 +3,55 @@
 
 module Luna.Manager.Command.Install where
 
-import Prologue hiding (txt, FilePath, toText, (<.>))
+import Prologue hiding (FilePath, toText, txt, (<.>))
 
-import           Luna.Manager.Archive              as Archive
-import qualified Luna.Manager.Command.Options      as Opts
-import           Luna.Manager.Command.Options      (Options, InstallOpts)
-import           Luna.Manager.Component.Analytics  as Analytics
+import           Luna.Manager.Archive                  as Archive
+import           Luna.Manager.Command.Options          (InstallOpts, Options)
+import qualified Luna.Manager.Command.Options          as Opts
+import           Luna.Manager.Component.Analytics      as Analytics
 import           Luna.Manager.Component.Pretty
-import           Luna.Manager.Component.Repository as Repo
-import           Luna.Manager.Component.Version    as Version
+import           Luna.Manager.Component.Repository     as Repo
+import           Luna.Manager.Component.Version        as Version
 import           Luna.Manager.Gui.DownloadProgress
-import qualified Luna.Manager.Gui.Initialize       as Initilize
+import qualified Luna.Manager.Gui.Initialize           as Initilize
 import           Luna.Manager.Gui.InstallationProgress
-import qualified Luna.Manager.Logger               as Logger
+import qualified Luna.Manager.Logger                   as Logger
 import           Luna.Manager.Network
 import           Luna.Manager.Shell.Question
-import qualified Luna.Manager.Shell.Shelly         as Shelly
-import           Luna.Manager.Shell.Shelly         (toTextIgnore, MonadSh, MonadShControl)
-import           Luna.Manager.System               (makeExecutable, exportPath, askToExportPath, checkShell, runServicesWindows, stopServicesWindows, checkChecksum, shaUriError, stripArchiveExtension)
+import           Luna.Manager.Shell.Shelly             (toTextIgnore)
+import qualified Luna.Manager.Shell.Shelly             as Shelly
+import           Luna.Manager.System                   (askToExportPath,
+                                                        checkChecksum,
+                                                        exportPath,
+                                                        makeExecutable,
+                                                        runServicesWindows,
+                                                        stopServicesWindows,
+                                                        stripArchiveExtension)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
 
-import           Control.Concurrent                (forkIO)
-import qualified Control.Exception.Safe            as Exception
-import           Control.Lens.Aeson
+import           Control.Concurrent          (forkIO)
+import           Control.Lens.Aeson          ()
 import           Control.Monad.Raise
 import           Control.Monad.State.Layered
-import           Control.Monad.Trans.Resource      (MonadBaseControl)
-import qualified Crypto.Hash                       as Crypto
-import qualified Data.Aeson                        as JSON
-import           Data.Aeson                        (ToJSON, toJSON, toEncoding, encode)
-import qualified Data.ByteString                   as BS
-import qualified Data.ByteString.Lazy              as BSL
-import qualified Data.Char                         as Char
-import qualified Data.Map                          as Map
-import           Data.Maybe                        (listToMaybe)
-import qualified Data.Text                         as Text
-import qualified Data.Text.IO                      as Text
-import qualified Data.Yaml                         as Yaml
-import           Filesystem.Path.CurrentOS         (FilePath, (</>), (<.>), encodeString, decodeString, toText, basename, hasExtension, parent, dropExtension)
-import qualified Network.URI                       as URI
-import qualified System.Directory                  as System
-import qualified System.Environment                as Environment
-import qualified System.Process.Typed              as Process
-import           System.Exit                       (exitSuccess, exitFailure, ExitCode(..))
-import           System.Info                       (arch)
-import           System.IO                         (hFlush, stdout, stderr, hPutStrLn)
+import qualified Crypto.Hash                 as Crypto
+import           Data.Aeson                  (encode)
+import qualified Data.Aeson                  as JSON
+import qualified Data.ByteString             as BS
+import qualified Data.ByteString.Lazy        as BSL
+import qualified Data.Char                   as Char
+import qualified Data.Map                    as Map
+import qualified Data.Text                   as Text
+import qualified Data.Text.IO                as Text
+import           Filesystem.Path.CurrentOS   (FilePath, decodeString,
+                                              encodeString, parent, (<.>),
+                                              (</>))
+import qualified Network.URI                 as URI
+import qualified System.Environment          as Environment
+import           System.Exit                 (ExitCode (..), exitSuccess)
+import           System.IO                   (hFlush, stdout)
+import qualified System.Process.Typed        as Process
 
 default(Text.Text)
 
@@ -133,8 +135,8 @@ type MonadInstall m = (MonadGetter Options m, MonadStates '[EnvConfig, InstallCo
 
 mkSystemPkgName :: Text -> Text
 mkSystemPkgName = case currentHost of
-    Linux   -> id
-    _       -> mkCamelCaseName
+    Linux -> id
+    _     -> mkCamelCaseName
 
 mkCamelCaseName :: Text -> Text
 mkCamelCaseName txt = convert $ goHead (convert txt) where

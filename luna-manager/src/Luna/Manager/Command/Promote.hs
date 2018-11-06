@@ -1,31 +1,36 @@
-{-# LANGUAGE ExtendedDefaultRules  #-}
-{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Command.Promote where
 
 import Prologue hiding (FilePath, (<.>))
 
-import           Control.Exception.Safe            as Exception
+import           Control.Exception.Safe      as Exception
 import           Control.Monad.State.Layered
-import qualified Crypto.Hash                  as Crypto
-import qualified Data.Text                         as Text
-import           Filesystem.Path.CurrentOS         (FilePath, parent, encodeString, fromText, (</>), (<.>), filename)
+import qualified Crypto.Hash                 as Crypto
+import qualified Data.Text                   as Text
+import           Filesystem.Path.CurrentOS   (FilePath, encodeString, filename,
+                                              parent, (</>))
 
 import qualified Luna.Manager.Archive              as Archive
-import           Luna.Manager.Command.NextVersion  (PromotionInfo(..), TargetVersionType(..), VersionUpgradeException(..), createNextVersion, newVersion, oldVersion, appName)
-import           Luna.Manager.Command.Options      (Options, NextVersionOpts, PromoteOpts)
+import           Luna.Manager.Command.NextVersion  (PromotionInfo (..),
+                                                    TargetVersionType (..),
+                                                    appName, createNextVersion,
+                                                    newVersion, oldVersion)
+import           Luna.Manager.Command.Options      (Options, PromoteOpts)
 import qualified Luna.Manager.Command.Options      as Opts
-import qualified Luna.Manager.Logger               as Logger
-import           Luna.Manager.Network              (MonadNetwork, downloadWithProgressBarTo)
 import           Luna.Manager.Component.Pretty     (showPretty)
 import           Luna.Manager.Component.Repository (RepoConfig)
-import           Luna.Manager.Component.Version    (Version)
 import qualified Luna.Manager.Component.Repository as Repository
+import           Luna.Manager.Component.Version    (Version)
+import qualified Luna.Manager.Logger               as Logger
+import           Luna.Manager.Network              (MonadNetwork,
+                                                    downloadWithProgressBarTo)
 import qualified Luna.Manager.Shell.Shelly         as Shelly
 
-import           Luna.Manager.System               (makeExecutable, generateChecksum)
-import           Luna.Manager.System.Env
-import           Luna.Manager.System.Host          (currentHost, System(..))
-import           Luna.Manager.System.Path          (expand)
+import Luna.Manager.System      (generateChecksum, makeExecutable)
+import Luna.Manager.System.Env
+import Luna.Manager.System.Host (System (..), currentHost)
+import Luna.Manager.System.Path (expand)
 
 default (Text.Text)
 
@@ -105,7 +110,7 @@ promoteLinux pkgPath repoPath name versionOld versionNew = do
     Logger.log "Moving the AppImage"
     Shelly.mv (convert aiNewName) baseDir `Exception.catchAny` (\(e :: SomeException) ->
         Logger.warning $ "Failed to move the AppImage.\n" <> (convert $ displayException e))
-        
+
     Logger.log "Generating checksum"
     generateChecksum  @Crypto.SHA256 $ baseDir </> Shelly.fromText aiNewName
 

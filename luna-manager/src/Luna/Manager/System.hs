@@ -1,38 +1,35 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Luna.Manager.System where
 
-import           Prologue                     hiding (FilePath,null, filter, appendFile, readFile, toText, fromText, (<.>))
+import Prologue hiding (FilePath, appendFile, filter, fromText, null, readFile,
+                 toText, (<.>))
 
 import qualified Control.Exception.Safe       as Exception
 import           Control.Monad.Raise
-import           Control.Monad.State.Layered
 import           Control.Monad.Trans.Resource (MonadBaseControl)
-import           Data.ByteString.Lazy         (ByteString, null)
-import           Data.ByteString.Lazy.Char8   (filter, unpack)
 import qualified Crypto.Hash                  as Crypto
 import qualified Crypto.Hash.Conduit          as Crypto
-import qualified Data.ByteString              as ByteString
-import           Data.Maybe                   (listToMaybe, catMaybes)
+import           Data.ByteString.Lazy         (ByteString, null)
+import           Data.ByteString.Lazy.Char8   (filter, unpack)
 import           Data.List                    (isInfixOf)
-import           Data.List.Split              (splitOn)
-import           Data.Text.IO                 (appendFile, readFile)
+import           Data.Maybe                   (catMaybes, listToMaybe)
 import qualified Data.Text                    as Text
-import qualified Data.Text.Encoding           as Text
+import           Data.Text.IO                 (appendFile, readFile)
 import qualified Data.Text.IO                 as Text
-import           Filesystem.Path.CurrentOS    (FilePath, (</>), (<.>), encodeString, toText, parent, directory, dropExtension, dropExtensions)
-import           System.Directory             (executable, setPermissions, getPermissions, doesDirectoryExist, doesPathExist, getHomeDirectory)
-import qualified System.Environment           as Environment
+import           Filesystem.Path.CurrentOS    (FilePath, encodeString, parent,
+                                               (</>))
+import           System.Directory             (doesDirectoryExist,
+                                               doesPathExist, executable,
+                                               getPermissions, setPermissions)
 import           System.Exit
 import qualified System.FilePath              as Path
 import           System.Process.Typed         as Process
 
-import           Luna.Manager.Command.Options (Options)
-import qualified Luna.Manager.Logger          as Logger
-import           Luna.Manager.Logger          (LoggerMonad)
-import qualified Luna.Manager.Shell.Shelly    as Shelly
-import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
+import           Luna.Manager.Logger       (LoggerMonad)
+import qualified Luna.Manager.Logger       as Logger
+import           Luna.Manager.Shell.Shelly (MonadSh, MonadShControl)
+import qualified Luna.Manager.Shell.Shelly as Shelly
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 
