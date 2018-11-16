@@ -9,7 +9,7 @@ import           Control.Monad.State.Layered
 import qualified Crypto.Hash                 as Crypto
 import qualified Data.Text                   as Text
 import           Filesystem.Path.CurrentOS   (FilePath, encodeString, filename,
-                                              parent, (</>))
+                                              parent, (<.>), (</>))
 
 import qualified Luna.Manager.Archive              as Archive
 import           Luna.Manager.Command.NextVersion  (PromotionInfo (..),
@@ -18,10 +18,12 @@ import           Luna.Manager.Command.NextVersion  (PromotionInfo (..),
                                                     newVersion, oldVersion)
 import           Luna.Manager.Command.Options      (Options, PromoteOpts)
 import qualified Luna.Manager.Command.Options      as Opts
+import           Luna.Manager.Component.PackageConfig
 import           Luna.Manager.Component.Pretty     (showPretty)
-import           Luna.Manager.Component.Repository (RepoConfig)
+import           Luna.Manager.Component.Repository (RepoConfig, ResolvedApplication)
 import qualified Luna.Manager.Component.Repository as Repository
 import           Luna.Manager.Component.Version    (Version)
+import qualified Luna.Manager.Component.WindowsResource as WindowsResource
 import qualified Luna.Manager.Logger               as Logger
 import           Luna.Manager.Network              (MonadNetwork,
                                                     downloadWithProgressBarTo)
@@ -34,7 +36,14 @@ import Luna.Manager.System.Path (expand)
 
 default (Text.Text)
 
-type MonadPromote m = (MonadGetter Options m, MonadStates '[EnvConfig, RepoConfig] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, MonadIO m)
+type MonadPromote m = (
+      MonadGetter Options m
+    , MonadStates '[EnvConfig, RepoConfig, PackageConfig] m
+    , MonadNetwork m
+    , Shelly.MonadSh m
+    , Shelly.MonadShControl m
+    , MonadIO m
+    )
 
 
 -- return the new name of the package, based on the full path to the old one
@@ -50,8 +59,8 @@ newPackageName pkgPath version = if length chunks < 3
           prettyV = showPretty version
 
 
-renameVersion :: MonadPromote m => FilePath -> FilePath -> Version -> Version -> m ()
-renameVersion path repoPath versionOld versionNew = do
+renameVersion :: MonadPromote m => FilePath -> FilePath -> Version -> Version -> ResolvedApplication -> m ()
+renameVersion path repoPath versionOld versionNew resolvedApplication = do
     let prettyVersion = showPretty versionNew
         versionFile   = encodeString $ path </> "config" </> "version.txt"
         promoteScript = repoPath </> "scripts_build" </> "promote.py"
@@ -60,15 +69,30 @@ renameVersion path repoPath versionOld versionNew = do
     liftIO $ writeFile versionFile (convert prettyVersion)
     let argsList = [encodeString path, Text.unpack $ showPretty versionOld, Text.unpack prettyVersion]
     case currentHost of
-      Windows -> Shelly.cmd "py" promoteScript argsList
-      _       -> Shelly.cmd promoteScript argsList
+        Windows -> do
+            Shelly.cmd "py" promoteScript argsList
+            pkgConfig <- get @PackageConfig
+            let app        = resolvedApplication ^. Repository.resolvedApp
+                appHeader  = app ^. Repository.header
+                appName    = appHeader ^. Repository.name
+            let mainAppDir = path
+                binsFolder = mainAppDir </> (pkgConfig ^. binFolder)
+                privateBinsFolder = binsFolder </> (pkgConfig ^. binsPrivate)
+                publicBinsFolder  = binsFolder </> (pkgConfig ^. binsPublic)
+            let appName' = convert appName
+                binary   = publicBinsFolder </> appName' </> appName' <.> "exe"
+            Logger.log $ "Updating metadata to: " <> prettyVersion
+            WindowsResource.updateWindowsMetadata versionNew privateBinsFolder binary
+            Logger.log $ "Signing executables"
+            WindowsResource.signWindowsBinaries privateBinsFolder binary
+        _       -> Shelly.cmd promoteScript argsList
 
-promote' :: MonadPromote m => FilePath -> FilePath -> Text -> Version -> Version -> m ()
-promote' pkgPath repoPath name versionOld versionNew = do
+promote' :: MonadPromote m => FilePath -> FilePath -> Text -> Version -> Version -> ResolvedApplication -> m ()
+promote' pkgPath repoPath name versionOld versionNew res = do
     Logger.log "Unpacking the package"
     extracted <- Archive.unpack 1.0 "unpacking_progress" pkgPath
 
-    renameVersion extracted repoPath versionOld versionNew
+    renameVersion extracted repoPath versionOld versionNew res
 
     let correctPath = (parent extracted) </> (convert name)
     Logger.log $ "Renaming " <> (Shelly.toTextIgnore extracted) <> " to " <> (Shelly.toTextIgnore correctPath)
@@ -78,15 +102,15 @@ promote' pkgPath repoPath name versionOld versionNew = do
     Logger.log $ "Compressing the package"
     let newName = newPackageName pkgPath versionNew
     compressed <- Archive.pack correctPath newName
-    generateChecksum  @Crypto.SHA256 $ (parent correctPath) </> Shelly.fromText (newName <> ".tar.gz")
+    generateChecksum  @Crypto.SHA256 $ (parent correctPath) </> Shelly.fromText (newName <> if currentHost == Windows then ".7z" else ".tar.gz")
 
     Logger.log "Cleaning up"
     Shelly.rm_rf correctPath `Exception.catchAny` (\(e :: SomeException) ->
         Logger.warning $ "Failed to clean up after extracting.\n" <> (convert $ displayException e))
 
 
-promoteLinux :: MonadPromote m => FilePath -> FilePath -> Text -> Version -> Version -> m ()
-promoteLinux pkgPath repoPath name versionOld versionNew = do
+promoteLinux :: MonadPromote m => FilePath -> FilePath -> Text -> Version -> Version -> ResolvedApplication -> m ()
+promoteLinux pkgPath repoPath name versionOld versionNew res = do
     Logger.log "Ensuring the AppImage is executable"
     makeExecutable pkgPath
 
@@ -94,7 +118,7 @@ promoteLinux pkgPath repoPath name versionOld versionNew = do
     Shelly.silently $ Shelly.cmd pkgPath "--appimage-extract"
 
     let appDir = "squashfs-root" :: FilePath
-    renameVersion (appDir </> "usr") repoPath versionOld versionNew
+    renameVersion (appDir </> "usr") repoPath versionOld versionNew res
 
     Logger.log "Downloading appImageTool"
     let aitUrl  = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
@@ -119,15 +143,15 @@ promoteLinux pkgPath repoPath name versionOld versionNew = do
         Logger.warning $ "Failed to clean up after extracting.\n" <> (convert $ displayException e))
 
 
-promote :: MonadPromote m => FilePath -> FilePath -> PromotionInfo -> m ()
-promote pkgPath repoPath prInfo = do
+promote :: MonadPromote m => FilePath -> FilePath -> PromotionInfo -> ResolvedApplication -> m ()
+promote pkgPath repoPath prInfo res = do
     let name = prInfo ^. appName
         vOld = prInfo ^. oldVersion
     case prInfo ^. newVersion of
         Nothing -> liftIO $ putStrLn "No version to promote"
         Just vNew  -> case currentHost of
-            Linux -> promoteLinux pkgPath repoPath name vOld vNew
-            _     -> promote'     pkgPath repoPath name vOld vNew
+            Linux -> promoteLinux pkgPath repoPath name vOld vNew res
+            _     -> promote'     pkgPath repoPath name vOld vNew res
 
 
 run :: MonadPromote m => PromoteOpts -> m ()
@@ -139,11 +163,13 @@ run opts = do
     pkgFullPath <- expand $ pkgPath
     cfgFullPath <- expand $ cfgPath
     prInfo      <- createNextVersion cfgFullPath verType Nothing
-    promote pkgFullPath (parent cfgFullPath) prInfo
 
     config   <- Repository.parseConfig cfgFullPath
     resolved <- mapM (Repository.resolvePackageApp config) (config ^. Repository.apps)
     repo     <- Repository.getRepo
+
+    forM_ resolved $ promote pkgFullPath (parent cfgFullPath) prInfo
+
 
     let updatedConfig = foldl' Repository.updateConfig config resolved
     Repository.generateConfigYamlWithNewPackage repo updatedConfig $ (parent pkgFullPath) </> "config.yaml"

@@ -17,6 +17,7 @@ import qualified System.Directory             as System
 
 import Control.Monad.Trans.Resource       (MonadBaseControl)
 import Luna.Manager.Command.CreatePackage
+import Luna.Manager.Component.PackageConfig
 import Luna.Manager.Component.Repository
 import Luna.Manager.System.Host
 import Luna.Manager.System.Path           (expand)

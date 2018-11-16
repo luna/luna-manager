@@ -7,65 +7,37 @@ import Control.Lens.Aeson             ()
 import Control.Monad                  (forM)
 import Control.Monad.State.Layered
 import Data.Maybe                     (maybeToList)
-import Filesystem.Path.CurrentOS      (FilePath, decodeString, dirname,
+import Filesystem.Path.CurrentOS      (FilePath, dirname,
                                        encodeString, filename, null, parent,
                                        splitDirectories, (<.>), (</>))
 import Luna.Manager.Command.Options   (MakePackageOpts, Options,
                                        guiInstallerOpt)
+import Luna.Manager.Component.PackageConfig
 import Luna.Manager.Component.Pretty
 import Luna.Manager.Component.Version (Version, readVersion)
 import Luna.Manager.Network
-import Luna.Manager.Shell.Shelly      (MonadSh, runProcess, runRawSystem)
+import Luna.Manager.Shell.Shelly      (MonadSh)
 import Luna.Manager.System            (generateChecksum, makeExecutable)
 import Luna.Manager.System.Env
 import Luna.Manager.System.Host
 import Luna.Manager.System.Path
-import System.Directory               (listDirectory)
-import System.Environment             (getEnv)
 import System.Exit
 
-import qualified Control.Exception.Safe            as Exception
-import qualified Crypto.Hash                       as Crypto
-import qualified Data.ByteString.Lazy.Char8        as BSLChar
-import qualified Filesystem.Path.CurrentOS         as FP
-import qualified Data.Text                         as Text
-import qualified Data.Text.IO                      as Text
-import qualified Luna.Manager.Archive              as Archive
-import qualified Luna.Manager.Command.Options      as Opts
-import qualified Luna.Manager.Component.Repository as Repository
-import qualified Luna.Manager.Legal                as Legal
-import qualified Luna.Manager.Logger               as Logger
-import qualified Luna.Manager.Shell.Shelly         as Shelly
+import qualified Control.Exception.Safe                 as Exception
+import qualified Crypto.Hash                            as Crypto
+import qualified Data.ByteString.Lazy.Char8             as BSLChar
+import qualified Data.Text                              as Text
+import qualified Luna.Manager.Archive                   as Archive
+import qualified Luna.Manager.Command.Options           as Opts
+import qualified Luna.Manager.Component.Repository      as Repository
+import qualified Luna.Manager.Component.WindowsResource as WindowsResource
+import qualified Luna.Manager.Logger                    as Logger
+import qualified Luna.Manager.Shell.Shelly              as Shelly
 import qualified Safe
-import qualified System.Process.Typed              as Process
+import qualified System.Process.Typed                   as Process
 
 default (Text.Text)
 
-----------------------------
--- === Package config === --
-----------------------------
-
--- === Definition === --
-
-data PackageConfig = PackageConfig { _defaultPackagePath :: FilePath
-                                   , _buildScriptPath    :: FilePath
-                                   , _thirdPartyPath     :: FilePath
-                                   , _libPath            :: FilePath
-                                   , _componentsToCopy   :: FilePath
-                                   , _configFolder       :: FilePath
-                                   , _binFolder          :: FilePath
-                                   , _binsPrivate        :: FilePath
-                                   , _binsPublic         :: FilePath
-                                   , _mainBin            :: FilePath
-                                   , _utilsFolder        :: FilePath
-                                   , _logoFileName       :: Text
-                                   , _desktopFileName    :: Text
-                                   , _versionFileName    :: FilePath
-                                   , _permitNoTags       :: Bool
-                                   , _buildFromHead      :: Bool
-                                   }
-
-makeLenses ''PackageConfig
 
 type MonadCreatePackage m =
     ( MonadGetter Options m
@@ -76,36 +48,6 @@ type MonadCreatePackage m =
     , MonadIO m
     )
 
-
--- === Instances === --
-
-instance Monad m => MonadHostConfig PackageConfig 'Linux arch m where
-    defaultHostConfig = return $ PackageConfig
-        { _defaultPackagePath = "dist-package"
-        , _buildScriptPath    = "build_luna"
-        , _thirdPartyPath     = "third-party"
-        , _libPath            = "lib"
-        , _componentsToCopy   = "dist"
-        , _configFolder       = "config"
-        , _binFolder          = "bin"
-        , _binsPrivate        = "private"
-        , _binsPublic         = "public"
-        , _mainBin            = "main"
-        , _utilsFolder        = "resources"
-        , _logoFileName       = "logo.svg"
-        , _desktopFileName    = "app.desktop"
-        , _versionFileName    = "version.txt"
-        , _permitNoTags       = False
-        , _buildFromHead      = False
-        }
-
-instance Monad m => MonadHostConfig PackageConfig 'Darwin arch m where
-    defaultHostConfig = defaultHostConfigFor @Linux
-
-instance Monad m => MonadHostConfig PackageConfig 'Windows arch m where
-    defaultHostConfig = reconfig <$> defaultHostConfigFor @Linux where
-        reconfig cfg = cfg & defaultPackagePath .~ "C:\\lp"
-                           & buildScriptPath    .~ "scripts_build\\build.py"
 
 data NoAppException = NoAppException deriving(Show)
 instance Exception NoAppException  where
@@ -313,117 +255,6 @@ downloadExternalPkgs cfgFolderPath resolvedApp opts = do
 
     return $ concat pkgs
 
-updateExeInfo :: MonadCreatePackage m
-    => Version -> FilePath -> m ()
-updateExeInfo version exePath = do
-    let exeName    = filename exePath
-        resHacker  =
-            "C:\\Program Files (x86)\\Resource Hacker\\ResourceHacker.exe"
-        resPath    = FP.replaceExtension exePath "res"
-        rcPath     = FP.replaceExtension exePath "rc"
-    liftIO $ Text.writeFile (encodeString rcPath) $
-        createExeVersionManifest version (convert $ encodeString exeName)
-    runRawSystem resHacker [ "-open", Shelly.toTextIgnore rcPath
-                           , "-save", Shelly.toTextIgnore resPath
-                           , "-action", "compile"
-                           , "-log", "CONSOLE"
-                           ]
-    runRawSystem resHacker [ "-open", Shelly.toTextIgnore exePath
-                           , "-save", Shelly.toTextIgnore exePath
-                           , "-action", "addoverwrite"
-                           , "-resource", Shelly.toTextIgnore resPath
-                           , "-log", "CONSOLE"
-                           ]
-    Shelly.rm_rf rcPath
-    Shelly.rm_rf resPath
-
-createExeVersionManifest :: Version -> Text -> Text
-createExeVersionManifest version exeName =
-    let versionFormat    = showPretty version
-        winVersionFormat = Text.replace "." "," versionFormat
-    in Text.unlines [
-        "VS_VERSION_INFO VERSIONINFO"
-      , Text.concat ["    FILEVERSION    ", winVersionFormat]
-      , Text.concat ["    PRODUCTVERSION ", winVersionFormat]
-      , "{"
-      , "    BLOCK \"StringFileInfo\""
-      , "    {"
-      , "        BLOCK \"040904b0\""
-      , "        {"
-      , Text.concat [
-            "            VALUE \"CompanyName\",        \""
-          , Legal.companyName
-          , "\""
-          ]
-      , Text.concat [
-            "            VALUE \"FileDescription\",    \""
-          , Legal.productDescription
-          , "\""
-          ]
-      , Text.concat [
-            "            VALUE \"FileVersion\",        \""
-          , versionFormat
-          , "\""
-          ]
-      , Text.concat [
-            "            VALUE \"LegalCopyright\",     \""
-          , Legal.copyright
-          , "\""
-          ]
-      , Text.concat [
-            "            VALUE \"OriginalFilename\",   \""
-          , exeName
-          , "\""
-          ]
-      , Text.concat [
-            "            VALUE \"ProductName\",        \""
-          , Legal.productName
-          , "\""
-          ]
-      , Text.concat [
-            "            VALUE \"ProductVersion\",     \""
-          , versionFormat
-          , "\""
-          ]
-      , "        }"
-      , "    }"
-      , "    BLOCK \"VarFileInfo\""
-      , "    {"
-      , "        VALUE \"Translation\", 0x409, 1200"
-      , "    }"
-      , "}"
-        ]
-
-
-updateWindowsMetadata :: MonadCreatePackage m
-    => Version -> FilePath -> FilePath -> m ()
-updateWindowsMetadata version privateBinFolder mainBin = do
-    updateExeInfo version mainBin
-    binaries <- liftIO . listDirectory $ encodeString privateBinFolder
-    forM_ binaries $ \b -> do
-        let fullPath = privateBinFolder </> decodeString b
-        updateExeInfo version fullPath
-
-signWindowsBinary :: MonadCreatePackage m => Text -> m ()
-signWindowsBinary binPath = do
-    let signTool     = "c:\\Program Files (x86)\\Windows Kits\\10\\bin\\x64\\signtool.exe"
-        timestampUrl = "http://timestamp.digicert.com"
-    certPath <- liftIO $ convert <$> getEnv "CERT_PATH"
-    certPass <- liftIO $ convert <$> getEnv "CERT_PASS"
-    runProcess signTool [ "sign", "/v", "/f", certPath, "/p", certPass
-                        , "/t", timestampUrl, binPath
-                        ]
-
-signWindowsBinaries :: MonadCreatePackage m
-                    => FilePath -> FilePath -> m ()
-signWindowsBinaries privateBinFolder mainBin = do
-    signWindowsBinary $ Shelly.toTextIgnore mainBin
-    binaries <- liftIO . listDirectory $ encodeString privateBinFolder
-    forM_ binaries $ \b -> do
-        let fullPath  = privateBinFolder </> decodeString b
-        signWindowsBinary $ Shelly.toTextIgnore fullPath
-
-
 ------------------------------
 -- === linkingLibsMacOS === --
 ------------------------------
@@ -534,8 +365,8 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     when (currentHost == Windows) $ do
         let appName' = convert appName
             binary   = publicBinsFolder </> appName' </> appName' <.> "exe"
-        updateWindowsMetadata appVersion privateBinsFolder binary
-        signWindowsBinaries privateBinsFolder binary
+        WindowsResource.updateWindowsMetadata appVersion privateBinsFolder binary
+        WindowsResource.signWindowsBinaries privateBinsFolder binary
 
     when (currentHost == Darwin) $
         Shelly.silently $ linkLibs privateBinsFolder libsFolder
