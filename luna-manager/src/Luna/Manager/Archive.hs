@@ -58,10 +58,7 @@ unpack totalProgress progressFieldName file = do
     Logger.info $ "Unpacking archive: " <> plainTextPath file
     ext          <- tryJust (extensionError file) $ extension file
     case currentHost of
-        Windows -> case ext of
-            "zip" -> unzipFileWindows file
-            "gz"  -> untarWin  totalProgress progressFieldName file
-            "7z"  -> unSevenZzipWin totalProgress progressFieldName file
+        Windows -> unSevenZzipWin totalProgress progressFieldName file
         Darwin  -> case ext of
             "gz"  -> unpackTarGzUnix totalProgress progressFieldName file
             "zip" -> unzipUnix file

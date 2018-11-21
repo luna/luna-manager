@@ -74,7 +74,8 @@ log msg = do
 logProcess :: LoggerMonad m => Text -> m ()
 logProcess cmd = do
     logToTmpFile $ cmd <> "\n"
-    (exit, out, err) <- Process.readProcess $ Process.shell $ unpack cmd
+    let proc = Process.readProcess . Process.shell
+    (exit, out, err) <- proc $ unpack cmd
     logToTmpFile $ "output: " <> pack (show out) <> "\n"
     logToTmpFile $ "error: "  <> pack (show err) <> "\n"
 

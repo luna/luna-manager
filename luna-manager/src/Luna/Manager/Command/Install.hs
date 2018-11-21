@@ -325,7 +325,7 @@ registerUninstallInfo installPath = when (currentHost == Windows) $ do
         directory      = parent $ parent installPath -- if default, c:\Program Files\
     pkgHasRegister <- Shelly.test_f registerScript
     when pkgHasRegister $ do
-        let registerPowershell = "powershell -executionpolicy bypass -file \"" <> toTextIgnore registerScript <> "\" \"" <> toTextIgnore directory <> "\""
+        let registerPowershell = "powershell -inputformat none -executionpolicy bypass -file \"" <> toTextIgnore registerScript <> "\" \"" <> toTextIgnore directory <> "\""
         Logger.logProcess registerPowershell
 
 moveUninstallScript :: MonadInstall m => FilePath -> m ()
@@ -470,11 +470,8 @@ run opts = do
             Analytics.mpRegisterUser userInfoPath $ fromMaybe "" emailM
             Analytics.mpTrackEvent "LunaInstaller.Started"
             appPkg           <- Logger.tryJustWithLog "Install.run" undefinedPackageError $ Map.lookup appName (repo ^. packages)
-            Logger.logObject "[run] App package" appPkg
             evaluatedVersion <- Logger.tryJustWithLog "Install.run" (toException $ VersionException $ convert $ show appVersion) $ Map.lookup appVersion $ appPkg ^. versions --tryJust missingPackageDescriptionError $ Map.lookup currentSysDesc $ snd $ Map.lookup appVersion $ appPkg ^. versions
-            Logger.logObject "[run] evaluated version" evaluatedVersion
             appDesc          <- Logger.tryJustWithLog "Install.run" (toException $ MissingPackageDescriptionError appVersion) $ Map.lookup currentSysDesc evaluatedVersion
-            Logger.logObject "[run] app description" appDesc
             let (unresolvedLibs, pkgsToInstall) = Repo.resolve repo appDesc
             when (not $ null unresolvedLibs) $ do
                 let e = UnresolvedDepsError unresolvedLibs
@@ -484,7 +481,6 @@ run opts = do
                 appsToInstall   = filter isToInstall pkgsToInstall
                 resolvedApp     = ResolvedPackage (PackageHeader appName appVersion) appDesc (appPkg ^. appType)
                 allApps         = resolvedApp : appsToInstall
-            Logger.logObject "[run] allApps" allApps
 
             mapM_ (installApp opts) $ allApps
             print $ encode $ InstallationProgress 1
