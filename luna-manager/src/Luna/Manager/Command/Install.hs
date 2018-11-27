@@ -223,8 +223,19 @@ makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
         binPath = parent (parent packageBinPath) </> "public" </> Shelly.fromText appName
     binAbsPath  <- Shelly.canonicalize $ binPath </> binName
     appData     <- liftIO $ Environment.getEnv "appdata"
-    let menuPrograms = (decodeString appData) </> "Microsoft" </> "Windows" </> "Start Menu" </> "Programs" </> convert ((mkSystemPkgName appName) <> ".lnk")
-    exitCode <- liftIO $ Process.runProcess $ Process.shell  ("powershell" <> " \"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <> "\'" <> (encodeString menuPrograms) <> "\'" <> ");$sc.TargetPath=" <> "\'" <> (encodeString binAbsPath) <> "\'" <> ";$sc.Save()\"")
+    let menuPrograms =
+                decodeString appData
+            </> "Microsoft"
+            </> "Windows"
+            </> "Start Menu"
+            </> "Programs"
+            </> convert (mkSystemPkgName appName <> ".lnk")
+    exitCode <- liftIO $ Process.runProcess $ Process.shell $
+        "powershell -inputformat none " <>
+        "\"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <>
+        "\'" <> encodeString menuPrograms <>
+        "\'');$sc.TargetPath=\'" <> encodeString binAbsPath <>
+        "\';$sc.Save()\""
     unless (exitCode == ExitSuccess) $ Logger.warning $ "Menu Start shortcut was not created. Powershell could not be found in the $PATH"
 
 postInstallation :: MonadInstall m => AppType -> FilePath -> Text -> Text -> Text -> m ()
@@ -325,7 +336,10 @@ registerUninstallInfo installPath = when (currentHost == Windows) $ do
         directory      = parent $ parent installPath -- if default, c:\Program Files\
     pkgHasRegister <- Shelly.test_f registerScript
     when pkgHasRegister $ do
-        let registerPowershell = "powershell -inputformat none -executionpolicy bypass -file \"" <> toTextIgnore registerScript <> "\" \"" <> toTextIgnore directory <> "\""
+        let registerPowershell =
+                "powershell -inputformat none -executionpolicy bypass -file \""
+                <> toTextIgnore registerScript
+                <> "\" \"" <> toTextIgnore directory <> "\""
         Logger.logProcess registerPowershell
 
 moveUninstallScript :: MonadInstall m => FilePath -> m ()
