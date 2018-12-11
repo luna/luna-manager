@@ -11,23 +11,24 @@ import qualified Data.Text                   as Text
 import           Filesystem.Path.CurrentOS   (FilePath, encodeString, filename,
                                               parent, (<.>), (</>))
 
-import qualified Luna.Manager.Archive              as Archive
-import           Luna.Manager.Command.NextVersion  (PromotionInfo (..),
-                                                    TargetVersionType (..),
-                                                    appName, createNextVersion,
-                                                    newVersion, oldVersion)
-import           Luna.Manager.Command.Options      (Options, PromoteOpts)
-import qualified Luna.Manager.Command.Options      as Opts
+import qualified Luna.Manager.Archive                   as Archive
+import           Luna.Manager.Command.NextVersion       (PromotionInfo (..),
+                                                         TargetVersionType (..),
+                                                         appName,
+                                                         createNextVersion,
+                                                         newVersion, oldVersion)
+import           Luna.Manager.Command.Options           (Options, PromoteOpts)
+import qualified Luna.Manager.Command.Options           as Opts
 import           Luna.Manager.Component.PackageConfig
-import           Luna.Manager.Component.Pretty     (showPretty)
-import           Luna.Manager.Component.Repository (RepoConfig, ResolvedApplication)
-import qualified Luna.Manager.Component.Repository as Repository
-import           Luna.Manager.Component.Version    (Version)
+import           Luna.Manager.Component.Pretty          (showPretty)
+import           Luna.Manager.Component.Repository      (RepoConfig,
+                                                         ResolvedApplication)
+import qualified Luna.Manager.Component.Repository      as Repository
+import           Luna.Manager.Component.Version         (Version)
 import qualified Luna.Manager.Component.WindowsResource as WindowsResource
-import qualified Luna.Manager.Logger               as Logger
-import           Luna.Manager.Network              (MonadNetwork,
-                                                    downloadWithProgressBarTo)
-import qualified Luna.Manager.Shell.Shelly         as Shelly
+import qualified Luna.Manager.Logger                    as Logger
+import           Luna.Manager.Network                   (MonadNetwork, downloadWithProgressBarTo)
+import qualified Luna.Manager.Shell.Shelly              as Shelly
 
 import Luna.Manager.System      (generateChecksum, makeExecutable)
 import Luna.Manager.System.Env
@@ -90,7 +91,7 @@ renameVersion path repoPath versionOld versionNew resolvedApplication = do
 promote' :: MonadPromote m => FilePath -> FilePath -> Text -> Version -> Version -> ResolvedApplication -> m ()
 promote' pkgPath repoPath name versionOld versionNew res = do
     Logger.log "Unpacking the package"
-    extracted <- Archive.unpack 1.0 "unpacking_progress" pkgPath
+    extracted <- Archive.unpack 1.0 "unpacking_progress" pkgPath Nothing
 
     renameVersion extracted repoPath versionOld versionNew res
 

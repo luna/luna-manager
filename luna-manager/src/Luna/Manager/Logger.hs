@@ -1,23 +1,23 @@
-{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Luna.Manager.Logger where
 
-import           Prologue                     hiding (FilePath, log)
 import           Control.Monad.Raise
 import           Control.Monad.State.Layered
-import           Data.Text                    (Text, pack, unpack)
-import qualified Data.Text.IO                 as Text
-import           Filesystem.Path.CurrentOS    (FilePath, (</>), decodeString)
-import           Shelly.Lifted                (MonadSh, MonadShControl)
-import qualified Shelly.Lifted                as Sh
-import           System.Directory             (getAppUserDataDirectory)
-import           System.IO                    (hFlush, stdout)
+import           Data.Text                   (Text, pack, unpack)
+import qualified Data.Text.IO                as Text
+import           Filesystem.Path.CurrentOS   (FilePath, decodeString, (</>))
+import           Prologue                    hiding (FilePath, log)
+import           Shelly.Lifted               (MonadSh, MonadShControl)
+import qualified Shelly.Lifted               as Sh
+import           System.Directory            (getAppUserDataDirectory)
+import           System.IO                   (hFlush, stdout)
 import qualified System.Process.Typed        as Process
 
-import           Data.Aeson (FromJSON, ToJSON, encode)
+import Data.Aeson (FromJSON, ToJSON, encode)
 
-import           Luna.Manager.Command.Options
-import           Luna.Manager.System.Env      (EnvConfig)
+import Luna.Manager.Command.Options
+import Luna.Manager.System.Env      (EnvConfig)
 
 
 data WarningMessage = WarningMessage { message :: Text

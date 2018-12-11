@@ -2,13 +2,14 @@
 
 module Luna.Manager.Gui.Initialize where
 
-import Prologue hiding (FilePath)
-import Luna.Manager.Component.Repository
-import Luna.Manager.Component.Version
-import qualified Luna.Manager.Logger as Logger
-import Control.Monad.Raise
-import Data.Aeson                         (FromJSON, ToJSON, parseJSON, encode)
-import Control.Lens.Aeson
+import           Control.Lens.Aeson
+import           Control.Monad.Raise
+import           Data.Aeson                        (FromJSON, ToJSON, encode,
+                                                    parseJSON)
+import           Luna.Manager.Component.Repository
+import           Luna.Manager.Component.Version
+import qualified Luna.Manager.Logger               as Logger
+import           Prologue                          hiding (FilePath)
 
 -- === Definition === --
 

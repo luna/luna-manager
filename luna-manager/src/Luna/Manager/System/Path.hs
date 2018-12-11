@@ -1,13 +1,13 @@
 module Luna.Manager.System.Path where
 
-import Prologue hiding (FilePath, null, fromText)
+import Prologue hiding (FilePath, fromText, null)
 
+import Luna.Manager.Logger     (LoggerMonad)
 import Luna.Manager.System.Env
-import           Luna.Manager.Logger (LoggerMonad)
 
-import qualified Filesystem.Path as Path
-import Filesystem.Path (FilePath, null)
-import Filesystem.Path.CurrentOS (fromText, encodeString)
+import           Filesystem.Path           (FilePath, null)
+import qualified Filesystem.Path           as Path
+import           Filesystem.Path.CurrentOS (encodeString, fromText)
 
 type URIPath  = Text
 

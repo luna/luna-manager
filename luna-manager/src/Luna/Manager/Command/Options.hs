@@ -2,9 +2,9 @@ module Luna.Manager.Command.Options where
 
 import Prologue
 
-import Data.Text (Text)
-import Options.Applicative as Opts
 import Control.Monad.State.Layered
+import Data.Text                   (Text)
+import Options.Applicative         as Opts
 
 import qualified Luna.Manager.System.Info as Info
 
@@ -55,6 +55,7 @@ data MakePackageOpts = MakePackageOpts
     , _extPkgUrls    :: [Text]
     , _permitNoTags  :: Bool
     , _buildFromHead :: Bool
+    , _dryRun        :: Bool
     } deriving (Show)
 
 data SwitchVersionOpts = SwitchVersionOpts
@@ -135,6 +136,7 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
                                            <*> (many . strOption $ long "external-package" <> metavar "PKG_URL" <> help "URL of an additional external package to include (e.g. Dataframes)")
                                            <*> Opts.switch (long "permit-no-tags"  <> help "Do not throw an error if there is no tag for this version. Use with care.")
                                            <*> Opts.switch (long "build-from-head" <> help "Build bypassing the tag-based flow, using HEAD. Use with care.")
+                                           <*> Opts.switch (long "dry-run"         <> help "Make a dry-run package build, not rebuilding Luna Studio or downloading dependencies (useful for development).")
     optsSwitchVersion  = SwitchVersion     <$> optsSwitchVersion'
     optsSwitchVersion' = SwitchVersionOpts <$> strArgument (metavar "VERSION" <> help "Target version to switch to")
     optsDevelop        = Develop           <$> optsDevelop'

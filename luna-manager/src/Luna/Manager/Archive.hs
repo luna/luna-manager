@@ -53,8 +53,9 @@ instance Exception UnpackingException where
 unpackingException :: Text -> SomeException -> SomeException
 unpackingException t e = toException $ UnpackingException t e
 
-unpack :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
-unpack totalProgress progressFieldName file = do
+unpack :: UnpackContext m
+       => Double -> Text.Text -> FilePath -> Maybe FilePath -> m FilePath
+unpack totalProgress progressFieldName file mTargetName = do
     Logger.info $ "Unpacking archive: " <> plainTextPath file
     ext          <- tryJust (extensionError file) $ extension file
     case currentHost of
@@ -63,11 +64,11 @@ unpack totalProgress progressFieldName file = do
             "gz"  -> untarWin  totalProgress progressFieldName file
             "7z"  -> unSevenZzipWin totalProgress progressFieldName file
         Darwin  -> case ext of
-            "gz"  -> unpackTarGzUnix totalProgress progressFieldName file
+            "gz"  -> unpackTarGzUnix totalProgress progressFieldName file mTargetName
             "zip" -> unzipUnix file
         Linux   -> case ext of
             "AppImage" -> return file
-            "gz"       -> unpackTarGzUnix totalProgress progressFieldName file
+            "gz"       -> unpackTarGzUnix totalProgress progressFieldName file mTargetName
             "rpm"      -> do
                 let name = basename file
                     dir = directory file
@@ -116,11 +117,12 @@ progressBarLogger pg = do
             progressBar $ ProgressBar 50 progress 100
         Left err -> raise' $ ProgressException err
 
-unpackTarGzUnix :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
-unpackTarGzUnix totalProgress progressFieldName file = do
+unpackTarGzUnix :: UnpackContext m
+                => Double -> Text.Text -> FilePath -> Maybe FilePath -> m FilePath
+unpackTarGzUnix totalProgress progressFieldName file mTargetName = do
     guiInstaller <- Opts.guiInstallerOpt
     let dir = directory file
-        name = basename file
+        name = fromMaybe (basename file) mTargetName
     Shelly.chdir dir $ do
         Shelly.mkdir_p name
         if guiInstaller then do

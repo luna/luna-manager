@@ -4,10 +4,10 @@ module Luna.Manager.System.Env where
 
 import Prologue hiding (FilePath, fromText, toText)
 
+import           Control.Monad.State.Layered
+import           Filesystem.Path.CurrentOS
 import           Luna.Manager.System.Host
 import qualified Shelly.Lifted               as Shelly
-import           Filesystem.Path.CurrentOS
-import           Control.Monad.State.Layered
 import qualified System.Directory            as System
 import           System.IO.Error             (isAlreadyExistsError)
 import           System.IO.Temp              (createTempDirectory)

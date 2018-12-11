@@ -3,21 +3,21 @@ module Luna.Manager.Command.CreatePackage where
 
 import Prologue hiding (FilePath, (<.>))
 
-import Control.Lens.Aeson             ()
-import Control.Monad                  (forM)
+import Control.Lens.Aeson                   ()
+import Control.Monad                        (forM)
 import Control.Monad.State.Layered
-import Data.Maybe                     (maybeToList)
-import Filesystem.Path.CurrentOS      (FilePath, dirname,
-                                       encodeString, filename, null, parent,
-                                       splitDirectories, (<.>), (</>))
-import Luna.Manager.Command.Options   (MakePackageOpts, Options,
-                                       guiInstallerOpt)
+import Data.Maybe                           (maybeToList)
+import Filesystem.Path.CurrentOS            (FilePath, dirname, encodeString,
+                                             extension, filename, null, parent,
+                                             splitDirectories, (<.>), (</>))
+import Luna.Manager.Command.Options         (MakePackageOpts, Options,
+                                             guiInstallerOpt)
 import Luna.Manager.Component.PackageConfig
 import Luna.Manager.Component.Pretty
-import Luna.Manager.Component.Version (Version, readVersion)
+import Luna.Manager.Component.Version       (Version, readVersion)
 import Luna.Manager.Network
-import Luna.Manager.Shell.Shelly      (MonadSh)
-import Luna.Manager.System            (generateChecksum, makeExecutable)
+import Luna.Manager.Shell.Shelly            (MonadSh)
+import Luna.Manager.System                  (generateChecksum, makeExecutable)
 import Luna.Manager.System.Env
 import Luna.Manager.System.Host
 import Luna.Manager.System.Path
@@ -27,6 +27,7 @@ import qualified Control.Exception.Safe                 as Exception
 import qualified Crypto.Hash                            as Crypto
 import qualified Data.ByteString.Lazy.Char8             as BSLChar
 import qualified Data.Text                              as Text
+import qualified Filesystem.Path.CurrentOS              as FP
 import qualified Luna.Manager.Archive                   as Archive
 import qualified Luna.Manager.Command.Options           as Opts
 import qualified Luna.Manager.Component.Repository      as Repository
@@ -158,16 +159,18 @@ createAppimage appName version repoPath = do
 finalPackageName :: Text -> Version -> Text
 finalPackageName appName version = appName <> "-" <> showPretty currentHost <> "-" <> showPretty version
 
-runPkgBuildScript :: MonadCreatePackage m => FilePath -> Maybe Text -> m ()
-runPkgBuildScript repoPath s3GuiURL = do
+runPkgBuildScript :: MonadCreatePackage m => FilePath -> Maybe Text -> Bool -> m ()
+runPkgBuildScript repoPath s3GuiURL dryRun = do
     Logger.log "Running package build script"
     pkgConfig <- get @PackageConfig
     buildPath <- expand $ repoPath </> (pkgConfig ^. buildScriptPath)
-    let guiUrl = maybeToList $ ("--gui_url=" <>) <$> s3GuiURL
+    let guiUrlArgs = maybeToList $ ("--gui_url=" <>) <$> s3GuiURL
+        dryRunArgs = if dryRun then ["--dry-run"] else []
+        argList    = "--release" : (dryRunArgs <> guiUrlArgs)
     Shelly.chdir (parent buildPath) $ Shelly.switchVerbosity $
         case currentHost of
-            Windows -> Shelly.cmd "py" buildPath $ ["--release"] ++ guiUrl
-            _       -> Shelly.run_ buildPath $ ["--release"] ++ guiUrl
+            Windows -> Shelly.cmd "py" buildPath argList
+            _       -> Shelly.run_     buildPath argList
 
 removeGitFolders :: MonadCreatePackage m => FilePath -> m ()
 removeGitFolders path = do
@@ -186,7 +189,7 @@ copyFromDistToDistPkg appName repoPath = do
     let expandedCopmponents = repoPath </> (pkgConfig ^. componentsToCopy)
     Shelly.rm_rf packageRepoFolder
     Shelly.mkdir_p $ parent packageRepoFolder
-    Shelly.mv expandedCopmponents packageRepoFolder
+    Shelly.cp_r expandedCopmponents packageRepoFolder
     removeGitFolders packageRepoFolder
 
 downloadAndUnpackDependency :: MonadCreatePackage m => FilePath -> Repository.ResolvedPackage -> m ()
@@ -198,7 +201,7 @@ downloadAndUnpackDependency repoPath resolvedPackage = do
     thirdPartyFullPath <- expand $ repoPath </> componentsFolder </> (pkgConfig ^. thirdPartyPath)
     libFullPath        <- expand $ repoPath </> componentsFolder </> (pkgConfig ^. libPath)
     downloadedPkg      <- downloadFromURL (resolvedPackage ^. Repository.desc . Repository.path) $ "Downloading dependency files " <> depName
-    unpacked           <- Archive.unpack 1.0 "unpacking_progress" downloadedPkg
+    unpacked           <- Archive.unpack 1.0 "unpacking_progress" downloadedPkg Nothing
     unpackedIsDir      <- Shelly.test_d unpacked
     Shelly.mkdir_p thirdPartyFullPath
     case packageType of
@@ -227,6 +230,7 @@ isNewestVersion appVersion appName = do
         return True
     else do
         let newest  = (head versionList) < appVersion
+        Logger.log $ "Previous latest version: " <> showPretty (head versionList)
         Logger.log $ if newest then "> Yes" else "> No"
         return newest
 
@@ -247,11 +251,19 @@ downloadExternalPkgs cfgFolderPath resolvedApp opts = do
 
     pkgs <- forM pkgUrls $ \pu -> do
         archive     <- downloadFromURL pu "External package: "
-        folder      <- Archive.unpack 1.0 "unpacking_progress" archive
-        dirContents <- Shelly.ls folder
-        forM dirContents $ \f -> do
-            Shelly.cp_r f tgtPath
-            return $ tgtPath </> filename f
+        let pkgName = FP.fromText $ Text.takeWhile (/= '-')
+                    $ Shelly.toTextIgnore $ FP.basename $ FP.filename archive
+        folder      <- Archive.unpack 1.0 "unpacking_progress" archive (Just pkgName)
+        case extension archive of
+            Just "gz" -> do
+                liftIO . putStrLn $ "Copying from: " <> show folder <> " into " <> show tgtPath
+                Shelly.cp_r folder tgtPath
+                return [tgtPath </> folder]
+            _ -> do
+                dirContents <- Shelly.ls folder
+                forM dirContents $ \f -> do
+                    Shelly.cp_r f tgtPath
+                    return $ tgtPath </> filename f
 
     return $ concat pkgs
 
@@ -324,8 +336,10 @@ prepareVersion appPath version = Shelly.switchVerbosity $ do
         commitHash <- Shelly.cmd "git" "rev-parse" "--short" "HEAD"
         Logger.log $ "Building from commit: " <> commitHash
 
-createPkg :: MonadCreatePackage m => FilePath -> Maybe Text -> Repository.ResolvedApplication -> m ()
-createPkg cfgFolderPath s3GuiURL resolvedApplication = do
+createPkg :: MonadCreatePackage m
+          => FilePath -> Maybe Text -> Repository.ResolvedApplication -> Bool
+          -> m ()
+createPkg cfgFolderPath s3GuiURL resolvedApplication dryRun = do
     pkgConfig <- get @PackageConfig
     let app        = resolvedApplication ^. Repository.resolvedApp
         appPath    = getRepoPath cfgFolderPath resolvedApplication
@@ -340,8 +354,11 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
 
     Logger.log $ "Creating version: " <> (showPretty appVersion)
 
-    mapM_ (downloadAndUnpackDependency appPath) $ resolvedApplication ^. Repository.pkgsToPack
-    -- Save the current branch to return from the detached head state after switching to the tag
+    unless dryRun $ do
+        let deps = resolvedApplication ^. Repository.pkgsToPack
+        mapM_ (downloadAndUnpackDependency appPath) deps
+
+        -- Save the current branch to return from the detached head state after switching to the tag
     currBranch <- Shelly.silently $ Shelly.chdir appPath $ Text.strip <$> Shelly.cmd "git" "rev-parse" "--abbrev-ref" "HEAD"
     unless buildHead $ prepareVersion appPath appVersion
 
@@ -352,7 +369,7 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication = do
     Shelly.mkdir_p $ parent versionFile
     liftIO $ writeFile (encodeString versionFile) $ convert $ showPretty appVersion
 
-    runPkgBuildScript appPath s3GuiURL
+    runPkgBuildScript appPath s3GuiURL dryRun
     copyFromDistToDistPkg appName appPath
     mainAppDir <- case currentHost of
         Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
@@ -399,7 +416,7 @@ run opts = do
             resolved <- Repository.resolvePackageApp config a
             let resolvedWithVersion = resolved & Repository.resolvedApp . Repository.header . Repository.version .~ version
             pkgs <- downloadExternalPkgs cfgFolderPath resolved opts
-            createPkg cfgFolderPath s3GuiUrl resolvedWithVersion
+            createPkg cfgFolderPath s3GuiUrl resolvedWithVersion (opts ^. Opts.dryRun)
 
             repo <- Repository.getRepo
             let updateConfig = Repository.updateConfig config resolvedWithVersion

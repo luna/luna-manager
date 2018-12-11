@@ -15,12 +15,12 @@ import           Luna.Manager.System.Env
 import           Prologue                     hiding (FilePath)
 import qualified System.Directory             as System
 
-import Control.Monad.Trans.Resource       (MonadBaseControl)
+import Control.Monad.Trans.Resource         (MonadBaseControl)
 import Luna.Manager.Command.CreatePackage
 import Luna.Manager.Component.PackageConfig
 import Luna.Manager.Component.Repository
 import Luna.Manager.System.Host
-import Luna.Manager.System.Path           (expand)
+import Luna.Manager.System.Path             (expand)
 
 import qualified Data.Text as T
 default (T.Text)
@@ -72,7 +72,7 @@ downloadAndUnpackStack path = do
                 progressFielsdName = ""
             putStrLn "Downloading stack"
             stackArch <- downloadWithProgressBar stackURL
-            stackArch' <- Archive.unpack totalProgress progressFielsdName stackArch
+            stackArch' <- Archive.unpack totalProgress progressFielsdName stackArch Nothing
             Shelly.whenM (Shelly.test_d path) $ Shelly.rm_rf path
             Shelly.mv stackArch' path
 
