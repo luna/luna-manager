@@ -220,20 +220,6 @@ downloadAndUnpackDependency repoPath resolvedPackage = do
             Shelly.rm_rf $ thirdPartyFullPath </> (last $ splitDirectories unpacked)
             Shelly.mv unpacked thirdPartyFullPath
 
-isNewestVersion :: MonadCreatePackage m => Version -> Text -> m Bool
-isNewestVersion appVersion appName = do
-    Logger.log "Checking if the repo is at the newest version..."
-    repo        <- Repository.getRepo
-    versionList <- Repository.getVersionsList repo appName
-    if Prologue.null versionList then do
-        Logger.log "> Yes"
-        return True
-    else do
-        let newest  = (head versionList) < appVersion
-        Logger.log $ "Previous latest version: " <> showPretty (head versionList)
-        Logger.log $ if newest then "> Yes" else "> No"
-        return newest
-
 
 getRepoPath :: FilePath -> Repository.ResolvedApplication -> FilePath
 getRepoPath cfgFolderPath resolvedApp = if desc ^. Repository.path == "./"
@@ -318,23 +304,6 @@ filterGitKeepFile allBins = filter (\x -> filename x /= ".gitkeep") allBins
 -- === Creating package === ---
 -------------------------------
 
-prepareVersion :: MonadCreatePackage m => FilePath -> Version -> m ()
-prepareVersion appPath version = Shelly.switchVerbosity $ do
-    -- check out to the commit pointed by the version tag, if it exists
-    permitNoTagsFlag <- gets @PackageConfig permitNoTags
-    let versionTxt  = showPretty version
-        tagExists t = not . Text.null <$> Shelly.cmd "git" "tag" "-l" t
-    Shelly.chdir appPath $ do
-        exists <- tagExists versionTxt
-        Logger.log $ "Tag " <> versionTxt <> " " <> (if exists then "exists" else "does not exist.")
-        if exists then do
-            Logger.log "Checking out the tag..."
-            Shelly.cmd "git" "checkout" versionTxt
-        else if permitNoTagsFlag then Logger.log "[WARNING] No tag, building the package from head"
-        else throwM $ NoTagException versionTxt
-
-        commitHash <- Shelly.cmd "git" "rev-parse" "--short" "HEAD"
-        Logger.log $ "Building from commit: " <> commitHash
 
 createPkg :: MonadCreatePackage m
           => FilePath -> Maybe Text -> Repository.ResolvedApplication -> Bool
@@ -346,21 +315,13 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication dryRun = do
         appHeader  = app ^. Repository.header
         appName    = appHeader ^. Repository.name
         appType    = app ^. Repository.resolvedAppType
-        buildHead  = pkgConfig ^. buildFromHead
-    appVersion <- do
-        isNewest <- isNewestVersion (appHeader ^. Repository.version) appName
-        if isNewest then return $ appHeader ^. Repository.version
-                    else throwM $ ExistingVersionException (appHeader ^. Repository.version)
+        appVersion = appHeader ^. Repository.version
 
     Logger.log $ "Creating version: " <> (showPretty appVersion)
 
     unless dryRun $ do
         let deps = resolvedApplication ^. Repository.pkgsToPack
         mapM_ (downloadAndUnpackDependency appPath) deps
-
-        -- Save the current branch to return from the detached head state after switching to the tag
-    currBranch <- Shelly.silently $ Shelly.chdir appPath $ Text.strip <$> Shelly.cmd "git" "rev-parse" "--abbrev-ref" "HEAD"
-    unless buildHead $ prepareVersion appPath appVersion
 
     repo <- expand $ appPath
     let componentsFolder = pkgConfig ^. componentsToCopy
@@ -396,16 +357,12 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication dryRun = do
 
     generateChecksum  @Crypto.SHA256 package
 
-    unless buildHead $ Shelly.switchVerbosity $ Shelly.chdir appPath $ do
-        Shelly.cmd "git" "checkout" currBranch
 
 run :: MonadCreatePackage m => MakePackageOpts -> m ()
 run opts = do
     guiInstaller <- guiInstallerOpt
     version      <- readVersion (opts ^. Opts.pkgVersion)
     config       <- Repository.parseConfig $ convert (opts ^. Opts.cfgPath)
-    modify_ @PackageConfig (permitNoTags  .~ (opts ^. Opts.permitNoTags))
-    modify_ @PackageConfig (buildFromHead .~ (opts ^. Opts.buildFromHead))
 
     let cfgFolderPath = parent $ convert (opts ^. Opts.cfgPath)
         appToPack     = Safe.headMay $ config ^. Repository.apps

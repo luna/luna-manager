@@ -49,13 +49,11 @@ data InstallOpts = InstallOpts
     } deriving (Show)
 
 data MakePackageOpts = MakePackageOpts
-    { _cfgPath       :: Text
-    , _pkgVersion    :: Text
-    , _guiURL        :: Maybe Text
-    , _extPkgUrls    :: [Text]
-    , _permitNoTags  :: Bool
-    , _buildFromHead :: Bool
-    , _dryRun        :: Bool
+    { _cfgPath    :: Text
+    , _pkgVersion :: Text
+    , _guiURL     :: Maybe Text
+    , _extPkgUrls :: [Text]
+    , _dryRun     :: Bool
     } deriving (Show)
 
 data SwitchVersionOpts = SwitchVersionOpts
@@ -134,8 +132,6 @@ parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser wher
                                            <*> strArgument (metavar "VERSION" <> help "Package version")
                                            <*> (optional . strOption $ long "gui" <> metavar "GUI_URL" <> help "Path to gui package on S3")
                                            <*> (many . strOption $ long "external-package" <> metavar "PKG_URL" <> help "URL of an additional external package to include (e.g. Dataframes)")
-                                           <*> Opts.switch (long "permit-no-tags"  <> help "Do not throw an error if there is no tag for this version. Use with care.")
-                                           <*> Opts.switch (long "build-from-head" <> help "Build bypassing the tag-based flow, using HEAD. Use with care.")
                                            <*> Opts.switch (long "dry-run"         <> help "Make a dry-run package build, not rebuilding Luna Studio or downloading dependencies (useful for development).")
     optsSwitchVersion  = SwitchVersion     <$> optsSwitchVersion'
     optsSwitchVersion' = SwitchVersionOpts <$> strArgument (metavar "VERSION" <> help "Target version to switch to")

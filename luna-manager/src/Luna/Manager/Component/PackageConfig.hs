@@ -2,7 +2,7 @@ module Luna.Manager.Component.PackageConfig where
 
 import Prologue hiding (FilePath, (<.>))
 
-import Filesystem.Path.CurrentOS      (FilePath)
+import Filesystem.Path.CurrentOS (FilePath)
 import Luna.Manager.System.Host
 
 ----------------------------
@@ -25,8 +25,6 @@ data PackageConfig = PackageConfig { _defaultPackagePath :: FilePath
                                    , _logoFileName       :: Text
                                    , _desktopFileName    :: Text
                                    , _versionFileName    :: FilePath
-                                   , _permitNoTags       :: Bool
-                                   , _buildFromHead      :: Bool
                                    }
 
 makeLenses ''PackageConfig
@@ -51,8 +49,6 @@ instance Monad m => MonadHostConfig PackageConfig 'Linux arch m where
         , _logoFileName       = "logo.svg"
         , _desktopFileName    = "app.desktop"
         , _versionFileName    = "version.txt"
-        , _permitNoTags       = False
-        , _buildFromHead      = False
         }
 
 instance Monad m => MonadHostConfig PackageConfig 'Darwin arch m where
