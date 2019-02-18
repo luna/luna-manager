@@ -234,7 +234,7 @@ makeShortcuts packageBinPath appName = when (currentHost == Windows) $ do
         "powershell -inputformat none " <>
         "\"$s=New-Object -ComObject WScript.Shell; $sc=$s.createShortcut(" <>
         "\'" <> encodeString menuPrograms <>
-        "\'');$sc.TargetPath=\'" <> encodeString binAbsPath <>
+        "\');$sc.TargetPath=\'" <> encodeString binAbsPath <>
         "\';$sc.Save()\""
     unless (exitCode == ExitSuccess) $ Logger.warning $ "Menu Start shortcut was not created. Powershell could not be found in the $PATH"
 
