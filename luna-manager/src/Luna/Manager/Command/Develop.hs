@@ -78,7 +78,7 @@ downloadAndUnpackStack path = do
 
 getLatestRepo :: MonadDevelop m => Text -> FilePath -> m Text
 getLatestRepo appName appPath = do
-    let repoPath = "git@github.com:luna/" <> appName <> ".git"
+    let repoPath = "https://github.com/luna/" <> appName <> ".git"
     repoExists <- Shelly.test_d appPath
     if repoExists
         then Shelly.chdir appPath $ Shelly.cmd "git" "pull" "origin" "master"
