@@ -61,7 +61,7 @@ runRawSystem :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
 runRawSystem path args = do
     let pathStr = encodeString path
         argsStr = map convert args
-    ec <- liftIO $ Process.system $ "\"" <> pathStr <> "\"" <> " " <> unwords argsStr
+    ec <- liftIO $ Process.rawSystem pathStr argsStr
     Logger.log $ convert $ show ec
 
 rm_rf :: (Logger.LoggerMonad m, MonadIO m, MonadSh m, MonadCatch m) => FilePath -> m ()
