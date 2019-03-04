@@ -115,10 +115,6 @@ run opts = do
         Shelly.prependToPath stackFolderPath
         Shelly.setenv "APP_PATH" $ Shelly.toTextIgnore basePath
         let bootstrapPath      = Shelly.toTextIgnore $ appPath </> (developCfg ^. bootstrapFile)
-            bootstrapPackages  = ["base", "exceptions", "shelly", "text", "directory", "system-filepath"]
-            bootstrapStackArgs = ["--resolver", "lts-8.2", "--install-ghc" , "runghc"]
-                                 <> (bootstrapPackages >>= (\p -> ["--package", p]))
-                                 <> [bootstrapPath]
-        Shelly.run "stack" bootstrapStackArgs
+        Shelly.run "stack" [bootstrapPath]
         downloadDeps appName appPath
 
