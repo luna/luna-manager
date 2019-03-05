@@ -34,10 +34,3 @@ chooseCommand = do
         Version         -> Version.run
         a               -> putStrLn $ "Unimplemented option: " <> show a
         -- TODO: other commands
-
-
-
-
-
--- FIXME: move to Layered-State library
-deriving instance MonadCatch m => MonadCatch (State.StateT s m)

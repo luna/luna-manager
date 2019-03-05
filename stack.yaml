@@ -1,18 +1,22 @@
 extra-deps: 
-- container-1.1.6
-- prologue-3.2.6
-- typelevel-1.2.3
-- convert-1.5.1
-- layered-state-1.1.5
-- functor-utils-1.17.2
-- impossible-1.1.4
-- lens-utils-1.4.6
-- monoid-0.1.9
 - shelly-1.8.0
-- monad-branch-1.0.4
 ghc-options: {'$everything': -threaded}
 local-bin-path:
   ./executables
 packages:
 - location: ./luna-manager
+- extra-dep: true
+  location: {commit: fb2c116d6dd17cf4564aad4c1985f685e5965af2, git: 'https://github.com/luna/luna.git'}
+  subdirs:
+    - lib/container
+    - lib/prologue
+    - lib/typelevel
+    - lib/convert
+    - lib/layered-state
+    - lib/functor-utils
+    - lib/impossible
+    - lib/lens-utils
+    - lib/monoid
+    - lib/monad-branch
+    - lib/th-builder
 resolver: lts-12.26

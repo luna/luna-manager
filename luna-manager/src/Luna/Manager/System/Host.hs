@@ -6,13 +6,13 @@ module Luna.Manager.System.Host where
 import Prologue
 import Luna.Manager.Component.Pretty
 import Control.Lens.Aeson
-import Type.Known
 
 import qualified Control.Monad.State.Layered as State
 import qualified Data.Aeson          as JSON
 import qualified Data.Aeson.Encoding as JSON
 import qualified Data.Text           as Text
 import qualified Control.Lens.Aeson  as LensJSON
+import qualified Type.Known          as Type
 
 import           Data.Aeson          (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
 
@@ -71,12 +71,12 @@ Running on unsupported system architecture.
 currentSysDesc :: SysDesc
 currentSysDesc = SysDesc currentHost currentArch
 
-instance KnownType 'Linux   where fromType = Linux
-instance KnownType 'Darwin  where fromType = Darwin
-instance KnownType 'Windows where fromType = Windows
+instance Type.Known 'Linux   where val = Linux
+instance Type.Known 'Darwin  where val = Darwin
+instance Type.Known 'Windows where val = Windows
 
-instance KnownType 'X32     where fromType = X32
-instance KnownType 'X64     where fromType = X64
+instance Type.Known 'X32     where val = X32
+instance Type.Known 'X64     where val = X64
 
 
 -- === Instances === --
