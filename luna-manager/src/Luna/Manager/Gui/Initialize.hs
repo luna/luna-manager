@@ -57,7 +57,7 @@ instance FromJSON Versions     where parseJSON = LensJSON.parseDropUnary
 resolveAppToInitialize :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m Apps
 resolveAppToInitialize repo name = do
     (devs, nightlies, releases) <- getGroupedVersionsList repo name
-    return $ Apps name $ Versions devs nightlies releases
+    pure $ Apps name $ Versions devs nightlies releases
 
 generateInitialJSON :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Bool -> m ()
 generateInitialJSON repo userInfoExists = do

@@ -60,7 +60,7 @@ downloadFromURL address info = do
                 request <- HTTP.parseUrlThrow (convert address)
                 resp    <- httpLbs request manager
                 liftIO $ ByteStringL.writeFile (encodeString dest) $ HTTP.responseBody resp
-            return dest
+            pure dest
     go `Exception.catchAny` \e -> throwM (DownloadException address e)
 
 newHTTPManager :: MonadIO m => m HTTP.Manager
@@ -96,4 +96,4 @@ downloadWithProgressBarTo address dstPath = Exception.handleAny (\e -> throwM (D
             else do
                 HTTP.responseBody res .| updateProgressBar pg    .| sinkFile (encodeString dstFile)
                 putStrLn "Download completed!"
-    return dstFile
+    pure dstFile

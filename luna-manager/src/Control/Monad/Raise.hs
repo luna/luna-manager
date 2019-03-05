@@ -48,7 +48,7 @@ type family MonadExceptions es m :: Constraint where
 -- === Utils === --
 
 handle :: Monad m => (e -> m a) -> ExceptT e m a -> m a
-handle f = join . fmap (either f return) . runExceptT
+handle f = join . fmap (either f pure) . runExceptT
 
 handleAll :: Monad m => (SomeException -> m a) -> ExceptT' m a -> m a
 handleAll = handle
@@ -91,11 +91,11 @@ instance                      Exception e            => MonadException e IO wher
 -- === Utils === --
 
 tryJust :: MonadException e m => e -> Maybe a -> m a
-tryJust e = maybe (raise e) return
+tryJust e = maybe (raise e) pure
 
 tryRight :: MonadException e m => (l -> e) -> Either l r -> m r
 tryRight f = \case
-    Right r -> return r
+    Right r -> pure r
     Left  l -> raise $ f l
 
 tryRight' :: forall l m r. (MonadException SomeException m, Exception l) => Either l r -> m r

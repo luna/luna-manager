@@ -51,8 +51,8 @@ createSymLink src dst = liftIO $  (System.createFileLink (encodeString src) (enc
             Just ioExc -> if isAlreadyExistsError ioExc then do
                     System.removeFile $ encodeString dst
                     createSymLink src dst
-                else return ()
-            Nothing -> return ()
+                else pure ()
+            Nothing -> pure ()
 
 createSymLinkDirectory ::  MonadIO m => FilePath -> FilePath -> m ()
 createSymLinkDirectory src dst = liftIO $ (System.createDirectoryLink (encodeString src) (encodeString dst)) `catch` handler src dst where
@@ -62,8 +62,8 @@ createSymLinkDirectory src dst = liftIO $ (System.createDirectoryLink (encodeStr
             Just ioExc -> if isAlreadyExistsError ioExc then do
                     System.removeDirectoryLink $ encodeString dst
                     createSymLinkDirectory src dst
-                else return ()
-            Nothing -> return ()
+                else pure ()
+            Nothing -> pure ()
 
 
 copyDir :: Shelly.MonadSh m => FilePath -> FilePath -> m ()-- copy the content of the source directory
@@ -81,4 +81,4 @@ instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig EnvConfig sys arch m 
     defaultHostConfig = liftIO $ do
         sysTmp  <- System.getTemporaryDirectory
         lunaTmp <- createTempDirectory sysTmp "luna"
-        return $ EnvConfig $ decodeString lunaTmp
+        pure $ EnvConfig $ decodeString lunaTmp

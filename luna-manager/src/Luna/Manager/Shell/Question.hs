@@ -81,8 +81,8 @@ askRaw q = do
             mapM (putStrLn . convert) (q ^. help)
         goQuestion   = do
             resp <- askLine
-            if resp /= "" then return resp
-                else maybe goQuestion return (q ^. defArg)
+            if resp /= "" then pure resp
+                else maybe goQuestion pure (q ^. defArg)
         askLine      = do
             putStr $ convert questionLine
             liftIO $ hFlush stdout
@@ -93,4 +93,4 @@ askRaw q = do
 validate :: MonadIO m => ArgReader a -> m a -> Text -> m a
 validate reader f resp = case reader resp of
     Left  e -> putStrLn ("Error: " <> convert e) >> f
-    Right a -> return a
+    Right a -> pure a

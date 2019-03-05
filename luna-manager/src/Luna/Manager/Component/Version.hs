@@ -68,7 +68,7 @@ instance Exception VersionException where
 readVersion :: (MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> m Version
 readVersion v = case readPretty v of
     Left e  -> throwM $ VersionException v
-    Right v -> return v
+    Right v -> pure v
 
 -- === Instances === --
 
@@ -91,9 +91,9 @@ instance Pretty Version where
 -- JSON
 instance ToJSON      Version     where toEncoding  = JSON.toEncoding . showPretty; toJSON = JSON.toJSON . showPretty
 instance ToJSON      VersionInfo where toEncoding  = JSON.toEncoding . showPretty; toJSON = JSON.toJSON . showPretty
-instance FromJSON    Version     where parseJSON   = either (fail . convert) return . readPretty <=< parseJSON
-instance FromJSON    VersionInfo where parseJSON   = either (fail . convert) return . readPretty <=< parseJSON
-instance FromJSONKey Version     where fromJSONKey = JSON.FromJSONKeyTextParser $ either (fail . convert) return . readPretty
+instance FromJSON    Version     where parseJSON   = either (fail . convert) pure . readPretty <=< parseJSON
+instance FromJSON    VersionInfo where parseJSON   = either (fail . convert) pure . readPretty <=< parseJSON
+instance FromJSONKey Version     where fromJSONKey = JSON.FromJSONKeyTextParser $ either (fail . convert) pure . readPretty
 instance ToJSONKey   Version     where
     toJSONKey = JSON.ToJSONKeyText f g
         where f = showPretty

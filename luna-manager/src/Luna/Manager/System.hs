@@ -48,7 +48,7 @@ filterEnters bytestr = res where
 callShell :: MonadIO m => Text -> m ByteString
 callShell cmd = do
     (exitCode, out, err) <- liftIO $ Process.readProcess (Process.shell $ convert cmd)
-    return $ filterEnters out
+    pure $ filterEnters out
 
 checkIfNotEmpty :: MonadIO m => Text -> m Bool
 checkIfNotEmpty cmd = not . null <$> callShell cmd
@@ -56,25 +56,25 @@ checkIfNotEmpty cmd = not . null <$> callShell cmd
 checkBash :: MonadIO m => m  (Maybe Shell)
 checkBash = do
     sys <- checkIfNotEmpty "$SHELL -c 'echo $BASH_VERSION'"
-    return $ if sys then Just Bash else Nothing
+    pure $ if sys then Just Bash else Nothing
 
 checkZsh :: MonadIO m => m  (Maybe Shell)
 checkZsh = do
     sys <- checkIfNotEmpty "$SHELL -c 'echo $ZSH_VERSION'"
-    return $ if sys then Just Zsh else Nothing
+    pure $ if sys then Just Zsh else Nothing
 
 checkShell :: MonadIO m => m Shell
 checkShell = do
     bash <- checkBash
     zsh  <- checkZsh
-    return $ fromMaybe Unknown $ bash <|> zsh
+    pure $ fromMaybe Unknown $ bash <|> zsh
 
 runControlCheck :: MonadIO m => FilePath -> m (Maybe FilePath)
 runControlCheck file = do
     home <- getHomePath
     let location = home </> file
     pathCheck <- liftIO $ doesPathExist $ encodeString location
-    return $ if pathCheck then Just location else Nothing
+    pure $ if pathCheck then Just location else Nothing
 
 data BashConfigNotFoundError = BashConfigNotFoundError deriving (Show)
 instance Exception BashConfigNotFoundError where
@@ -98,7 +98,7 @@ getShExportFile = do
              Zsh  -> [".zshrc",  ".zprofile",     ".profile"]
              _    -> [".profile"]
     checkedFiles <- mapM runControlCheck files
-    return $ listToMaybe $ catMaybes checkedFiles
+    pure $ listToMaybe $ catMaybes checkedFiles
 
 askToExportPath :: (MonadIO m, LoggerMonad m, MonadCatch m) => FilePath -> m()
 askToExportPath pathToExport = do
@@ -115,10 +115,10 @@ exportPath pathToExport = case currentHost of
 exportPathUnix :: (MonadIO m, LoggerMonad m, MonadCatch m) => FilePath -> m ()
 exportPathUnix pathToExport = do
     pathIsDirectory    <- liftIO $ doesDirectoryExist $ encodeString pathToExport
-    properPathToExport <- if pathIsDirectory then return pathToExport else do
+    properPathToExport <- if pathIsDirectory then pure pathToExport else do
         let parentDir = parent pathToExport
         Logger.warning $ convert $ encodeString pathToExport <> " is not a directory, exporting " <> encodeString parentDir <> " instead"
-        return parentDir
+        pure parentDir
     file               <- getShExportFile
     let pathToExportText = Shelly.toTextIgnore properPathToExport
         exportToAppend   = Text.concat ["\nexport PATH=", pathToExportText, ":$PATH\n"]

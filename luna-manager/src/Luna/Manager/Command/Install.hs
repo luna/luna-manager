@@ -87,7 +87,7 @@ makeLenses ''InstallConfig
 
 
 instance Monad m => MonadHostConfig InstallConfig 'Linux arch m where
-    defaultHostConfig = return $ InstallConfig
+    defaultHostConfig = pure $ InstallConfig
         { _defaultConfPath         = "~/.luna"
         , _defaultBinPathBatchApp  = "~/.luna/bin"
         , _defaultBinPathGuiApp    = "~/.luna/bin"
@@ -185,7 +185,7 @@ instance Exception ResolvePackagePathException where
 downloadIfUri :: MonadInstall m => URIPath -> m FilePath
 downloadIfUri path = do
     doesFileExist <- Shelly.test_f $ fromText path
-    if doesFileExist then return $ fromText path
+    if doesFileExist then pure $ fromText path
         else if URI.isURI $ convert path
             then downloadWithProgressBar path
             else throwM $ ResolvePackagePathException path
@@ -243,19 +243,19 @@ postInstallation :: MonadInstall m => AppType -> FilePath -> Text -> Text -> Tex
 postInstallation appType installPath binPath appName version = do
     linkingCurrent appType installPath
     installConfig <- State.get @InstallConfig
-    packageBin    <- return $ installPath </> case currentHost of
+    packageBin    <- pure $ installPath </> case currentHost of
         Linux   -> convert appName
         Darwin  -> (installConfig ^. mainBinPath) </> convert appName
         Windows -> (installConfig ^. mainBinPath) </> convert (appName <> ".exe")
     currentBin    <- case currentHost of
-        Linux   -> return $ parent installPath </> (installConfig ^. selectedVersionPath)  </> convert (mkSystemPkgName appName)
+        Linux   -> pure $ parent installPath </> (installConfig ^. selectedVersionPath)  </> convert (mkSystemPkgName appName)
         Darwin  -> case appType of
             --TODO[1.1] lets think about making it in config
             GuiApp   -> expand $ convert binPath </> convert ((mkSystemPkgName appName) <> ".app") </> "Contents" </> "MacOS" </> convert (mkSystemPkgName appName)
-            BatchApp -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> (installConfig ^. mainBinPath) </> convert appName
+            BatchApp -> pure $ parent installPath </> (installConfig ^. selectedVersionPath) </> (installConfig ^. mainBinPath) </> convert appName
         Windows -> case appType of
-            BatchApp -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> convert (appName <> ".exe")
-            GuiApp   -> return $ parent installPath </> (installConfig ^. selectedVersionPath) </> (installConfig ^. mainBinPath) </> convert (appName <> ".exe")
+            BatchApp -> pure $ parent installPath </> (installConfig ^. selectedVersionPath) </> convert (appName <> ".exe")
+            GuiApp   -> pure $ parent installPath </> (installConfig ^. selectedVersionPath) </> (installConfig ^. mainBinPath) </> convert (appName <> ".exe")
     makeExecutable packageBin
     when (currentHost == Darwin && appType == GuiApp) $ linking packageBin currentBin
     linkingLocalBin currentBin appName
@@ -401,7 +401,7 @@ askLocation opts appType appName = do
     binPath <- askOrUse (opts ^. Opts.selectedInstallationPath)
         $ question ("Select installation path for " <> appName) plainTextReader
         & defArg .~ Just (toTextIgnore pkgInstallDefPath)
-    return binPath
+    pure binPath
 
 installApp :: MonadInstall m => InstallOpts -> ResolvedPackage -> m ()
 installApp opts package = do
@@ -409,7 +409,7 @@ installApp opts package = do
     guiInstaller  <- Opts.guiInstallerOpt
     let pkgName    = package ^. header . name
         appType    = package ^. resolvedAppType
-    binPath     <- if guiInstaller then return $ toTextIgnore $
+    binPath     <- if guiInstaller then pure $ toTextIgnore $
         case appType of
                 GuiApp   -> installConfig ^. defaultBinPathGuiApp
                 BatchApp -> installConfig ^. defaultBinPathBatchApp
@@ -506,7 +506,7 @@ run opts = do
         else do
             Shelly.unlessM (userInfoExists userInfoPath) $ do
                 email <- case (opts ^. Opts.selectedUserEmail) of
-                    Just e  -> return e
+                    Just e  -> pure e
                     Nothing -> askUserEmail
                 Analytics.tryMpRegisterUser userInfoPath email
 

@@ -24,7 +24,7 @@ cmdEither :: CmdContext m => Shelly.FilePath -> [Text] -> m (Either CmdError Tex
 cmdEither name args = do
     out <- Shelly.run name args
     err <- Shelly.lastStderr
-    return $ if err /= "" then Left $ CmdError err
+    pure $ if err /= "" then Left $ CmdError err
                           else Right out
 
 cmd :: CmdContext m => Shelly.FilePath -> [Text] -> m Text

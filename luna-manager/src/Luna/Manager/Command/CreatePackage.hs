@@ -99,13 +99,13 @@ checkAppImageName appName version filePath = do
         fullAppImagePath = outFolderPath </> convert (finalPackageName appName version <> ".AppImage")
     when (Text.isInfixOf appName (Shelly.toTextIgnore fileName)) $ do
         Shelly.mv filePath fullAppImagePath
-    return fullAppImagePath
+    pure fullAppImagePath
 
 changeAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m FilePath
 changeAppImageName appName version outFolderPath = do
     listedDir <- Shelly.ls outFolderPath
     appimagesList <- mapM (checkAppImageName appName version) listedDir
-    return $ Safe.headDef (outFolderPath </> convert (appName <> ".AppImage")) appimagesList
+    pure $ Safe.headDef (outFolderPath </> convert (appName <> ".AppImage")) appimagesList
 
 getApprun :: MonadCreatePackage m => FilePath -> FilePath -> m ()
 getApprun tmpAppDirPath functions = do
@@ -187,7 +187,7 @@ copyFromDistToDistPkg appName repoPath = do
     Logger.log "Copying from dist to dist-package"
     pkgConfig         <- State.get @PackageConfig
     packageRepoFolder <- case currentHost of
-        Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
+        Windows -> pure $ (pkgConfig ^. defaultPackagePath) </> convert appName
         _       -> expand $ repoPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
     let expandedCopmponents = repoPath </> (pkgConfig ^. componentsToCopy)
     Shelly.rm_rf packageRepoFolder
@@ -247,14 +247,14 @@ downloadExternalPkgs cfgFolderPath resolvedApp opts = do
             Just "gz" -> do
                 liftIO . putStrLn $ "Copying from: " <> show folder <> " into " <> show tgtPath
                 Shelly.cp_r folder tgtPath
-                return [tgtPath </> folder]
+                pure [tgtPath </> folder]
             _ -> do
                 dirContents <- Shelly.ls folder
                 forM dirContents $ \f -> do
                     Shelly.cp_r f tgtPath
-                    return $ tgtPath </> filename f
+                    pure $ tgtPath </> filename f
 
-    return $ concat pkgs
+    pure $ concat pkgs
 
 ------------------------------
 -- === linkingLibsMacOS === --
@@ -336,7 +336,7 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication dryRun = do
     runPkgBuildScript appPath s3GuiURL dryRun
     copyFromDistToDistPkg appName appPath
     mainAppDir <- case currentHost of
-        Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
+        Windows -> pure $ (pkgConfig ^. defaultPackagePath) </> convert appName
         _       -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
     let binsFolder = mainAppDir </> (pkgConfig ^. binFolder)
         privateBinsFolder = binsFolder </> (pkgConfig ^. binsPrivate)

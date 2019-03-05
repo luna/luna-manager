@@ -89,7 +89,7 @@ instance FromJSON System  where parseJSON  = LensJSON.parseDropUnary
 instance FromJSON SysArch where parseJSON  = LensJSON.parseDropUnary
 instance FromJSON SysDesc where parseJSON  = LensJSON.parseDropUnary
 instance FromJSONKey SysDesc where
-    fromJSONKey = JSON.FromJSONKeyTextParser $ either (fail . convert) return . readPretty
+    fromJSONKey = JSON.FromJSONKeyTextParser $ either (fail . convert) pure . readPretty
 instance ToJSONKey   SysDesc where
     toJSONKey = JSON.ToJSONKeyText f g
         where f = showPretty

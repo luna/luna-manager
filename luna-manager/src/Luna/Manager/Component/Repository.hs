@@ -88,7 +88,7 @@ lookupPackage :: Repo -> PackageHeader -> Maybe ResolvedPackage
 lookupPackage repo h = do
     des <- repo ^? packages . ix (h ^. name) . versions . ix (h ^. version) . ix currentSysDesc
     apptype <- repo ^? packages . ix (h ^. name) . appType
-    return $ ResolvedPackage h des apptype
+    pure $ ResolvedPackage h des apptype
 
 resolveSingleLevel :: Repo -> PackageDesc -> ([PackageHeader], [ResolvedPackage])
 resolveSingleLevel repo desc = partitionEithers $ zipWith combine directSubDeps directSubPkgs where
@@ -107,18 +107,18 @@ resolve repo pkg = (errs <> subErrs, oks <> subOks) where
 versionsMap :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> Text -> m VersionMap
 versionsMap repo appName = do
     appPkg <- Logger.tryJustWithLog "Repo.versionsMap" unresolvedDepError $ Map.lookup appName $ repo ^. packages
-    return $ appPkg ^. versions
+    pure $ appPkg ^. versions
 
 getFullVersionsList :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> Text -> m [Version]
 getFullVersionsList repo appName = do
     vmap <- versionsMap repo appName
-    return $ reverse . sort . Map.keys $ vmap
+    pure $ reverse . sort . Map.keys $ vmap
 
 getVersionsList :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m [Version]
 getVersionsList repo appName = do
     vmap <- versionsMap repo appName
     let filteredVmap = Map.filter (Map.member currentSysDesc) vmap
-    return $ reverse . sort . Map.keys $ filteredVmap
+    pure $ reverse . sort . Map.keys $ filteredVmap
 
 -- Gets versions grouped by type (dev, nightly, release)
 getGroupedVersionsList :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m ([Version], [Version], [Version])
@@ -129,7 +129,7 @@ getGroupedVersionsList repo appName = do
                                        else (ds, ns, v:rs)
         groupedVersions = foldl' appendVersion ([], [], []) versions
         reversed = groupedVersions & over _1 reverse . over _2 reverse . over _3 reverse
-    return reversed
+    pure reversed
 
 resolvePackageApp :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m ResolvedApplication
 resolvePackageApp repo appName = do
@@ -143,24 +143,24 @@ resolvePackageApp repo appName = do
     Logger.logObject "[resolvePackageApp] desc" desc
     appDesc <- Logger.tryJustWithLog "Repo.resolvePackageApp" (toException $ MissingPackageDescriptionError version) $ Map.lookup currentSysDesc desc
     Logger.logObject "[resolvePackageApp] appDesc" appDesc
-    return $ ResolvedApplication (ResolvedPackage (PackageHeader appName version) appDesc applicationType) (snd $ resolve repo appDesc)
+    pure $ ResolvedApplication (ResolvedPackage (PackageHeader appName version) appDesc applicationType) (snd $ resolve repo appDesc)
 
 getSynopis :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> Text -> m Text
 getSynopis repo appName = do
     appPkg <- Logger.tryJustWithLog "Repo.getSynopsis" undefinedPackageError $ Map.lookup appName (repo ^. packages)
-    return $ appPkg ^. synopsis
+    pure $ appPkg ^. synopsis
 
 generatePackage :: (Logger.LoggerMonad m, MonadIO m, MonadException SomeException m) => Repo -> Maybe FilePath -> ResolvedPackage -> m (Text, Package)
 generatePackage repo repoPath resPkg = do
     let pkgName = resPkg ^. header . name
     pkgSynopsis <- getSynopis repo pkgName
     pkgDesc <- case repoPath of
-        Just p  -> return $ (resPkg & desc . path .~ (toTextIgnore p)) ^. desc
-        Nothing -> return $ resPkg ^. desc
+        Just p  -> pure $ (resPkg & desc . path .~ (toTextIgnore p)) ^. desc
+        Nothing -> pure $ resPkg ^. desc
 
     let sysDescMap = Map.singleton currentSysDesc pkgDesc
         versionMap = Map.singleton (resPkg ^. header . version) sysDescMap
-    return $ (pkgName, Package pkgSynopsis (resPkg ^. resolvedAppType) versionMap)
+    pure $ (pkgName, Package pkgSynopsis (resPkg ^. resolvedAppType) versionMap)
 
 
 addPackageToMap :: Map Text Package -> (Text, Package) -> Map Text Package
@@ -201,7 +201,7 @@ instance FromJSON AppType        where parseJSON  = LensJSON.parseDropUnary
 instance FromJSON Repo           where parseJSON  = LensJSON.parseDropUnary
 instance FromJSON Package        where parseJSON  = LensJSON.parseDropUnary
 instance FromJSON PackageDesc    where parseJSON  = LensJSON.parseDropUnary
-instance FromJSON PackageHeader  where parseJSON  = either (fail . convert) return . readPretty <=< parseJSON
+instance FromJSON PackageHeader  where parseJSON  = either (fail . convert) pure . readPretty <=< parseJSON
 
 -- Show
 instance Pretty PackageHeader where
@@ -258,6 +258,6 @@ updateConfig config resolvedApplication =
 -- === Instances === --
 
 instance {-# OVERLAPPABLE #-} MonadIO m => MonadHostConfig RepoConfig sys arch m where
-    defaultHostConfig = return $ RepoConfig { _repoPath   = "http://packages.luna-lang.org/config.yaml"
+    defaultHostConfig = pure $ RepoConfig { _repoPath   = "http://packages.luna-lang.org/config.yaml"
                                             , _cachedRepo = Nothing
                                             }

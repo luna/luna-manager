@@ -48,7 +48,7 @@ uninstallServices opts = case currentHost of
                 stopServicesWindows currentServices `Exception.catchAny` (\(e::SomeException) ->
                     Logger.warning $ "Uninstalling services failed "
                         <> "because of " <> convert (displayException e) <> ". Continuing...")
-    _ -> return ()
+    _ -> pure ()
 
 guiDirectory :: FilePath -> FilePath
 guiDirectory binPathGui = case currentHost of
@@ -67,7 +67,7 @@ uninstallApp opts = do
 
 uninstallRunner :: MonadUninstall m => Install.InstallConfig -> m ()
 uninstallRunner opts = case currentHost of
-    Windows -> return ()
+    Windows -> pure ()
     _       -> do
         let localBinPath = (opts ^. Install.localBinPath) </> Shelly.fromText "luna-studio"
         expandedPath     <- expand localBinPath
@@ -133,7 +133,7 @@ uninstallStartMenuEntry = case currentHost of
             Shelly.rm_rf desktop `Exception.catchAny` (\(e::SomeException) ->
                 Logger.warning $ "Removing Luna Studio shortcut in " <> Shelly.toTextIgnore desktop <> " failed "
                 <> "because of " <> convert (displayException e) <> ". Continuing...")
-    _       -> return ()
+    _       -> pure ()
 
 run :: MonadUninstall m => m ()
 run = do

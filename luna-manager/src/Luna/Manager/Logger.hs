@@ -34,7 +34,7 @@ logFilePath :: LoggerMonad m => m FilePath
 logFilePath = do
     tmpDir <- decodeString <$> (liftIO $ getAppUserDataDirectory "luna_manager")
     Sh.mkdir_p tmpDir
-    return $ tmpDir </> "luna-manager.log"
+    pure $ tmpDir </> "luna-manager.log"
 
 logToStdout :: Text -> IO ()
 logToStdout msg = do
@@ -94,5 +94,5 @@ logObject :: (LoggerMonad m, Show a) => Text -> a -> m ()
 logObject name obj = log $ name <> ": " <> (pack $ show obj)
 
 tryJustWithLog :: (LoggerMonad m, Show e, MonadException e m) => Text -> e -> Maybe a -> m a
-tryJustWithLog funName e (Just x) = return x
+tryJustWithLog funName e (Just x) = pure x
 tryJustWithLog funName e Nothing  = exception funName e >> raise e

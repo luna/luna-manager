@@ -114,7 +114,7 @@ newUuid :: MonadIO m => m UUID
 newUuid = liftIO $ do
     v1 <- UUID.nextUUID
     case v1 of
-        Just uuid -> return uuid
+        Just uuid -> pure uuid
         Nothing   -> UUID.nextRandom
 
 -- Transforms sth like 'VARNAME="some_text"' into 'some_text'.
@@ -128,7 +128,7 @@ lookupSysVar varName = do
     Logger.log "Analytics.lookupSysVar"
     let awkClause = "'/^" <> varName <> "=/'"
     line <- Shelly.escaping False $ Shelly.cmd "awk" awkClause "/etc/*-release"
-    return $ stripVarName (varName <> "=") line
+    pure $ stripVarName (varName <> "=") line
 
 extractWindowsVersion :: Text -> Maybe Text
 extractWindowsVersion systemInfo = Text.strip <$> version
@@ -146,23 +146,23 @@ osVersion = do
 
 osDistro :: LoggerMonad m => m Text
 osDistro = Shelly.silently $ case currentHost of
-        Windows -> return "N/A"
+        Windows -> pure "N/A"
         Linux   -> lookupSysVar "NAME"
-        Darwin  -> return "N/A"
+        Darwin  -> pure "N/A"
 
 -- Gets basic info about the operating system the installer is running on.
 userInfo :: (LoggerMonad m, MonadCatch m) =>
              Text -> m MPUserData
 userInfo email = do
     Logger.log "Analytics.userInfo"
-    let safeGet item = catchAnyDeep item (const $ return "unknown")
+    let safeGet item = catchAnyDeep item (const $ pure "unknown")
     uuid <- newUuid
     Logger.logObject "uuid" uuid
     ver  <- safeGet osVersion
     Logger.logObject "ver" ver
     dist <- safeGet osDistro
     Logger.logObject "dist" dist
-    return $ MPUserData { _userInfoUUID   = uuid
+    pure $ MPUserData { _userInfoUUID   = uuid
                         , _userInfoEmail  = email
                         , _userInfoOsType = currentHost
                         , _userInfoOsDist = dist
@@ -178,7 +178,7 @@ strictWrite filePath s = do
     SIO.withFile path SIO.WriteMode $ \h -> do
         BS.hPut h serialized
         SIO.hFlush h
-    return ()
+    pure ()
 
 -- Checks whether we already have the right user info saved in ~/.luna/user_info.json
 userInfoExists :: (LoggerMonad m, MonadSh m, MonadIO m) => FilePath -> m Bool
@@ -186,14 +186,14 @@ userInfoExists userInfoPath = do
     Logger.log "Analytics.userInfoExists"
     path <- expand userInfoPath
     fileExists <- Shelly.test_f path
-    if not fileExists then return False
+    if not fileExists then pure False
     else do
         Logger.log "Reading from user_info"
         bytes <- liftIO $ BSL.readFile $ FilePath.encodeString path
         Logger.log "Decoding JSON from user_info"
         let userInfoM = JSON.decode bytes :: Maybe MPUserData
             userInfo  = fromMaybe def userInfoM
-        return . not . UUID.null $ userInfo ^. userInfoUUID
+        pure . not . UUID.null $ userInfo ^. userInfoUUID
 
 -- Saves the email, along with some OS info, to a file user_info.json.
 processUserEmail :: (LoggerMonad m, MonadSh m, MonadShControl m, MonadIO m, MonadCatch m) =>
@@ -202,7 +202,7 @@ processUserEmail userInfoPath email = do
     let handler = \(e::SomeException) -> do
             Logger.log $ convert $  "Caught exception: " <> displayException e
             Logger.log "Returning empty data"
-            return def
+            pure def
     handleAny handler $ do
         Logger.log "Analytics.processUserEmail"
         info  <- userInfo email
@@ -220,7 +220,7 @@ processUserEmail userInfoPath email = do
         Logger.log "Writing to the file"
         liftIO $ BSL.writeFile p i
         Logger.log "Returning the info"
-        return info
+        pure info
 
 
 -----------------------------------------------------------------
@@ -266,7 +266,7 @@ mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath)
     Logger.log "Sending MP request"
     sendMpRequest userUpdateEndpoint mpData
     Logger.log "Done sending the request"
-    return ()
+    pure ()
 
 tryMpRegisterUser :: (LoggerMonad m, MonadIO m, State.Setter MPUserData m, MonadThrow m,
                     MonadShControl m, MonadSh m, MonadCatch m) =>

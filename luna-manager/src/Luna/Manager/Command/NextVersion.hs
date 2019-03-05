@@ -60,7 +60,7 @@ getNewVersion prInfo = case prInfo ^. newVersion of
     Nothing -> Left $ VersionUpgradeException "Failed to construct the new version"
 
 wrapException :: MonadNextVersion m => Either Text Version -> m (Either VersionUpgradeException Version)
-wrapException = return . first VersionUpgradeException
+wrapException = pure . first VersionUpgradeException
 
 readMaybeVersion :: Text -> Maybe Version
 readMaybeVersion v = hush $ readPretty v
@@ -75,7 +75,7 @@ latestVersion appName appPath targetVersionType = do
         tagsList <- Text.splitOn "\n" <$> Shelly.cmd "git" "tag" "-l"
 
         let vList = sort . catMaybes $ readMaybeVersion <$> tagsList
-        return $ case filter filterFunc (reverse vList) of
+        pure $ case filter filterFunc (reverse vList) of
                 (v:_) -> v
                 _     -> def :: Version
 
@@ -86,7 +86,7 @@ nextVersion prInfo@(PromotionInfo _ targetVersionType latestVersion _ _) = do
             Nightly -> Version.promoteToNightly
             Release -> Version.promoteToRelease
     versionE <- wrapException $ next latestVersion
-    return $ second (\v -> prInfo & newVersion ?~ v) versionE
+    pure $ second (\v -> prInfo & newVersion ?~ v) versionE
 
 getAppName :: Repo.Repo -> Either VersionUpgradeException Text
 getAppName cfg = case cfg ^? apps . ix 0 of
@@ -122,7 +122,7 @@ createNextVersion cfgPath verType commitM = do
     newInfo <- nextVersion promotionInfo >>= tryRight'
     liftIO $ print newInfo
     tagVersion  appPath newInfo
-    return newInfo
+    pure newInfo
 
 run :: MonadNextVersion m => NextVersionOpts -> m ()
 run opts = do

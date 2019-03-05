@@ -49,7 +49,7 @@ progressBar (ProgressBar width todo done) = liftIO $ do
         remaining = effectiveWidth - completed
 
 updateProgress :: MonadIO m => Progress -> ConduitM ByteString ByteString m ()
-updateProgress (Progress completed total) = await >>= maybe (return ()) (\chunk -> do
+updateProgress (Progress completed total) = await >>= maybe (pure ()) (\chunk -> do
     let len = ByteString.length chunk
         pg = Progress (completed+len) total
     liftIO $ downloadProgress pg
@@ -57,7 +57,7 @@ updateProgress (Progress completed total) = await >>= maybe (return ()) (\chunk 
     updateProgress pg)
 
 updateProgressBar :: MonadIO m => ProgressBar -> ConduitM ByteString ByteString m ()
-updateProgressBar (ProgressBar w completed pgTotal) = await >>= maybe (return ()) (\chunk -> do
+updateProgressBar (ProgressBar w completed pgTotal) = await >>= maybe (pure ()) (\chunk -> do
     let len = ByteString.length chunk
         pg = ProgressBar w (completed+len) pgTotal
     liftIO $ progressBar pg

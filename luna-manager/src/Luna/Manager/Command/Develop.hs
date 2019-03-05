@@ -39,7 +39,7 @@ type MonadDevelop m = (State.Getter Options m, State.MonadStates '[EnvConfig, Re
 
 
 instance Monad m => MonadHostConfig DevelopConfig 'Linux arch m where
-    defaultHostConfig = return $ DevelopConfig
+    defaultHostConfig = pure $ DevelopConfig
         { _stackPath      = "https://github.com/commercialhaskell/stack/releases/download/v1.9.1/stack-1.9.1-linux-x86_64-static.tar.gz"
         , _devPath        = "luna-develop"
         , _appsPath       = "apps"
@@ -100,7 +100,7 @@ run opts = do
         downloadDeps appName $ convert path
     else do
         workingPath <- case opts ^. repositoryPath of
-            Just wp -> return wp
+            Just wp -> pure wp
             Nothing -> convert <$> liftIO System.getHomeDirectory
         putStrLn $ "workingPath: " <> show workingPath
         let basePath = convert workingPath </> (developCfg ^. devPath)

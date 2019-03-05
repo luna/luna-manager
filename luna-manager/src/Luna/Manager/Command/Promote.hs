@@ -49,7 +49,7 @@ type MonadPromote m =
     )
 
 
--- return the new name of the package, based on the full path to the old one
+-- pure the new name of the package, based on the full path to the old one
 -- note that this drops the extension!
 -- if called with ~/some/path/luna-studio
 newPackageName :: FilePath -> Version -> Text
