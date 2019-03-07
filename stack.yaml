@@ -6,12 +6,13 @@ local-bin-path:
 packages:
 - location: ./luna-manager
 - extra-dep: true
-  location: {commit: fb2c116d6dd17cf4564aad4c1985f685e5965af2, git: 'https://github.com/luna/luna.git'}
+  location: {commit: b1cf4c23b6dc41290c7d5165e9d834ffe010b60e, git: 'https://github.com/luna/luna.git'}
   subdirs:
     - lib/container
     - lib/prologue
     - lib/typelevel
     - lib/convert
+    - lib/exception
     - lib/layered-state
     - lib/functor-utils
     - lib/impossible

@@ -2,32 +2,33 @@
 {-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Archive where
 
-import Prologue hiding (FilePath, tryJust, (<.>))
+import Prologue hiding (FilePath, fromJust, (<.>))
 
 import qualified Control.Exception.Safe         as Exception
-import           Control.Monad.Raise
 import qualified Control.Monad.State.Layered    as State
 import qualified Data.ByteString.Lazy           as BSL
 import qualified Data.ByteString.Lazy.Char8     as BSLChar
-import           Data.Either                    (either)
-import           Data.IORef
 import qualified Data.Text                      as Text
 import qualified Data.Text.Encoding             as Text
 import qualified Data.Text.Read                 as Text
-import           Filesystem.Path.CurrentOS      (FilePath, basename, directory,
-                                                 encodeString, extension,
-                                                 filename, parent, (<.>), (</>))
 import qualified Filesystem.Path.CurrentOS      as FP
-import           Luna.Manager.Command.Options   (Options)
 import qualified Luna.Manager.Command.Options   as Opts
 import qualified Luna.Manager.Logger            as Logger
-import           Luna.Manager.Network
-import           Luna.Manager.Shell.ProgressBar
-import           Luna.Manager.Shell.Shelly      (MonadSh, runProcess)
 import qualified Luna.Manager.Shell.Shelly      as Shelly
-import           Luna.Manager.System.Host
-import           System.Exit
 import qualified System.Process.Typed           as Process
+
+import Control.Monad.Exception        (MonadException, throw, fromJust)
+import Data.Either                    (either)
+import Data.IORef
+import Filesystem.Path.CurrentOS      (FilePath, basename, directory,
+                                                 encodeString, extension,
+                                                 filename, parent, (<.>), (</>))
+import Luna.Manager.Command.Options   (Options)
+import Luna.Manager.Network
+import Luna.Manager.Shell.ProgressBar
+import Luna.Manager.Shell.Shelly      (MonadSh, runProcess)
+import Luna.Manager.System.Host
+import System.Exit
 default (Text.Text)
 
 type UnpackContext m = (State.Getter Options m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m, MonadException SomeException m, MonadThrow m, MonadCatch m)
@@ -57,7 +58,7 @@ unpack :: UnpackContext m
        => Double -> Text.Text -> FilePath -> Maybe FilePath -> m FilePath
 unpack totalProgress progressFieldName file mTargetName = do
     Logger.info $ "Unpacking archive: " <> plainTextPath file
-    ext          <- tryJust (extensionError file) $ extension file
+    ext          <- fromJust (extensionError file) $ extension file
     case currentHost of
         Windows -> case ext of
             "zip" -> unzipFileWindows file
@@ -106,7 +107,7 @@ directProgressLogger progressFieldName totalProgress actualProgress = do
         Right x -> do
             let progress = fst x * totalProgress
             print $ "{\"" <> (convert progressFieldName) <> "\":\"" <> (show progress) <> "\"}"
-        Left err -> raise' $ ProgressException err
+        Left err -> throw $ ProgressException err
 
 progressBarLogger :: Text.Text -> IO ()
 progressBarLogger pg = do
@@ -115,7 +116,7 @@ progressBarLogger pg = do
         Right x -> do
             let progress = ceiling $ fst x * (100 :: Double)
             progressBar $ ProgressBar 50 progress 100
-        Left err -> raise' $ ProgressException err
+        Left err -> throw $ ProgressException err
 
 unpackTarGzUnix :: UnpackContext m
                 => Double -> Text.Text -> FilePath -> Maybe FilePath -> m FilePath

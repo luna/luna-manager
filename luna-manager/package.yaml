@@ -28,6 +28,7 @@ dependencies:
   - io-streams
   - lens
   - lens-utils
+  - luna-exception
   - monad-control
   - mtl
   - network

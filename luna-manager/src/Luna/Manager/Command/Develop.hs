@@ -2,29 +2,25 @@
 {-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Command.Develop where
 
-import           Control.Monad.Raise
-import qualified Control.Monad.State.Layered  as State
-import           Data.Text                    (Text)
-import           Filesystem.Path.CurrentOS    (FilePath, parent, (</>))
-import qualified Luna.Manager.Archive         as Archive
-import           Luna.Manager.Command.Options
-import           Luna.Manager.Network
-import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
-import qualified Luna.Manager.Shell.Shelly    as Shelly
-import           Luna.Manager.System.Env
-import           Prologue                     hiding (FilePath, tryJust)
-import qualified System.Directory             as System
+import Prologue hiding (FilePath, fromJust)
 
+import qualified Control.Monad.State.Layered as State
+import qualified Luna.Manager.Archive        as Archive
+import qualified Luna.Manager.Shell.Shelly   as Shelly
+import qualified System.Directory            as System
+
+import Control.Monad.Exception              (MonadException, fromJust)
+import Data.Text                            (Text)
+import Filesystem.Path.CurrentOS            (FilePath, parent, (</>))
 import Luna.Manager.Command.CreatePackage
+import Luna.Manager.Command.Options
 import Luna.Manager.Component.PackageConfig
 import Luna.Manager.Component.Repository
+import Luna.Manager.Network
+import Luna.Manager.Shell.Shelly            (MonadSh, MonadShControl)
+import Luna.Manager.System.Env
 import Luna.Manager.System.Host
 import Luna.Manager.System.Path             (expand)
-
-import qualified Data.Text as T
-default (T.Text)
-
-
 
 data DevelopConfig = DevelopConfig { _stackPath      :: Text
                                    , _devPath        :: FilePath
@@ -96,7 +92,7 @@ run opts = do
     developCfg <- State.get @DevelopConfig
     let appName  = opts ^. target
     if (opts ^. downloadDependencies) then do
-        path <- tryJust (toException PathException) (opts ^. repositoryPath)
+        path <- fromJust (toException PathException) (opts ^. repositoryPath)
         downloadDeps appName $ convert path
     else do
         workingPath <- case opts ^. repositoryPath of

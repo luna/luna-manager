@@ -2,29 +2,30 @@ module Luna.Manager.Component.Repository where
 
 import Prologue hiding (FilePath)
 
-import           Luna.Manager.Command.Options
-import           Luna.Manager.Component.Pretty
-import           Luna.Manager.Component.Version
-import qualified Luna.Manager.Logger            as Logger
-import           Luna.Manager.Network
-import           Luna.Manager.Shell.Shelly      (toTextIgnore)
-import           Luna.Manager.System.Env
-import           Luna.Manager.System.Host
-import           Luna.Manager.System.Path
-
-import           Control.Lens.Aeson
+import qualified Luna.Manager.Logger         as Logger
 import qualified Control.Lens.Aeson          as LensJSON
-import           Control.Monad.Raise
 import qualified Control.Monad.State.Layered as State
-import           Data.Aeson                  (FromJSON, ToJSON, parseJSON)
+
 import qualified Data.Aeson                  as JSON
 import qualified Data.ByteString             as BS
-import           Data.List                   (sort)
-import           Data.Map                    (Map)
 import qualified Data.Map                    as Map
 import qualified Data.Text                   as Text
 import qualified Data.Yaml                   as Yaml
-import           Filesystem.Path.CurrentOS   (FilePath, encodeString)
+
+import Control.Monad.Exception     (MonadException, fromRight')
+import Data.Aeson                  (FromJSON, ToJSON, parseJSON)
+import Data.List                   (sort)
+import Data.Map                    (Map)
+import Filesystem.Path.CurrentOS   (FilePath, encodeString)
+import Luna.Manager.Command.Options
+import Luna.Manager.Component.Pretty
+import Luna.Manager.Component.Version
+import Luna.Manager.Network
+import Luna.Manager.Shell.Shelly      (toTextIgnore)
+import Luna.Manager.System.Env
+import Luna.Manager.System.Host
+import Luna.Manager.System.Path
+
 
 ------------------------
 -- === Errors === --
@@ -228,7 +229,7 @@ makeLenses ''RepoConfig
 type MonadRepo m = (State.Getter Options m, State.Monad RepoConfig m, State.Monad EnvConfig m, MonadNetwork m)
 
 parseConfig :: (MonadIO m, MonadException SomeException m) => FilePath -> m Repo
-parseConfig cfgPath =  tryRight' =<< liftIO (Yaml.decodeFileEither $ encodeString cfgPath)
+parseConfig cfgPath =  fromRight' =<< liftIO (Yaml.decodeFileEither $ encodeString cfgPath)
 
 downloadRepo :: MonadNetwork m => URIPath -> m FilePath
 downloadRepo address = downloadFromURL address "Downloading repository configuration file"

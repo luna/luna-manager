@@ -1,19 +1,17 @@
 module Luna.Manager.Component.Version where
 
-import Luna.Manager.Component.Pretty
 import Prologue
 
 import qualified Data.Aeson          as JSON
 import qualified Data.Aeson.Encoding as JSON
 import qualified Data.Text           as Text
 
-import Control.Error.Util (hush)
-import Control.Lens       (preview)
-import Data.Aeson         (FromJSON, FromJSONKey, ToJSON, ToJSONKey, parseJSON)
-import Data.Maybe         (isNothing)
-
-import Control.Monad.Raise
-
+import Control.Error.Util            (hush)
+import Control.Lens                  (preview)
+import Control.Monad.Exception       (MonadException)
+import Data.Aeson                    (FromJSON, FromJSONKey, ToJSON, ToJSONKey, parseJSON)
+import Data.Maybe                    (isNothing)
+import Luna.Manager.Component.Pretty (Pretty, readPretty, showPretty)
 
 ------------------------
 -- === Versioning === --

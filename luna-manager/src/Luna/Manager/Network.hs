@@ -1,6 +1,6 @@
 module Luna.Manager.Network where
 
-import Prologue hiding (FilePath, fromText, tryJust)
+import Prologue hiding (FilePath, fromText, fromJust)
 
 import qualified Control.Exception.Safe      as Exception
 import qualified Control.Monad.State.Layered as State
@@ -10,7 +10,7 @@ import qualified Luna.Manager.Logger         as Logger
 import qualified Network.HTTP.Conduit        as HTTP
 import qualified Network.URI                 as URI
 
-import Control.Monad.Raise
+import Control.Monad.Exception           (MonadException, fromJust)
 import Control.Monad.Trans.Resource      (runResourceT)
 import Data.Conduit                      (runConduit, (.|))
 import Data.Conduit.Binary               (sinkFile)
@@ -78,13 +78,13 @@ downloadWithProgressBarTo address dstPath = Exception.handleAny (\e -> throwM (D
     req          <- HTTP.parseRequest (convert address)
     manager      <- newHTTPManager
     
-    name <- tryJust (downloadError address) (takeFileNameFromURL address)
+    name <- fromJust (downloadError address) (takeFileNameFromURL address)
     let dstFile = dstPath </> (fromText name)
     liftIO $ runResourceT $ do
         -- Start the request
         res <- HTTP.http req manager
         -- Get the Content-Length and initialize the progress bar
-        cl <- tryJust (downloadError address) $ lookup hContentLength (HTTP.responseHeaders res)
+        cl <- fromJust (downloadError address) $ lookup hContentLength (HTTP.responseHeaders res)
         let pgTotal  = unsafeRead (ByteStringChar.unpack cl) -- FIXME
             pg       = ProgressBar 50 0 pgTotal
             progress = Progress 0 pgTotal

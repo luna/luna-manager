@@ -4,29 +4,28 @@ module Luna.Manager.Command.NextVersion where
 
 import Prologue hiding (FilePath)
 
-import           Control.Exception.Base      (Exception)
-import           Control.Monad.Raise         (tryRight')
-import qualified Control.Monad.State.Layered as State
-import           Data.Bifunctor              (first, second)
-import           Data.List                   (sort)
-import           Data.Maybe                  (maybeToList)
-import qualified Data.Text                   as Text
-import qualified Data.Text.IO                as Text
-import           Filesystem.Path.CurrentOS   (FilePath, parent)
-
-import           Luna.Manager.Command.Options      (NextVersionOpts, Options)
+import qualified Control.Monad.State.Layered       as State
+import qualified Data.Text                         as Text
+import qualified Data.Text.IO                      as Text
 import qualified Luna.Manager.Command.Options      as Opts
-import           Luna.Manager.Component.Pretty     (showPretty)
-import           Luna.Manager.Component.Repository as Repo
-import           Luna.Manager.Component.Version    (Version)
+import qualified Luna.Manager.Component.Repository as Repo
 import qualified Luna.Manager.Component.Version    as Version
-import           Luna.Manager.Network
 import qualified Luna.Manager.Shell.Shelly         as Shelly
-import           Luna.Manager.System.Env
 
-import Control.Lens                  ((?~))
-import Control.Monad.Raise
-import Luna.Manager.Component.Pretty
+import Control.Exception.Base            (Exception)
+import Control.Lens                      ((?~))
+import Control.Monad.Exception           (MonadException, fromRight')
+import Data.Bifunctor                    (first, second)
+import Data.List                         (sort)
+import Data.Maybe                        (maybeToList)
+import Filesystem.Path.CurrentOS         (FilePath, parent)
+import Luna.Manager.Command.Options      (NextVersionOpts, Options)
+import Luna.Manager.Component.Pretty     (readPretty, showPretty)
+import Luna.Manager.Component.Repository (RepoConfig)
+import Luna.Manager.Component.Version    (Version)
+import Luna.Manager.Network
+import Luna.Manager.System.Env
+
 
 default (Text.Text)
 
@@ -89,13 +88,13 @@ nextVersion prInfo@(PromotionInfo _ targetVersionType latestVersion _ _) = do
     pure $ second (\v -> prInfo & newVersion ?~ v) versionE
 
 getAppName :: Repo.Repo -> Either VersionUpgradeException Text
-getAppName cfg = case cfg ^? apps . ix 0 of
+getAppName cfg = case cfg ^? Repo.apps . ix 0 of
     Just app -> Right app
     Nothing  -> Left $ VersionUpgradeException "Unable to determine the app to upgrade."
 
 tagVersion :: MonadNextVersion m => FilePath -> PromotionInfo -> m ()
 tagVersion appPath prInfo = do
-    version <- tryRight' $ getNewVersion prInfo
+    version <- fromRight' $ getNewVersion prInfo
     let versionTxt  = showPretty version
         tagExists t = not . Text.null <$> Shelly.run "git" ["tag", "-l", t]
         tagSource   = if prInfo ^. versionType == Dev
@@ -109,7 +108,7 @@ createNextVersion :: MonadNextVersion m => FilePath -> TargetVersionType -> Mayb
 createNextVersion cfgPath verType commitM = do
     let appPath = parent cfgPath
     config    <- Repo.parseConfig cfgPath
-    name      <- tryRight' $ getAppName config
+    name      <- fromRight' $ getAppName config
     latestVer <- latestVersion name appPath verType
     liftIO $ Text.putStrLn $ "The latest version is: " <> (showPretty latestVer)
     let promotionInfo = PromotionInfo { _appName     = name
@@ -119,7 +118,7 @@ createNextVersion cfgPath verType commitM = do
                                       , _commit      = commitM
                                       }
 
-    newInfo <- nextVersion promotionInfo >>= tryRight'
+    newInfo <- nextVersion promotionInfo >>= fromRight'
     liftIO $ print newInfo
     tagVersion  appPath newInfo
     pure newInfo

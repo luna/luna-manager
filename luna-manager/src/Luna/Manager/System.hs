@@ -5,18 +5,6 @@ module Luna.Manager.System where
 import Prologue hiding (FilePath, appendFile, filter, fromText, null, readFile,
                  toText, (<.>))
 
-import Control.Monad.Raise
-import Data.ByteString.Lazy       (ByteString, null)
-import Data.ByteString.Lazy.Char8 (filter, unpack)
-import Data.List                  (isInfixOf)
-import Data.Maybe                 (catMaybes, listToMaybe)
-import Data.Text.IO               (appendFile, readFile)
-import Filesystem.Path.CurrentOS  (FilePath, encodeString, parent, (</>))
-import Luna.Manager.Logger        (LoggerMonad)
-import Luna.Manager.Shell.Shelly  (MonadSh, MonadShControl)
-import System.Directory           (doesDirectoryExist, doesPathExist,
-                                   executable, getPermissions, setPermissions)
-
 import qualified Control.Exception.Safe    as Exception
 import qualified Crypto.Hash               as Crypto
 import qualified Crypto.Hash.Conduit       as Crypto
@@ -27,9 +15,21 @@ import qualified Luna.Manager.Shell.Shelly as Shelly
 import qualified System.FilePath           as Path
 import qualified System.Process.Typed      as Process
 
+import Control.Monad.Exception    (MonadException)
+import Data.ByteString.Lazy       (ByteString, null)
+import Data.ByteString.Lazy.Char8 (filter, unpack)
+import Data.List                  (isInfixOf)
+import Data.Maybe                 (catMaybes, listToMaybe)
+import Data.Text.IO               (appendFile, readFile)
+import Filesystem.Path.CurrentOS  (FilePath, encodeString, parent, (</>))
+import Luna.Manager.Logger        (LoggerMonad)
+import Luna.Manager.Shell.Shelly  (MonadSh, MonadShControl)
+import System.Directory           (doesDirectoryExist, doesPathExist,
+                                   executable, getPermissions, setPermissions)
+import System.Exit                (ExitCode(ExitSuccess))
+
 import Luna.Manager.System.Env
 import Luna.Manager.System.Host
-import System.Exit
 
 
 ---------------------------

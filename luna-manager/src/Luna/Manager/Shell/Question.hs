@@ -1,10 +1,11 @@
 module Luna.Manager.Shell.Question where
 
 import Prologue hiding (txt)
-import Control.Monad.Raise
-import Luna.Manager.Component.Pretty
-import System.IO (hFlush, stdout)
 
+import Control.Monad.Exception (MonadException, throw)
+import System.IO               (hFlush, stdout)
+
+import Luna.Manager.Component.Pretty
 
 
 -------------------
@@ -67,7 +68,7 @@ plainTextReader = Right
 askOrUse :: (MonadIO m, MonadException SomeException m) => Maybe Text -> Question a -> m a
 askOrUse mdef q = case mdef of
     Nothing -> ask q
-    Just s  -> validate (q ^. reader) (raise invalidArgError) s
+    Just s  -> validate (q ^. reader) (throw invalidArgError) s
 
 ask :: MonadIO m => Question a -> m a
 ask q  = validate (q ^. reader) (ask q) =<< askRaw q

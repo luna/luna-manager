@@ -7,17 +7,17 @@ import qualified Data.Text.IO                as Text
 import qualified Shelly.Lifted               as Sh
 import qualified System.Process.Typed        as Process
 
-import Data.Aeson                (FromJSON, ToJSON, encode)
-import Data.Text                 (Text, pack, unpack)
-import Filesystem.Path.CurrentOS (FilePath, decodeString, (</>))
-import Luna.Manager.System.Env   (EnvConfig)
-import Prologue                  hiding (FilePath, log)
-import Shelly.Lifted             (MonadSh, MonadShControl)
-import System.Directory          (getAppUserDataDirectory)
-import System.IO                 (hFlush, stdout)
+import Control.Monad.Exception      (MonadException, throw)
+import Data.Aeson                   (FromJSON, ToJSON, encode)
+import Data.Text                    (Text, pack, unpack)
+import Filesystem.Path.CurrentOS    (FilePath, decodeString, (</>))
+import Luna.Manager.Command.Options (Options, globals, guiInstaller, verbose)
+import Luna.Manager.System.Env      (EnvConfig)
+import Prologue                     hiding (FilePath, log)
+import Shelly.Lifted                (MonadSh, MonadShControl)
+import System.Directory             (getAppUserDataDirectory)
+import System.IO                    (hFlush, stdout)
 
-import Control.Monad.Raise
-import Luna.Manager.Command.Options
 
 
 
@@ -95,4 +95,4 @@ logObject name obj = log $ name <> ": " <> (pack $ show obj)
 
 tryJustWithLog :: (LoggerMonad m, Show e, MonadException e m) => Text -> e -> Maybe a -> m a
 tryJustWithLog funName e (Just x) = pure x
-tryJustWithLog funName e Nothing  = exception funName e >> raise e
+tryJustWithLog funName e Nothing  = exception funName e >> throw e

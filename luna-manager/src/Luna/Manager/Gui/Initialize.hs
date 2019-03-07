@@ -1,16 +1,17 @@
 --Warnig!! temporary file to refactor
 
 module Luna.Manager.Gui.Initialize where
+    
+import Prologue hiding (FilePath)
 
-import           Control.Lens.Aeson
-import qualified Control.Lens.Aeson                as LensJSON
-import           Control.Monad.Raise
-import           Data.Aeson                        (FromJSON, ToJSON, encode,
+import qualified Control.Lens.Aeson  as LensJSON
+import qualified Luna.Manager.Logger as Logger
+
+import Control.Monad.Exception           (MonadException)
+import Data.Aeson                        (FromJSON, ToJSON, encode,
                                                     parseJSON)
-import           Luna.Manager.Component.Repository
-import           Luna.Manager.Component.Version
-import qualified Luna.Manager.Logger               as Logger
-import           Prologue                          hiding (FilePath)
+import Luna.Manager.Component.Repository
+import Luna.Manager.Component.Version
 
 -- === Definition === --
 

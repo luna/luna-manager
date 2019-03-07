@@ -5,54 +5,53 @@ module Luna.Manager.Command.Install where
 
 import Prologue hiding (FilePath, toText, txt, (<.>))
 
-import           Data.List                             (sort)
-import           Luna.Manager.Archive                  as Archive
-import           Luna.Manager.Command.Options          (InstallOpts, Options)
-import qualified Luna.Manager.Command.Options          as Opts
-import           Luna.Manager.Component.Analytics      as Analytics
-import           Luna.Manager.Component.Pretty
-import           Luna.Manager.Component.Repository     as Repo
-import           Luna.Manager.Component.Version        as Version
-import           Luna.Manager.Gui.DownloadProgress
-import qualified Luna.Manager.Gui.Initialize           as Initilize
-import           Luna.Manager.Gui.InstallationProgress
-import qualified Luna.Manager.Logger                   as Logger
-import           Luna.Manager.Network
-import           Luna.Manager.Shell.Question
-import           Luna.Manager.Shell.Shelly             (toTextIgnore)
-import qualified Luna.Manager.Shell.Shelly             as Shelly
-import           Luna.Manager.System                   (askToExportPath,
-                                                        checkChecksum,
-                                                        exportPath,
-                                                        makeExecutable,
-                                                        runServicesWindows,
-                                                        stopServicesWindows,
-                                                        stripArchiveExtension)
-import           Luna.Manager.System.Env
-import           Luna.Manager.System.Host
-import           Luna.Manager.System.Path
+import qualified Control.Monad.State.Layered  as State
+import qualified Crypto.Hash                  as Crypto
+import qualified Data.Aeson                   as JSON
+import qualified Data.ByteString              as BS
+import qualified Data.ByteString.Lazy         as BSL
+import qualified Data.Char                    as Char
+import qualified Data.Map                     as Map
+import qualified Data.Text                    as Text
+import qualified Data.Text.IO                 as Text
+import qualified Luna.Manager.Command.Options as Opts
+import qualified Luna.Manager.Gui.Initialize  as Initilize
+import qualified Luna.Manager.Logger          as Logger
+import qualified Luna.Manager.Shell.Shelly    as Shelly
+import qualified Network.URI                  as URI
+import qualified System.Environment           as Environment
+import qualified System.Process.Typed         as Process
 
-import           Control.Concurrent          (forkIO)
-import           Control.Lens.Aeson          ()
-import           Control.Monad.Raise
-import qualified Control.Monad.State.Layered as State
-import qualified Crypto.Hash                 as Crypto
-import           Data.Aeson                  (encode)
-import qualified Data.Aeson                  as JSON
-import qualified Data.ByteString             as BS
-import qualified Data.ByteString.Lazy        as BSL
-import qualified Data.Char                   as Char
-import qualified Data.Map                    as Map
-import qualified Data.Text                   as Text
-import qualified Data.Text.IO                as Text
-import           Filesystem.Path.CurrentOS   (FilePath, decodeString,
+import Control.Concurrent                    (forkIO)
+import Control.Exception                     (SomeException(SomeException))
+import Control.Lens.Aeson                    ()
+import Control.Monad.Exception               (MonadException, throw)
+import Data.Aeson                            (encode)
+import Data.List                             (sort)
+import Filesystem.Path.CurrentOS             (FilePath, decodeString,
                                               encodeString, parent, (<.>),
                                               (</>))
-import qualified Network.URI                 as URI
-import qualified System.Environment          as Environment
-import           System.Exit                 (ExitCode (..), exitSuccess)
-import           System.IO                   (hFlush, stdout)
-import qualified System.Process.Typed        as Process
+import Luna.Manager.Archive                  as Archive
+import Luna.Manager.Command.Options          (InstallOpts, Options)
+import Luna.Manager.Component.Analytics      as Analytics
+import Luna.Manager.Component.Pretty
+import Luna.Manager.Component.Repository     as Repo
+import Luna.Manager.Component.Version        as Version
+import Luna.Manager.Gui.DownloadProgress
+import Luna.Manager.Gui.InstallationProgress
+import Luna.Manager.Network
+import Luna.Manager.Shell.Question
+import Luna.Manager.Shell.Shelly             (toTextIgnore)
+import Luna.Manager.System                   (askToExportPath, checkChecksum,
+                                              exportPath, makeExecutable,
+                                              runServicesWindows,
+                                              stopServicesWindows,
+                                              stripArchiveExtension)
+import Luna.Manager.System.Env
+import Luna.Manager.System.Host
+import Luna.Manager.System.Path
+import System.Exit                           (ExitCode (..), exitSuccess)
+import System.IO                             (hFlush, stdout)
 
 default(Text.Text)
 
@@ -130,7 +129,7 @@ makeLenses ''UnresolvedDepsError
 instance Exception UnresolvedDepsError where
     displayException err = "Following dependencies were unable to be resolved: " <> show (showPretty <$> unwrap err)
 
-type MonadInstall m = (State.Getter Options m, State.MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, Logger.LoggerMonad m)
+type MonadInstall m = (State.Getter Options m, State.MonadStates '[EnvConfig, InstallConfig, RepoConfig, MPUserData] m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, Logger.LoggerMonad m, MonadException SomeException m)
 
 -- === Utils === --
 
@@ -491,7 +490,7 @@ run opts = do
             when_ (not $ null unresolvedLibs) $ do
                 let e = UnresolvedDepsError unresolvedLibs
                 Logger.exception "Install.run" $ toException e
-                raise' e
+                throw $ SomeException e -- FIXME
             let isToInstall pkg = (pkg ^. header . name) `elem` (repo ^. apps)
                 appsToInstall   = filter isToInstall pkgsToInstall
                 resolvedApp     = ResolvedPackage (PackageHeader appName appVersion) appDesc (appPkg ^. appType)
@@ -527,7 +526,7 @@ run opts = do
                 & defArg .~ fmap showPretty (last vss)
 
             let (unresolvedLibs, pkgsToInstall) = Repo.resolve repo appPkgDesc
-            when_ (not $ null unresolvedLibs) . raise' $ UnresolvedDepsError unresolvedLibs
+            when_ (not $ null unresolvedLibs) . throw $ SomeException (UnresolvedDepsError unresolvedLibs) -- FIXME
 
             version <- readVersion appVersion
             let appsToInstall = filter (( <$> (^. header . name)) (`elem` (repo ^.apps))) pkgsToInstall

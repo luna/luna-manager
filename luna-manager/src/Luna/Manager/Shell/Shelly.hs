@@ -1,6 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Luna.Manager.Shell.Shelly (module Luna.Manager.Shell.Shelly, module X) where
 
+import Shelly.Lifted as X hiding (mv, rm_rf, run, run_)
+
 import Prologue hiding (FilePath)
 
 import qualified Control.Exception.Safe      as Exception
@@ -11,9 +13,8 @@ import qualified Shelly.Lifted               as Sh
 import qualified System.Process              as Process
 import qualified System.Process.Typed        as TypedProcess
 
-import Control.Concurrent  (threadDelay)
-import Control.Monad.Raise (MonadException, raise)
-import Shelly.Lifted       as X hiding (mv, rm_rf, run, run_)
+import Control.Concurrent      (threadDelay)
+import Control.Monad.Exception (MonadException, throw)
 
 import Filesystem.Path.CurrentOS    (FilePath, encodeString)
 import Luna.Manager.Command.Options
@@ -21,7 +22,7 @@ import Luna.Manager.System.Host
 
 
 deriving instance MonadSh   m => MonadSh (State.StateT s m)
-instance          Exception e => MonadException e Sh.Sh where raise = Exception.throwM
+instance          Exception e => MonadException e Sh.Sh where throw = Exception.throwM
 
 -- Maybe we could simplify it in GHC 8.2 ?
 instance MonadShControl m => MonadShControl (State.StateT s m) where
