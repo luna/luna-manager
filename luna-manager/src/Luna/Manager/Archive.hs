@@ -31,7 +31,10 @@ import Luna.Manager.System.Host
 import System.Exit
 default (Text.Text)
 
-type UnpackContext m = (State.Getter Options m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m, MonadException SomeException m, MonadThrow m, MonadCatch m)
+type UnpackContext m = ( State.Getter Options m, MonadNetwork m, MonadSh m
+                       , Shelly.MonadShControl m, MonadIO m
+                       , MonadException SomeException m, MonadThrow m
+                       , MonadCatch m )
 
 plainTextPath :: FilePath -> Text
 plainTextPath = either id id . FP.toText
