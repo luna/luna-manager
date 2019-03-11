@@ -6,7 +6,7 @@ local-bin-path:
 packages:
 - location: ./luna-manager
 - extra-dep: true
-  location: {commit: b1cf4c23b6dc41290c7d5165e9d834ffe010b60e, git: 'https://github.com/luna/luna.git'}
+  location: {commit: 8183f96b5de3c3f8efbc8b8effe1ff251a86e90c, git: 'https://github.com/luna/luna.git'}
   subdirs:
     - lib/container
     - lib/prologue
