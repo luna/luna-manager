@@ -14,37 +14,36 @@ module Luna.Manager.Component.Analytics (
 
 import Prologue hiding (FilePath, (.=))
 
-import           Control.Exception.Safe      (catchAnyDeep, handleAny)
 import qualified Control.Lens.Aeson          as LensJSON
 import qualified Control.Monad.State.Layered as State
-import           Data.Aeson                  (FromJSON, ToJSON, toEncoding,
-                                              toJSON, (.=))
 import qualified Data.Aeson                  as JSON
-import           Data.ByteString             (ByteString)
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Base64      as Base64
-import           Data.ByteString.Lazy        (toStrict)
 import qualified Data.ByteString.Lazy        as BSL
-import           Data.Text                   (Text)
 import qualified Data.Text                   as Text
-import           Data.UUID                   (UUID)
 import qualified Data.UUID                   as UUID
 import qualified Data.UUID.V1                as UUID
 import qualified Data.UUID.V4                as UUID
-import           Filesystem.Path.CurrentOS   (FilePath)
 import qualified Filesystem.Path.CurrentOS   as FilePath
+import qualified Luna.Manager.Logger         as Logger
+import qualified Luna.Manager.Shell.Shelly   as Shelly
 import qualified Network.HTTP.Simple         as HTTP
-import           Safe                        (atMay, headMay)
 import qualified System.IO                   as SIO
 
-import           Luna.Manager.Command.Options (Options)
-import           Luna.Manager.Logger          (LoggerMonad)
-import qualified Luna.Manager.Logger          as Logger
-import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
-import qualified Luna.Manager.Shell.Shelly    as Shelly
-import           Luna.Manager.System.Env      (EnvConfig)
-import           Luna.Manager.System.Host
-import           Luna.Manager.System.Path     (expand)
+import Control.Exception.Safe       (catchAnyDeep, handleAny)
+import Data.Aeson                   (FromJSON, ToJSON, toEncoding, toJSON, (.=))
+import Data.ByteString              (ByteString)
+import Data.ByteString.Lazy         (toStrict)
+import Data.Text                    (Text)
+import Data.UUID                    (UUID)
+import Filesystem.Path.CurrentOS    (FilePath)
+import Luna.Manager.Command.Options (Options)
+import Luna.Manager.Logger          (LoggerMonad)
+import Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
+import Luna.Manager.System.Env      (EnvConfig)
+import Luna.Manager.System.Host
+import Luna.Manager.System.Path     (expand)
+import Safe                         (atMay, headMay)
 
 default(Text)
 
@@ -271,7 +270,7 @@ mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath)
 tryMpRegisterUser :: (LoggerMonad m, MonadIO m, State.Setter MPUserData m, MonadThrow m,
                     MonadShControl m, MonadSh m, MonadCatch m) =>
                     FilePath -> Text -> m ()
-tryMpRegisterUser eventName = do 
+tryMpRegisterUser eventName = do
     let handler = \e -> do
             Logger.log $ convert $  "Encountered an exception when trying to register user in Mixpanel: " <> displayException e
     handleAny handler <$> mpRegisterUser eventName
