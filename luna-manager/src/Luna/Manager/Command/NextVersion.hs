@@ -30,7 +30,10 @@ import Luna.Manager.System.Env
 default (Text.Text)
 
 
-type MonadNextVersion m = (State.Getter Options m, State.Monad EnvConfig m, State.Monad RepoConfig m, MonadNetwork m, Shelly.MonadSh m, Shelly.MonadShControl m, MonadIO m)
+type MonadNextVersion m = ( State.Getter Options m, State.Monad EnvConfig m
+                          , State.Monad RepoConfig m, MonadNetwork m
+                          , Shelly.MonadSh m, Shelly.MonadShControl m
+                          , MonadIO m )
 
 data VersionUpgradeException = VersionUpgradeException Text deriving Show
 
