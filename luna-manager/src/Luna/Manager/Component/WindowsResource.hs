@@ -9,7 +9,7 @@ import Filesystem.Path.CurrentOS      (FilePath, decodeString,
 import Luna.Manager.Command.Options   (Options)
 import Luna.Manager.Component.Pretty
 import Luna.Manager.Component.Version (Version(..), VersionInfo(..))
-import Luna.Manager.Shell.Shelly      (runProcess, runRawSystem)
+import Luna.Manager.Shell.Shelly      (runProcess, runShellCmd)
 import Luna.Manager.System.Env
 import System.Directory               (listDirectory)
 import System.Environment             (getEnv)
@@ -30,27 +30,48 @@ type ResourceContext m =
     , MonadIO m
     )
 
+resHackerPath :: IsString s => s
+resHackerPath = "C:\\Program Files (x86)\\Resource Hacker\\ResourceHacker.exe"
+
+-- Note: Resource Hacker seems to be extremely fragile in handling command 
+-- arguments. For some reason wrapping its arguments in quotes (as does process
+-- library) causes it to fail. Only paths can be quoted and it is necessary
+-- when path contains spaces.
+-- Because of that we call it by shell command formatted by function below.
+formatResHackerCmd :: [Text] -> Text
+formatResHackerCmd args = Text.intercalate " " partsQuoted where
+    partsQuoted = quoteIfNeeded <$> resHackerPath : args
+    quoteIfNeeded p = if  " " `Text.isInfixOf` p
+        then "\"" <> p <> "\""
+        else p
+
+resourceHackerCompileCmd :: FilePath -> FilePath -> Text
+resourceHackerCompileCmd rcPath resPath = formatResHackerCmd $
+    [ "-open", Shelly.toTextIgnore rcPath
+    , "-save", Shelly.toTextIgnore resPath
+    , "-action", "compile"
+    , "-log", "CONSOLE"
+    ]
+
+resourceHackerAddoverwriteCmd :: FilePath -> FilePath -> Text
+resourceHackerAddoverwriteCmd exePath resPath = formatResHackerCmd $
+    [ "-open", Shelly.toTextIgnore exePath
+    , "-save", Shelly.toTextIgnore exePath
+    , "-action", "addoverwrite"
+    , "-resource", Shelly.toTextIgnore resPath
+    , "-log", "CONSOLE"
+    ]
+
 updateExeInfo :: ResourceContext m
     => Version -> FilePath -> m ()
 updateExeInfo version exePath = do
     let exeName    = filename exePath
-        resHacker  =
-            "C:\\Program Files (x86)\\Resource Hacker\\ResourceHacker.exe"
         resPath    = FP.replaceExtension exePath "res"
         rcPath     = FP.replaceExtension exePath "rc"
     liftIO $ Text.writeFile (encodeString rcPath) $
         createExeVersionManifest version (convert $ encodeString exeName)
-    runRawSystem resHacker [ "-open", Shelly.toTextIgnore rcPath
-                           , "-save", Shelly.toTextIgnore resPath
-                           , "-action", "compile"
-                           , "-log", "CONSOLE"
-                           ]
-    runRawSystem resHacker [ "-open", Shelly.toTextIgnore exePath
-                           , "-save", Shelly.toTextIgnore exePath
-                           , "-action", "addoverwrite"
-                           , "-resource", Shelly.toTextIgnore resPath
-                           , "-log", "CONSOLE"
-                           ]
+    runShellCmd $ resourceHackerCompileCmd rcPath resPath
+    runShellCmd $ resourceHackerAddoverwriteCmd exePath resPath
     Shelly.rm_rf rcPath
     Shelly.rm_rf resPath
 

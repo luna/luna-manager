@@ -48,6 +48,10 @@ runCommand cmd path = liftIO $ TypedProcess.runProcess_
                              $ TypedProcess.shell $ cmd <> quotedPath
     where quotedPath = "\"" <> encodeString path <> "\""
 
+runShellCmd :: MonadIO m => Text -> m ()
+runShellCmd cmd = liftIO $ TypedProcess.runProcess_
+                         $ TypedProcess.shell $ convert cmd
+    
 runProcess :: (Logger.LoggerMonad m, MonadIO m) => FilePath -> [Text] -> m ()
 runProcess path args = do
     let pathStr = encodeString path
