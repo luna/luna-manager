@@ -65,7 +65,7 @@ unpack totalProgress progressFieldName file mTargetName = do
     case currentHost of
         Windows -> case ext of
             "zip" -> unzipFileWindows file
-            "gz"  -> untarWin  totalProgress progressFieldName file
+            "gz"  -> unpackTarGzUnix totalProgress progressFieldName file mTargetName
             "7z"  -> unSevenZzipWin totalProgress progressFieldName file
         Darwin  -> case ext of
             "gz"  -> unpackTarGzUnix totalProgress progressFieldName file mTargetName
@@ -160,24 +160,6 @@ unzipFileWindows zipFile = do
           Shelly.rm $ dir </> name </> filename script
           listed <- Shelly.ls $ dir </> name
           pure $ if length listed == 1 then unsafeHead listed else dir </> name -- FIXME
-
-untarWin :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
-untarWin totalProgress progressFieldName zipFile = do
-    let scriptPath = "http://packages.luna-lang.org/windows/tar2.exe"
-    guiInstaller <- Opts.guiInstallerOpt
-    script       <- downloadFromURL scriptPath "Downloading archiving tool"
-    let dir = directory zipFile
-        name = dir </> basename zipFile
-
-    Shelly.mv script dir
-
-    Shelly.chdir dir $ do
-        Shelly.mkdir_p name
-        if guiInstaller
-            then Shelly.log_stdout_with (directProgressLogger progressFieldName totalProgress) $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name
-            else Shelly.log_stdout_with progressBarLogger $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
-        listed <- Shelly.ls $ dir </> name
-        pure $ if length listed == 1 then unsafeHead listed else dir </> name -- FIXME
 
 download7Zip :: UnpackContext m => m FilePath
 download7Zip = do
