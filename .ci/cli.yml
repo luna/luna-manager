@@ -1,0 +1,45 @@
+# https://aka.ms/yaml
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - "*"
+
+jobs:
+- job: Linux
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  steps:
+  - script: |
+      curl -sSL https://get.haskellstack.org/ | sh
+      stack --local-bin-path $(Build.ArtifactStagingDirectory) install
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: Linux binary
+- job: macOS
+  pool:
+    vmImage: 'macOS-10.13'
+  steps:
+  - script: |
+      curl -sSL https://get.haskellstack.org/ | sh
+      stack --local-bin-path $(Build.ArtifactStagingDirectory) install
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: macOS binary
+- job: Windows
+  pool:
+    vmImage: vs2017-win2016
+  steps:
+  - script: |
+      curl -sS -o stack.zip -L --insecure https://get.haskellstack.org/stable/windows-x86_64.zip
+      7z x stack.zip -y -oC:\stack stack.exe
+      set PATH=%PATH%;C:\stack
+      stack --local-bin-path $(Build.ArtifactStagingDirectory) install
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: Windows binary
+      

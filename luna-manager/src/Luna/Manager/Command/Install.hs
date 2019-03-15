@@ -157,25 +157,33 @@ prepareInstallPath appType appPath appName appVersion = expand $ case currentHos
         GuiApp   -> appPath </> convert ((mkSystemPkgName appName) <> ".app") </> "Contents" </> "Resources" </> convert appVersion
         BatchApp -> appPath </> convert appName </> convert appVersion
 
-data TheSameVersionException = TheSameVersionException Version  deriving (Show)
-instance Exception TheSameVersionException where
-    displayException (TheSameVersionException v ) = "You have this version already installed: " <> (convert $ showPretty v)
+-- Remove files and services, so the program can be installed again in the 
+-- same version. Note that this is not uninstall as shortcuts and similar 
+-- entries remain.
+prepareAppForReinstall :: MonadInstall m => FilePath -> AppType -> m ()
+prepareAppForReinstall installPath appType = do
+    stopServices installPath appType
+    Shelly.rm_rf installPath
 
-checkIfAppAlreadyInstalledInCurrentVersion :: MonadInstall m => FilePath -> AppType -> Version -> m ()
-checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion = do
+checkIfAppAlreadyInstalledInCurrentVersion :: MonadInstall m => FilePath -> AppType -> m ()
+checkIfAppAlreadyInstalledInCurrentVersion installPath appType = do
+    let prepareReinstall = prepareAppForReinstall installPath appType
     guiInstaller    <- Opts.guiInstallerOpt
     testInstallPath <- Shelly.test_d installPath
     when testInstallPath $ do
-        if guiInstaller then throwM $ TheSameVersionException pkgVersion
+        -- Currently GUI does not allow us to ask user what to do.
+        -- For now we just try to proceed by default.
+        -- That is also because failed installation attempt leftovers
+        -- are here also recognized as already installed app.
+        -- See https://github.com/luna/luna-manager/issues/234
+        if guiInstaller then prepareReinstall
         else do
             putStrLn "You have this version already installed. Do you want to reinstall? yes/no [no]"
             ans <- liftIO $ getLine
-            if ans == "yes" then do
-                stopServices installPath appType
-                Shelly.rm_rf installPath
+            if ans == "yes" then prepareReinstall
             else if ans == "no" || ans == ""
             then liftIO $ exitSuccess
-            else checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion
+            else checkIfAppAlreadyInstalledInCurrentVersion installPath appType
 
 data ResolvePackagePathException = ResolvePackagePathException Text deriving (Show)
 instance Exception ResolvePackagePathException where
@@ -189,10 +197,10 @@ downloadIfUri path = do
             then downloadWithProgressBar path
             else throwM $ ResolvePackagePathException path
 
-downloadAndUnpackApp :: MonadInstall m => URIPath -> FilePath -> Text -> AppType -> Version -> m ()
-downloadAndUnpackApp pkgPath installPath appName appType pkgVersion = do
+downloadAndUnpackApp :: MonadInstall m => URIPath -> FilePath -> Text -> AppType -> m ()
+downloadAndUnpackApp pkgPath installPath appName appType = do
     guiInstaller <- Opts.guiInstallerOpt
-    checkIfAppAlreadyInstalledInCurrentVersion installPath appType pkgVersion
+    checkIfAppAlreadyInstalledInCurrentVersion installPath appType
     stopServices installPath appType
     when guiInstaller $ downloadProgress (Progress 0 1)
     Shelly.mkdir_p $ parent installPath
@@ -421,7 +429,7 @@ installApp' binPath package = do
         appType    = package ^. resolvedAppType
         pkgVersion = showPretty $ package ^. header . version
     installPath <- prepareInstallPath appType (convert binPath) pkgName $ pkgVersion
-    downloadAndUnpackApp (package ^. desc . path) installPath pkgName appType $ package ^. header . version
+    downloadAndUnpackApp (package ^. desc . path) installPath pkgName appType
     prepareWindowsPkgForRunning installPath
     postInstallation appType installPath binPath pkgName pkgVersion
     copyUserConfig installPath package
