@@ -1,15 +1,17 @@
 --Warnig!! temporary file to refactor
 
 module Luna.Manager.Gui.Initialize where
+    
+import Prologue hiding (FilePath)
 
-import           Control.Lens.Aeson
-import           Control.Monad.Raise
-import           Data.Aeson                        (FromJSON, ToJSON, encode,
+import qualified Control.Lens.Aeson  as LensJSON
+import qualified Luna.Manager.Logger as Logger
+
+import Control.Monad.Exception           (MonadException)
+import Data.Aeson                        (FromJSON, ToJSON, encode,
                                                     parseJSON)
-import           Luna.Manager.Component.Repository
-import           Luna.Manager.Component.Version
-import qualified Luna.Manager.Logger               as Logger
-import           Prologue                          hiding (FilePath)
+import Luna.Manager.Component.Repository
+import Luna.Manager.Component.Version
 
 -- === Definition === --
 
@@ -48,15 +50,15 @@ instance ToJSON Versions
 
 instance FromJSON Option
 instance FromJSON Install
-instance FromJSON Initialize   where parseJSON = lensJSONParse
-instance FromJSON Applications where parseJSON = lensJSONParse
-instance FromJSON Apps         where parseJSON = lensJSONParse
-instance FromJSON Versions     where parseJSON = lensJSONParse
+instance FromJSON Initialize   where parseJSON = LensJSON.parseDropUnary
+instance FromJSON Applications where parseJSON = LensJSON.parseDropUnary
+instance FromJSON Apps         where parseJSON = LensJSON.parseDropUnary
+instance FromJSON Versions     where parseJSON = LensJSON.parseDropUnary
 
 resolveAppToInitialize :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Text -> m Apps
 resolveAppToInitialize repo name = do
     (devs, nightlies, releases) <- getGroupedVersionsList repo name
-    return $ Apps name $ Versions devs nightlies releases
+    pure $ Apps name $ Versions devs nightlies releases
 
 generateInitialJSON :: (MonadIO m, MonadException SomeException m, Logger.LoggerMonad m) => Repo -> Bool -> m ()
 generateInitialJSON repo userInfoExists = do

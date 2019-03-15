@@ -2,35 +2,39 @@
 {-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Archive where
 
-import Prologue hiding (FilePath, (<.>))
+import Prologue hiding (FilePath, fromJust, (<.>))
 
 import qualified Control.Exception.Safe         as Exception
-import           Control.Monad.Raise
-import           Control.Monad.State.Layered
+import qualified Control.Monad.State.Layered    as State
 import qualified Data.ByteString.Lazy           as BSL
 import qualified Data.ByteString.Lazy.Char8     as BSLChar
-import           Data.Either                    (either)
-import           Data.IORef
 import qualified Data.Text                      as Text
 import qualified Data.Text.Encoding             as Text
 import qualified Data.Text.Read                 as Text
-import           Filesystem.Path.CurrentOS      (FilePath, basename, directory,
-                                                 encodeString, extension,
-                                                 filename, parent, (<.>), (</>))
 import qualified Filesystem.Path.CurrentOS      as FP
-import           Luna.Manager.Command.Options   (Options)
 import qualified Luna.Manager.Command.Options   as Opts
 import qualified Luna.Manager.Logger            as Logger
-import           Luna.Manager.Network
-import           Luna.Manager.Shell.ProgressBar
-import           Luna.Manager.Shell.Shelly      (MonadSh, runProcess)
 import qualified Luna.Manager.Shell.Shelly      as Shelly
-import           Luna.Manager.System.Host
-import           System.Exit
 import qualified System.Process.Typed           as Process
+
+import Control.Monad.Exception        (MonadException, throw, fromJust)
+import Data.Either                    (either)
+import Data.IORef
+import Filesystem.Path.CurrentOS      (FilePath, basename, directory,
+                                                 encodeString, extension,
+                                                 filename, parent, (<.>), (</>))
+import Luna.Manager.Command.Options   (Options)
+import Luna.Manager.Network
+import Luna.Manager.Shell.ProgressBar
+import Luna.Manager.Shell.Shelly      (MonadSh, runProcess)
+import Luna.Manager.System.Host
+import System.Exit
 default (Text.Text)
 
-type UnpackContext m = (MonadGetter Options m, MonadNetwork m, MonadSh m, Shelly.MonadShControl m, MonadIO m, MonadException SomeException m, MonadThrow m, MonadCatch m)
+type UnpackContext m = ( State.Getter Options m, MonadNetwork m, MonadSh m
+                       , Shelly.MonadShControl m, MonadIO m
+                       , MonadException SomeException m, MonadThrow m
+                       , MonadCatch m )
 
 plainTextPath :: FilePath -> Text
 plainTextPath = either id id . FP.toText
@@ -57,7 +61,7 @@ unpack :: UnpackContext m
        => Double -> Text.Text -> FilePath -> Maybe FilePath -> m FilePath
 unpack totalProgress progressFieldName file mTargetName = do
     Logger.info $ "Unpacking archive: " <> plainTextPath file
-    ext          <- tryJust (extensionError file) $ extension file
+    ext          <- fromJust (extensionError file) $ extension file
     case currentHost of
         Windows -> case ext of
             "zip" -> unzipFileWindows file
@@ -67,7 +71,7 @@ unpack totalProgress progressFieldName file mTargetName = do
             "gz"  -> unpackTarGzUnix totalProgress progressFieldName file mTargetName
             "zip" -> unzipUnix file
         Linux   -> case ext of
-            "AppImage" -> return file
+            "AppImage" -> pure file
             "gz"       -> unpackTarGzUnix totalProgress progressFieldName file mTargetName
             "rpm"      -> do
                 let name = basename file
@@ -77,7 +81,7 @@ unpack totalProgress progressFieldName file mTargetName = do
                 Shelly.cp_r file $ dir </> name
                 unpackRPM (dir </> name </> fullFilename) (dir </> name)
                 Shelly.rm $ dir </> name </> (filename file)
-                return $ dir </> name
+                pure $ dir </> name
 
 unzipUnix :: UnpackContext m => FilePath -> m FilePath
 unzipUnix file = do
@@ -90,7 +94,7 @@ unzipUnix file = do
             out <- Shelly.switchVerbosity $ Shelly.cmd  "unzip" $ dir </> name </> filename file
             Shelly.rm $ dir </> name </> filename file
             listed <- Shelly.ls $ dir </> name
-            if length listed == 1 then return $ head listed else return $ dir </> name
+            if length listed == 1 then pure $ unsafeHead listed else pure $ dir </> name -- FIXME
 
 countingFilesLogger :: Text.Text -> Double -> IORef Int -> Int -> Text.Text -> IO ()
 countingFilesLogger progressFieldName totalProgress lastNumber n t = do
@@ -106,7 +110,7 @@ directProgressLogger progressFieldName totalProgress actualProgress = do
         Right x -> do
             let progress = fst x * totalProgress
             print $ "{\"" <> (convert progressFieldName) <> "\":\"" <> (show progress) <> "\"}"
-        Left err -> raise' $ ProgressException err
+        Left err -> throw $ ProgressException err
 
 progressBarLogger :: Text.Text -> IO ()
 progressBarLogger pg = do
@@ -115,7 +119,7 @@ progressBarLogger pg = do
         Right x -> do
             let progress = ceiling $ fst x * (100 :: Double)
             progressBar $ ProgressBar 50 progress 100
-        Left err -> raise' $ ProgressException err
+        Left err -> throw $ ProgressException err
 
 unpackTarGzUnix :: UnpackContext m
                 => Double -> Text.Text -> FilePath -> Maybe FilePath -> m FilePath
@@ -136,7 +140,7 @@ unpackTarGzUnix totalProgress progressFieldName file mTargetName = do
                 Left err -> throwM (UnpackingException (Shelly.toTextIgnore file) (toException $ Exception.StringException err callStack ))
         else (Shelly.switchVerbosity $ Shelly.cmd  "tar" "-xpzf" file "--strip=1" "-C" name) `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore file) $ toException err))
         listed <- Shelly.ls $ dir </> name
-        if length listed == 1 then return $ head listed else return $ dir </> name
+        if length listed == 1 then pure $ unsafeHead listed else pure $ dir </> name -- FIXME
 
 -- TODO: download unzipper if missing
 unzipFileWindows :: UnpackContext m => FilePath -> m FilePath
@@ -155,7 +159,7 @@ unzipFileWindows zipFile = do
           Shelly.rm $ dir </> name </> filename zipFile
           Shelly.rm $ dir </> name </> filename script
           listed <- Shelly.ls $ dir </> name
-          return $ if length listed == 1 then head listed else dir </> name
+          pure $ if length listed == 1 then unsafeHead listed else dir </> name -- FIXME
 
 untarWin :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 untarWin totalProgress progressFieldName zipFile = do
@@ -173,7 +177,7 @@ untarWin totalProgress progressFieldName zipFile = do
             then Shelly.log_stdout_with (directProgressLogger progressFieldName totalProgress) $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name
             else Shelly.log_stdout_with progressBarLogger $ Shelly.cmd (dir </> filename script) "untar" (filename zipFile) name `Exception.catchAny` (\err -> throwM (UnpackingException (Shelly.toTextIgnore zipFile) $ toException err))
         listed <- Shelly.ls $ dir </> name
-        return $ if length listed == 1 then head listed else dir </> name
+        pure $ if length listed == 1 then unsafeHead listed else dir </> name -- FIXME
 
 download7Zip :: UnpackContext m => m FilePath
 download7Zip = do
@@ -186,7 +190,7 @@ download7Zip = do
     _            <- downloadFromURL dll1Path   "Downloading the DLL-s (1)"
     _            <- downloadFromURL dll2Path   "Downloading the DLL-s (2)"
 
-    return script
+    pure script
 
 unSevenZzipWin :: UnpackContext m => Double -> Text.Text -> FilePath -> m FilePath
 unSevenZzipWin totalProgress progressFieldName zipFile = do
@@ -198,7 +202,7 @@ unSevenZzipWin totalProgress progressFieldName zipFile = do
     runProcess script [ "x", "-o" <> Shelly.toTextIgnore name
                       , "-y", Shelly.toTextIgnore zipFile
                       ]
-    return name
+    pure name
 
 pack :: UnpackContext m => FilePath -> Text -> m FilePath
 pack = case currentHost of
@@ -213,7 +217,7 @@ gzipWindows folder appName = do
     Shelly.chdir (parent folder) $ do
         Shelly.cp script $ parent folder
         Shelly.switchVerbosity $ Shelly.cmd (parent folder </> filename script) "tar" name folder
-        return name
+        pure name
 
 sevenZipWindows :: UnpackContext m => FilePath -> Text -> m FilePath
 sevenZipWindows folder appName = do
@@ -224,7 +228,7 @@ sevenZipWindows folder appName = do
             filePattern = folder </> "*"
         Shelly.switchVerbosity $
             Shelly.cmd script "a" "-t7z" zipFileName filePattern
-        return $ dir </> zipFileName
+        pure $ dir </> zipFileName
 
 unpackRPM :: UnpackContext m => FilePath -> FilePath -> m ()
 unpackRPM file filepath = liftIO $ do
@@ -236,4 +240,4 @@ gzipUnix folder appName = do
     let name =  parent folder </> Shelly.fromText (appName <> ".tar.gz")
     Shelly.chdir (parent folder) $ Shelly.switchVerbosity $ do
         Shelly.cmd "tar" "-cpzf" name $ filename folder
-        return name
+        pure name

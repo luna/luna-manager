@@ -2,11 +2,11 @@ module Luna.Manager.Command.Options where
 
 import Prologue
 
-import Control.Monad.State.Layered
-import Data.Text                   (Text)
-import Options.Applicative         as Opts
+import Data.Text           (Text)
+import Options.Applicative as Opts
 
-import qualified Luna.Manager.System.Info as Info
+import qualified Control.Monad.State.Layered as State
+import qualified Luna.Manager.System.Info    as Info
 
 
 ------------------------------
@@ -89,9 +89,9 @@ makeLenses ''NextVersionOpts
 makeLenses ''PromoteOpts
 
 -- small helpers for Options
-verboseOpt, guiInstallerOpt :: MonadGetter Options m => m Bool
-verboseOpt      = view (globals . verbose)      <$> get @Options
-guiInstallerOpt = view (globals . guiInstaller) <$> get @Options
+verboseOpt, guiInstallerOpt :: State.Getter Options m => m Bool
+verboseOpt      = view (globals . verbose)      <$> State.get @Options
+guiInstallerOpt = view (globals . guiInstaller) <$> State.get @Options
 
 -- === Instances === --
 
@@ -104,8 +104,8 @@ instance Default InstallOpts where def = InstallOpts def def def def def False F
 
 -- === Parsers === --
 
-evalOptionsParserT :: MonadIO m => StateT Options m a -> m a
-evalOptionsParserT m = evalStateT m =<< parseOptions
+evalOptionsParserT :: MonadIO m => State.StateT Options m a -> m a
+evalOptionsParserT m = State.evalT m =<< parseOptions
 
 parseOptions :: MonadIO m => m Options
 parseOptions = liftIO $ customExecParser (prefs showHelpOnEmpty) optsParser where

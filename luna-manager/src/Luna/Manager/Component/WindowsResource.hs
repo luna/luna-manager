@@ -2,28 +2,27 @@ module Luna.Manager.Component.WindowsResource where
 
 import Prologue hiding (FilePath, (<.>))
 
-import Control.Monad.State.Layered
-import Filesystem.Path.CurrentOS      (FilePath, decodeString,
-                                       encodeString, filename,
-                                       (</>))
-import Luna.Manager.Command.Options   (Options)
-import Luna.Manager.Component.Pretty
-import Luna.Manager.Component.Version (Version(..), VersionInfo(..))
-import Luna.Manager.Shell.Shelly      (runProcess, runShellCmd)
-import Luna.Manager.System.Env
-import System.Directory               (listDirectory)
-import System.Environment             (getEnv)
+import qualified Control.Monad.State.Layered    as State
+import           Filesystem.Path.CurrentOS      (FilePath, decodeString,
+                                                 encodeString, filename, (</>))
+import           Luna.Manager.Command.Options   (Options)
+import           Luna.Manager.Component.Pretty
+import           Luna.Manager.Component.Version (Version (..), VersionInfo (..))
+import           Luna.Manager.Shell.Shelly      (runProcess, runShellCmd)
+import           Luna.Manager.System.Env
+import           System.Directory               (listDirectory)
+import           System.Environment             (getEnv)
 
-import qualified Data.Text                              as Text
-import qualified Data.Text.IO                           as Text
-import qualified Filesystem.Path.CurrentOS              as FP
-import qualified Luna.Manager.Legal                     as Legal
-import qualified Luna.Manager.Shell.Shelly              as Shelly
+import qualified Data.Text                 as Text
+import qualified Data.Text.IO              as Text
+import qualified Filesystem.Path.CurrentOS as FP
+import qualified Luna.Manager.Legal        as Legal
+import qualified Luna.Manager.Shell.Shelly as Shelly
 
 
 type ResourceContext m =
-    ( MonadGetter Options m
-    , MonadStates '[EnvConfig] m
+    ( State.Getter Options m
+    , State.Monad EnvConfig m
     , Shelly.MonadSh m
     , Shelly.MonadShControl m
     , MonadCatch m

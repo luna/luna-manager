@@ -16,17 +16,17 @@ instance Convertible Text FilePath where
 
 expand :: (LoggerMonad m, MonadIO m) => FilePath -> m FilePath
 expand path = if null path
-    then return path
+    then pure path
     else do
-        let dirs = Path.splitDirectories path
-            fstEl = head dirs
+        let dirs  = Path.splitDirectories path
+            fstEl = unsafeHead dirs -- FIXME
         home <- getHomePath
         current <- getCurrentPath
         case encodeString fstEl of
-            "~/"   -> return $ Path.concat $ home : tail dirs
-            "./"   -> return $ Path.concat $ current : tail dirs
-            "../"  -> return $ Path.concat $ Path.parent current : tail dirs
-            "~\\"  -> return $ Path.concat $ home : tail dirs
-            ".\\"  -> return $ Path.concat $ current : tail dirs
-            "..\\" -> return $ Path.concat $ Path.parent current : tail dirs
-            _      -> return path
+            "~/"   -> pure $ Path.concat $ home : unsafeTail dirs -- FIXME
+            "./"   -> pure $ Path.concat $ current : unsafeTail dirs -- FIXME
+            "../"  -> pure $ Path.concat $ Path.parent current : unsafeTail dirs -- FIXME
+            "~\\"  -> pure $ Path.concat $ home : unsafeTail dirs -- FIXME
+            ".\\"  -> pure $ Path.concat $ current : unsafeTail dirs -- FIXME
+            "..\\" -> pure $ Path.concat $ Path.parent current : unsafeTail dirs -- FIXME
+            _      -> pure path

@@ -1,13 +1,16 @@
-{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Luna.Manager.Component.Version.TH (getVersion) where
 
 import Prologue hiding (lift)
 
-import           Data.ByteString     (ByteString)
-import           Data.FileEmbed
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Yaml           as Yaml
-import           Language.Haskell.TH.Syntax
+
+import Control.Lens    ((^?!), _Right)
+import Data.ByteString (ByteString)
+
+import Data.FileEmbed
+import Language.Haskell.TH.Syntax
 
 
 getVersionEither :: ByteString -> Either String Text

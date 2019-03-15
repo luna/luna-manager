@@ -1,16 +1,17 @@
 module Luna.Manager.Component.Version where
 
 import Prologue
-import Luna.Manager.Component.Pretty
 
-import           Data.Aeson          (FromJSON, ToJSON, FromJSONKey, ToJSONKey, parseJSON)
 import qualified Data.Aeson          as JSON
 import qualified Data.Aeson.Encoding as JSON
-import           Data.Maybe          (isNothing)
 import qualified Data.Text           as Text
-import Control.Error.Util (hush)
 
-import           Control.Monad.Raise
+import Control.Error.Util            (hush)
+import Control.Lens                  (preview)
+import Control.Monad.Exception       (MonadException)
+import Data.Aeson                    (FromJSON, FromJSONKey, ToJSON, ToJSONKey, parseJSON)
+import Data.Maybe                    (isNothing)
+import Luna.Manager.Component.Pretty (Pretty, readPretty, showPretty)
 
 ------------------------
 -- === Versioning === --
@@ -65,7 +66,7 @@ instance Exception VersionException where
 readVersion :: (MonadIO m, MonadException SomeException m, MonadThrow m) => Text -> m Version
 readVersion v = case readPretty v of
     Left e  -> throwM $ VersionException v
-    Right v -> return v
+    Right v -> pure v
 
 -- === Instances === --
 
@@ -88,9 +89,9 @@ instance Pretty Version where
 -- JSON
 instance ToJSON      Version     where toEncoding  = JSON.toEncoding . showPretty; toJSON = JSON.toJSON . showPretty
 instance ToJSON      VersionInfo where toEncoding  = JSON.toEncoding . showPretty; toJSON = JSON.toJSON . showPretty
-instance FromJSON    Version     where parseJSON   = either (fail . convert) return . readPretty <=< parseJSON
-instance FromJSON    VersionInfo where parseJSON   = either (fail . convert) return . readPretty <=< parseJSON
-instance FromJSONKey Version     where fromJSONKey = JSON.FromJSONKeyTextParser $ either (fail . convert) return . readPretty
+instance FromJSON    Version     where parseJSON   = either (fail . convert) pure . readPretty <=< parseJSON
+instance FromJSON    VersionInfo where parseJSON   = either (fail . convert) pure . readPretty <=< parseJSON
+instance FromJSONKey Version     where fromJSONKey = JSON.FromJSONKeyTextParser $ either (fail . convert) pure . readPretty
 instance ToJSONKey   Version     where
     toJSONKey = JSON.ToJSONKeyText f g
         where f = showPretty

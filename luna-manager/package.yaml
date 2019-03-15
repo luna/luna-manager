@@ -17,7 +17,7 @@ dependencies:
   - containers
   - cryptonite
   - cryptonite-conduit
-  - dependent-state
+  - layered-state
   - directory
   - errors
   - exceptions
@@ -28,6 +28,7 @@ dependencies:
   - io-streams
   - lens
   - lens-utils
+  - luna-exception
   - monad-control
   - mtl
   - network

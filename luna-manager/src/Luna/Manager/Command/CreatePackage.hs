@@ -3,25 +3,28 @@ module Luna.Manager.Command.CreatePackage where
 
 import Prologue hiding (FilePath, (<.>))
 
-import Control.Lens.Aeson                   ()
-import Control.Monad                        (forM)
-import Control.Monad.State.Layered
-import Data.Maybe                           (maybeToList)
-import Filesystem.Path.CurrentOS            (FilePath, dirname, encodeString,
-                                             extension, filename, null, parent,
-                                             splitDirectories, (<.>), (</>))
-import Luna.Manager.Command.Options         (MakePackageOpts, Options,
-                                             guiInstallerOpt)
-import Luna.Manager.Component.PackageConfig
-import Luna.Manager.Component.Pretty
-import Luna.Manager.Component.Version       (Version, readVersion)
-import Luna.Manager.Network
-import Luna.Manager.Shell.Shelly            (MonadSh)
-import Luna.Manager.System                  (generateChecksum, makeExecutable)
-import Luna.Manager.System.Env
-import Luna.Manager.System.Host
-import Luna.Manager.System.Path
-import System.Exit
+import           Control.Lens.Aeson                   ()
+import           Control.Monad                        (forM)
+import qualified Control.Monad.State.Layered          as State
+import           Data.Maybe                           (maybeToList)
+import           Filesystem.Path.CurrentOS            (FilePath, dirname,
+                                                       encodeString, extension,
+                                                       filename, null, parent,
+                                                       splitDirectories, (<.>),
+                                                       (</>))
+import           Luna.Manager.Command.Options         (MakePackageOpts, Options,
+                                                       guiInstallerOpt)
+import           Luna.Manager.Component.PackageConfig
+import           Luna.Manager.Component.Pretty
+import           Luna.Manager.Component.Version       (Version, readVersion)
+import           Luna.Manager.Network
+import           Luna.Manager.Shell.Shelly            (MonadSh)
+import           Luna.Manager.System                  (generateChecksum,
+                                                       makeExecutable)
+import           Luna.Manager.System.Env
+import           Luna.Manager.System.Host
+import           Luna.Manager.System.Path
+import           System.Exit
 
 import qualified Control.Exception.Safe                 as Exception
 import qualified Crypto.Hash                            as Crypto
@@ -41,8 +44,8 @@ default (Text.Text)
 
 
 type MonadCreatePackage m =
-    ( MonadGetter Options m
-    , MonadStates '[EnvConfig, PackageConfig, Repository.RepoConfig] m
+    ( State.Getter Options m
+    , State.MonadStates '[EnvConfig, PackageConfig, Repository.RepoConfig] m
     , MonadNetwork m
     , MonadSh m
     , Shelly.MonadShControl m
@@ -80,7 +83,7 @@ modifyDesktopFileToUseWrapperAppImageToRunApp appName tmpAppDirPath =
 
 copyResourcesAppImage :: MonadCreatePackage m => FilePath -> Text -> FilePath -> FilePath -> m ()
 copyResourcesAppImage repoPath appName tmpAppDirPath mainAppImageFolderPath = do
-    pkgConfig  <- get @PackageConfig
+    pkgConfig  <- State.get @PackageConfig
     srcPkgPath <- expand $ repoPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
     let utilsPath   = srcPkgPath </> (pkgConfig ^. binFolder) </> (pkgConfig ^. mainBin) </> (pkgConfig ^. utilsFolder)
         logoFile    = utilsPath </> convert (pkgConfig ^. logoFileName)
@@ -96,13 +99,13 @@ checkAppImageName appName version filePath = do
         fullAppImagePath = outFolderPath </> convert (finalPackageName appName version <> ".AppImage")
     when (Text.isInfixOf appName (Shelly.toTextIgnore fileName)) $ do
         Shelly.mv filePath fullAppImagePath
-    return fullAppImagePath
+    pure fullAppImagePath
 
 changeAppImageName :: MonadCreatePackage m => Text -> Version -> FilePath -> m FilePath
 changeAppImageName appName version outFolderPath = do
     listedDir <- Shelly.ls outFolderPath
     appimagesList <- mapM (checkAppImageName appName version) listedDir
-    return $ Safe.headDef (outFolderPath </> convert (appName <> ".AppImage")) appimagesList
+    pure $ Safe.headDef (outFolderPath </> convert (appName <> ".AppImage")) appimagesList
 
 getApprun :: MonadCreatePackage m => FilePath -> FilePath -> m ()
 getApprun tmpAppDirPath functions = do
@@ -121,7 +124,7 @@ createAppimage :: MonadCreatePackage m => Text -> Version -> FilePath -> m FileP
 createAppimage appName version repoPath = do
     Logger.log "Creating app image"
     let appImageFolderName = "appimage"
-    pkgConfig     <- get @PackageConfig
+    pkgConfig     <- State.get @PackageConfig
     tmpAppPath    <- expand $ repoPath </> (pkgConfig ^. defaultPackagePath) </> appImageFolderName </> convert appName
     let tmpAppDirPath = tmpAppPath </> convert (appName <> ".AppDir")
     doesTmpExist <- Shelly.test_d tmpAppDirPath
@@ -162,7 +165,7 @@ finalPackageName appName version = appName <> "-" <> showPretty currentHost <> "
 runPkgBuildScript :: MonadCreatePackage m => FilePath -> Maybe Text -> Bool -> m ()
 runPkgBuildScript repoPath s3GuiURL dryRun = do
     Logger.log "Running package build script"
-    pkgConfig <- get @PackageConfig
+    pkgConfig <- State.get @PackageConfig
     buildPath <- expand $ repoPath </> (pkgConfig ^. buildScriptPath)
     let guiUrlArgs = maybeToList $ ("--gui_url=" <>) <$> s3GuiURL
         dryRunArgs = if dryRun then ["--dry-run"] else []
@@ -182,9 +185,9 @@ removeGitFolders path = do
 copyFromDistToDistPkg :: MonadCreatePackage m => Text -> FilePath -> m ()
 copyFromDistToDistPkg appName repoPath = do
     Logger.log "Copying from dist to dist-package"
-    pkgConfig         <- get @PackageConfig
+    pkgConfig         <- State.get @PackageConfig
     packageRepoFolder <- case currentHost of
-        Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
+        Windows -> pure $ (pkgConfig ^. defaultPackagePath) </> convert appName
         _       -> expand $ repoPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
     let expandedCopmponents = repoPath </> (pkgConfig ^. componentsToCopy)
     Shelly.rm_rf packageRepoFolder
@@ -194,7 +197,7 @@ copyFromDistToDistPkg appName repoPath = do
 
 downloadAndUnpackDependency :: MonadCreatePackage m => FilePath -> Repository.ResolvedPackage -> m ()
 downloadAndUnpackDependency repoPath resolvedPackage = do
-    pkgConfig <- get @PackageConfig
+    pkgConfig <- State.get @PackageConfig
     let depName          = resolvedPackage ^. Repository.header . Repository.name
         packageType      = resolvedPackage ^. Repository.resolvedAppType
         componentsFolder = pkgConfig ^. componentsToCopy
@@ -210,14 +213,14 @@ downloadAndUnpackDependency repoPath resolvedPackage = do
             if unpackedIsDir then do
                 listed <- Shelly.ls unpacked
                 if length listed == 1 then do
-                    listedIsDir <- Shelly.test_d $ head listed
+                    listedIsDir <- Shelly.test_d $ unsafeHead listed -- FIXME
                     if listedIsDir then
                         mapM_ (flip Shelly.mv libFullPath) listed
                         else Shelly.mv unpacked libFullPath
                     else Shelly.mv unpacked libFullPath
                 else Shelly.mv unpacked libFullPath
         _ -> do
-            Shelly.rm_rf $ thirdPartyFullPath </> (last $ splitDirectories unpacked)
+            Shelly.rm_rf $ thirdPartyFullPath </> (unsafeLast $ splitDirectories unpacked) -- FIXME
             Shelly.mv unpacked thirdPartyFullPath
 
 
@@ -244,14 +247,14 @@ downloadExternalPkgs cfgFolderPath resolvedApp opts = do
             Just "gz" -> do
                 liftIO . putStrLn $ "Copying from: " <> show folder <> " into " <> show tgtPath
                 Shelly.cp_r folder tgtPath
-                return [tgtPath </> folder]
+                pure [tgtPath </> folder]
             _ -> do
                 dirContents <- Shelly.ls folder
                 forM dirContents $ \f -> do
                     Shelly.cp_r f tgtPath
-                    return $ tgtPath </> filename f
+                    pure $ tgtPath </> filename f
 
-    return $ concat pkgs
+    pure $ concat pkgs
 
 ------------------------------
 -- === linkingLibsMacOS === --
@@ -309,7 +312,7 @@ createPkg :: MonadCreatePackage m
           => FilePath -> Maybe Text -> Repository.ResolvedApplication -> Bool
           -> m ()
 createPkg cfgFolderPath s3GuiURL resolvedApplication dryRun = do
-    pkgConfig <- get @PackageConfig
+    pkgConfig <- State.get @PackageConfig
     let app        = resolvedApplication ^. Repository.resolvedApp
         appPath    = getRepoPath cfgFolderPath resolvedApplication
         appHeader  = app ^. Repository.header
@@ -333,7 +336,7 @@ createPkg cfgFolderPath s3GuiURL resolvedApplication dryRun = do
     runPkgBuildScript appPath s3GuiURL dryRun
     copyFromDistToDistPkg appName appPath
     mainAppDir <- case currentHost of
-        Windows -> return $ (pkgConfig ^. defaultPackagePath) </> convert appName
+        Windows -> pure $ (pkgConfig ^. defaultPackagePath) </> convert appName
         _       -> expand $ appPath </> (pkgConfig ^. defaultPackagePath) </> convert appName
     let binsFolder = mainAppDir </> (pkgConfig ^. binFolder)
         privateBinsFolder = binsFolder </> (pkgConfig ^. binsPrivate)

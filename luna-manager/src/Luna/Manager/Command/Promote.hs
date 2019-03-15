@@ -5,7 +5,7 @@ module Luna.Manager.Command.Promote where
 import Prologue hiding (FilePath, (<.>))
 
 import           Control.Exception.Safe      as Exception
-import           Control.Monad.State.Layered
+import qualified Control.Monad.State.Layered as State
 import qualified Crypto.Hash                 as Crypto
 import qualified Data.Text                   as Text
 import           Filesystem.Path.CurrentOS   (FilePath, encodeString, filename,
@@ -37,9 +37,11 @@ import Luna.Manager.System.Path (expand)
 
 default (Text.Text)
 
-type MonadPromote m = (
-      MonadGetter Options m
-    , MonadStates '[EnvConfig, RepoConfig, PackageConfig] m
+type MonadPromote m =
+    ( State.Getter Options m
+    , State.Monad EnvConfig m
+    , State.Monad RepoConfig m
+    , State.Monad PackageConfig m
     , MonadNetwork m
     , Shelly.MonadSh m
     , Shelly.MonadShControl m
@@ -47,7 +49,7 @@ type MonadPromote m = (
     )
 
 
--- return the new name of the package, based on the full path to the old one
+-- pure the new name of the package, based on the full path to the old one
 -- note that this drops the extension!
 -- if called with ~/some/path/luna-studio
 newPackageName :: FilePath -> Version -> Text
@@ -72,7 +74,7 @@ renameVersion path repoPath versionOld versionNew resolvedApplication = do
     case currentHost of
         Windows -> do
             Shelly.cmd "py" promoteScript argsList
-            pkgConfig <- get @PackageConfig
+            pkgConfig <- State.get @PackageConfig
             let app        = resolvedApplication ^. Repository.resolvedApp
                 appHeader  = app ^. Repository.header
                 appName    = appHeader ^. Repository.name

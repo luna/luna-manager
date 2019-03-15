@@ -2,32 +2,33 @@
 {-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Command.Uninstall where
 
-import Prologue hiding (txt, FilePath, toText)
+import Prologue hiding (FilePath, toText, txt)
 
-import qualified Control.Exception.Safe       as Exception
-import qualified Data.Text                    as Text
-import           Filesystem.Path.CurrentOS    (FilePath, (</>), decodeString, splitDirectories)
+import qualified Control.Exception.Safe    as Exception
+import qualified Data.Text                 as Text
+import           Filesystem.Path.CurrentOS (FilePath, decodeString,
+                                            splitDirectories, (</>))
 import qualified Safe
-import qualified System.Directory             as Dir
-import qualified System.Environment           as Environment
+import qualified System.Directory          as Dir
+import qualified System.Environment        as Environment
 
-import           Control.Monad.State.Layered
+import qualified Control.Monad.State.Layered  as State
 import qualified Luna.Manager.Command.Install as Install
 import           Luna.Manager.Command.Options (Options)
 import qualified Luna.Manager.Command.Options as Options
 import qualified Luna.Manager.Logger          as Logger
+import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
+import qualified Luna.Manager.Shell.Shelly    as Shelly
 import           Luna.Manager.System          (stopServicesWindows)
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
-import qualified Luna.Manager.Shell.Shelly    as Shelly
-import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
 
 
 default(Text.Text)
 
-type MonadUninstall m = (MonadIO m, MonadSh m, MonadShControl m, MonadCatch m, MonadGetter Install.InstallConfig m,
-                         MonadGetter Options m, MonadSetter Options m, MonadGetter EnvConfig m)
+type MonadUninstall m = (MonadIO m, MonadSh m, MonadShControl m, MonadCatch m, State.Getter Install.InstallConfig m,
+                         State.Getter Options m, State.Setter Options m, State.Getter EnvConfig m)
 
 lunaStudio :: IsString s => s
 lunaStudio = "LunaStudio"
@@ -47,7 +48,7 @@ uninstallServices opts = case currentHost of
                 stopServicesWindows currentServices `Exception.catchAny` (\(e::SomeException) ->
                     Logger.warning $ "Uninstalling services failed "
                         <> "because of " <> convert (displayException e) <> ". Continuing...")
-    _ -> return ()
+    _ -> pure ()
 
 guiDirectory :: FilePath -> FilePath
 guiDirectory binPathGui = case currentHost of
@@ -66,7 +67,7 @@ uninstallApp opts = do
 
 uninstallRunner :: MonadUninstall m => Install.InstallConfig -> m ()
 uninstallRunner opts = case currentHost of
-    Windows -> return ()
+    Windows -> pure ()
     _       -> do
         let localBinPath = (opts ^. Install.localBinPath) </> Shelly.fromText "luna-studio"
         expandedPath     <- expand localBinPath
@@ -132,12 +133,12 @@ uninstallStartMenuEntry = case currentHost of
             Shelly.rm_rf desktop `Exception.catchAny` (\(e::SomeException) ->
                 Logger.warning $ "Removing Luna Studio shortcut in " <> Shelly.toTextIgnore desktop <> " failed "
                 <> "because of " <> convert (displayException e) <> ". Continuing...")
-    _       -> return ()
+    _       -> pure ()
 
 run :: MonadUninstall m => m ()
 run = do
-    modify_ @Options $ Options.globals . Options.verbose .~ True
-    conf <- get @Install.InstallConfig
+    State.modify_ @Options $ Options.globals . Options.verbose .~ True
+    conf <- State.get @Install.InstallConfig
     uninstallServices conf
     uninstallApp conf
     uninstallRunner conf

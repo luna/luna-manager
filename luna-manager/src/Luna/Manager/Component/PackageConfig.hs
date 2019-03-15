@@ -34,7 +34,7 @@ makeLenses ''PackageConfig
 -- === Instances === --
 
 instance Monad m => MonadHostConfig PackageConfig 'Linux arch m where
-    defaultHostConfig = return $ PackageConfig
+    defaultHostConfig = pure $ PackageConfig
         { _defaultPackagePath = "dist-package"
         , _buildScriptPath    = "build_luna"
         , _thirdPartyPath     = "third-party"

@@ -14,40 +14,36 @@ module Luna.Manager.Component.Analytics (
 
 import Prologue hiding (FilePath, (.=))
 
-import           Control.Exception.Safe       (catchAnyDeep, handleAny)
-import           Control.Lens.Aeson           (lensJSONParse,
-                                               lensJSONToEncoding,
-                                               lensJSONToJSON)
-import           Control.Monad.State.Layered  as SL
-import           Control.Monad.Trans.Resource (MonadBaseControl)
-import           Data.Aeson                   (FromJSON, ToJSON, toEncoding,
-                                               toJSON, (.=))
-import qualified Data.Aeson                   as JSON
-import           Data.ByteString              (ByteString)
-import qualified Data.ByteString              as BS
-import qualified Data.ByteString.Base64       as Base64
-import           Data.ByteString.Lazy         (toStrict)
-import qualified Data.ByteString.Lazy         as BSL
-import           Data.Text                    (Text)
-import qualified Data.Text                    as Text
-import           Data.UUID                    (UUID)
-import qualified Data.UUID                    as UUID
-import qualified Data.UUID.V1                 as UUID
-import qualified Data.UUID.V4                 as UUID
-import           Filesystem.Path.CurrentOS    (FilePath)
-import qualified Filesystem.Path.CurrentOS    as FilePath
-import qualified Network.HTTP.Simple          as HTTP
-import           Safe                         (atMay, headMay)
-import qualified System.IO                    as SIO
+import qualified Control.Lens.Aeson          as LensJSON
+import qualified Control.Monad.State.Layered as State
+import qualified Data.Aeson                  as JSON
+import qualified Data.ByteString             as BS
+import qualified Data.ByteString.Base64      as Base64
+import qualified Data.ByteString.Lazy        as BSL
+import qualified Data.Text                   as Text
+import qualified Data.UUID                   as UUID
+import qualified Data.UUID.V1                as UUID
+import qualified Data.UUID.V4                as UUID
+import qualified Filesystem.Path.CurrentOS   as FilePath
+import qualified Luna.Manager.Logger         as Logger
+import qualified Luna.Manager.Shell.Shelly   as Shelly
+import qualified Network.HTTP.Simple         as HTTP
+import qualified System.IO                   as SIO
 
-import           Luna.Manager.Command.Options (Options)
-import           Luna.Manager.Logger          (LoggerMonad)
-import qualified Luna.Manager.Logger          as Logger
-import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
-import qualified Luna.Manager.Shell.Shelly    as Shelly
-import           Luna.Manager.System.Env      (EnvConfig)
-import           Luna.Manager.System.Host
-import           Luna.Manager.System.Path     (expand)
+import Control.Exception.Safe       (catchAnyDeep, handleAny)
+import Data.Aeson                   (FromJSON, ToJSON, toEncoding, toJSON, (.=))
+import Data.ByteString              (ByteString)
+import Data.ByteString.Lazy         (toStrict)
+import Data.Text                    (Text)
+import Data.UUID                    (UUID)
+import Filesystem.Path.CurrentOS    (FilePath)
+import Luna.Manager.Command.Options (Options)
+import Luna.Manager.Logger          (LoggerMonad)
+import Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
+import Luna.Manager.System.Env      (EnvConfig)
+import Luna.Manager.System.Host
+import Luna.Manager.System.Path     (expand)
+import Safe                         (atMay, headMay)
 
 default(Text)
 
@@ -86,19 +82,19 @@ makeLenses ''MPUserUpdate
 makeLenses ''MPUserData
 
 instance ToJSON MPEvent where
-    toEncoding = lensJSONToEncoding
-    toJSON     = lensJSONToJSON
+    toEncoding = LensJSON.toEncodingDropUnary
+    toJSON     = LensJSON.toJSONDropUnary
 
 instance ToJSON MPEventProps where
-    toEncoding = lensJSONToEncoding
-    toJSON     = lensJSONToJSON
+    toEncoding = LensJSON.toEncodingDropUnary
+    toJSON     = LensJSON.toJSONDropUnary
 
 instance ToJSON MPUserData where
-    toEncoding = lensJSONToEncoding
-    toJSON     = lensJSONToJSON
+    toEncoding = LensJSON.toEncodingDropUnary
+    toJSON     = LensJSON.toJSONDropUnary
 
 instance FromJSON MPUserData where
-    parseJSON = lensJSONParse
+    parseJSON = LensJSON.parseDropUnary
 
 instance ToJSON MPUserUpdate where
     toJSON     (MPUserUpdate t d s) = JSON.object ["$token" .= t,   "$distinct_id" .= d,   "$set" .= s]
@@ -117,7 +113,7 @@ newUuid :: MonadIO m => m UUID
 newUuid = liftIO $ do
     v1 <- UUID.nextUUID
     case v1 of
-        Just uuid -> return uuid
+        Just uuid -> pure uuid
         Nothing   -> UUID.nextRandom
 
 -- Transforms sth like 'VARNAME="some_text"' into 'some_text'.
@@ -131,7 +127,7 @@ lookupSysVar varName = do
     Logger.log "Analytics.lookupSysVar"
     let awkClause = "'/^" <> varName <> "=/'"
     line <- Shelly.escaping False $ Shelly.cmd "awk" awkClause "/etc/*-release"
-    return $ stripVarName (varName <> "=") line
+    pure $ stripVarName (varName <> "=") line
 
 extractWindowsVersion :: Text -> Maybe Text
 extractWindowsVersion systemInfo = Text.strip <$> version
@@ -149,23 +145,23 @@ osVersion = do
 
 osDistro :: LoggerMonad m => m Text
 osDistro = Shelly.silently $ case currentHost of
-        Windows -> return "N/A"
+        Windows -> pure "N/A"
         Linux   -> lookupSysVar "NAME"
-        Darwin  -> return "N/A"
+        Darwin  -> pure "N/A"
 
 -- Gets basic info about the operating system the installer is running on.
-userInfo :: (LoggerMonad m, MonadCatch m, MonadBaseControl IO m) =>
+userInfo :: (LoggerMonad m, MonadCatch m) =>
              Text -> m MPUserData
 userInfo email = do
     Logger.log "Analytics.userInfo"
-    let safeGet item = catchAnyDeep item (const $ return "unknown")
+    let safeGet item = catchAnyDeep item (const $ pure "unknown")
     uuid <- newUuid
     Logger.logObject "uuid" uuid
     ver  <- safeGet osVersion
     Logger.logObject "ver" ver
     dist <- safeGet osDistro
     Logger.logObject "dist" dist
-    return $ MPUserData { _userInfoUUID   = uuid
+    pure $ MPUserData { _userInfoUUID   = uuid
                         , _userInfoEmail  = email
                         , _userInfoOsType = currentHost
                         , _userInfoOsDist = dist
@@ -181,7 +177,7 @@ strictWrite filePath s = do
     SIO.withFile path SIO.WriteMode $ \h -> do
         BS.hPut h serialized
         SIO.hFlush h
-    return ()
+    pure ()
 
 -- Checks whether we already have the right user info saved in ~/.luna/user_info.json
 userInfoExists :: (LoggerMonad m, MonadSh m, MonadIO m) => FilePath -> m Bool
@@ -189,23 +185,23 @@ userInfoExists userInfoPath = do
     Logger.log "Analytics.userInfoExists"
     path <- expand userInfoPath
     fileExists <- Shelly.test_f path
-    if not fileExists then return False
+    if not fileExists then pure False
     else do
         Logger.log "Reading from user_info"
         bytes <- liftIO $ BSL.readFile $ FilePath.encodeString path
         Logger.log "Decoding JSON from user_info"
         let userInfoM = JSON.decode bytes :: Maybe MPUserData
             userInfo  = fromMaybe def userInfoM
-        return . not . UUID.null $ userInfo ^. userInfoUUID
+        pure . not . UUID.null $ userInfo ^. userInfoUUID
 
 -- Saves the email, along with some OS info, to a file user_info.json.
-processUserEmail :: (LoggerMonad m, MonadSh m, MonadShControl m, MonadIO m, MonadBaseControl IO m, MonadCatch m) =>
+processUserEmail :: (LoggerMonad m, MonadSh m, MonadShControl m, MonadIO m, MonadCatch m) =>
                      FilePath -> Text -> m MPUserData
 processUserEmail userInfoPath email = do
     let handler = \(e::SomeException) -> do
             Logger.log $ convert $  "Caught exception: " <> displayException e
             Logger.log "Returning empty data"
-            return def
+            pure def
     handleAny handler $ do
         Logger.log "Analytics.processUserEmail"
         info  <- userInfo email
@@ -223,7 +219,7 @@ processUserEmail userInfoPath email = do
         Logger.log "Writing to the file"
         liftIO $ BSL.writeFile p i
         Logger.log "Returning the info"
-        return info
+        pure info
 
 
 -----------------------------------------------------------------
@@ -252,8 +248,8 @@ sendMpRequest endpoint s = do
     liftIO $ void $ HTTP.httpNoBody request
 
 -- Register a new user within Mixpanel.
-mpRegisterUser :: (LoggerMonad m, MonadIO m, MonadSetter MPUserData m, MonadThrow m,
-                   MonadShControl m, MonadSh m, MonadBaseControl IO m, MonadCatch m) =>
+mpRegisterUser :: (LoggerMonad m, MonadIO m, State.Setter MPUserData m, MonadThrow m,
+                   MonadShControl m, MonadSh m, MonadCatch m) =>
                    FilePath -> Text -> m ()
 mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath) $ do
     Logger.log "Analytics.mpRegisterUser"
@@ -265,26 +261,26 @@ mpRegisterUser userInfoPath email = Shelly.unlessM (userInfoExists userInfoPath)
                               , _set = userData
                               }
     Logger.log "Putting user data to the state"
-    put @MPUserData userData
+    State.put @MPUserData userData
     Logger.log "Sending MP request"
     sendMpRequest userUpdateEndpoint mpData
     Logger.log "Done sending the request"
-    return ()
+    pure ()
 
-tryMpRegisterUser :: (LoggerMonad m, MonadIO m, MonadSetter MPUserData m, MonadThrow m,
-                    MonadShControl m, MonadSh m, MonadBaseControl IO m, MonadCatch m) =>
+tryMpRegisterUser :: (LoggerMonad m, MonadIO m, State.Setter MPUserData m, MonadThrow m,
+                    MonadShControl m, MonadSh m, MonadCatch m) =>
                     FilePath -> Text -> m ()
-tryMpRegisterUser eventName = do 
+tryMpRegisterUser eventName = do
     let handler = \e -> do
             Logger.log $ convert $  "Encountered an exception when trying to register user in Mixpanel: " <> displayException e
     handleAny handler <$> mpRegisterUser eventName
 
 -- Send a single event to Mixpanel.
-mpTrackEvent :: (LoggerMonad m, MonadIO m, MonadGetters '[MPUserData, Options, EnvConfig] m,
+mpTrackEvent :: (LoggerMonad m, MonadIO m, State.Getters '[MPUserData, Options, EnvConfig] m,
                  MonadThrow m, MonadSh m, MonadShControl m) => Text -> m ()
 mpTrackEvent eventName = do
     Logger.log "Analytics.mpTrackEvent"
-    uuid <- gets @MPUserData userInfoUUID
+    uuid <- State.gets @MPUserData (view userInfoUUID)
     let mpProps = MPEventProps { _token       = projectToken
                                , _distinct_id = UUID.toText uuid
                                }
@@ -296,7 +292,7 @@ mpTrackEvent eventName = do
     Logger.log "Done sending MP request"
 
 
-tryMpTrackEvent :: (LoggerMonad m, MonadIO m, MonadGetters '[MPUserData, Options, EnvConfig] m,
+tryMpTrackEvent :: (LoggerMonad m, MonadIO m, State.Getters '[MPUserData, Options, EnvConfig] m,
                 MonadThrow m, MonadSh m, MonadShControl m, MonadCatch m) => Text -> m ()
 tryMpTrackEvent eventName = do
     let handler = \(e::SomeException) -> do

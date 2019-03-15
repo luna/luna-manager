@@ -6,13 +6,15 @@ module Luna.Manager.System.Host where
 import Prologue
 import Luna.Manager.Component.Pretty
 import Control.Lens.Aeson
-import Control.Monad.State.Layered
-import Type.Known
 
-import           Data.Aeson          (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
+import qualified Control.Monad.State.Layered as State
 import qualified Data.Aeson          as JSON
 import qualified Data.Aeson.Encoding as JSON
 import qualified Data.Text           as Text
+import qualified Control.Lens.Aeson  as LensJSON
+import qualified Type.Known          as Type
+
+import           Data.Aeson          (FromJSON, ToJSON, FromJSONKey, ToJSONKey)
 
 
 -------------------
@@ -69,25 +71,25 @@ Running on unsupported system architecture.
 currentSysDesc :: SysDesc
 currentSysDesc = SysDesc currentHost currentArch
 
-instance Known 'Linux   where fromType = Linux
-instance Known 'Darwin  where fromType = Darwin
-instance Known 'Windows where fromType = Windows
+instance Type.Known 'Linux   where val = Linux
+instance Type.Known 'Darwin  where val = Darwin
+instance Type.Known 'Windows where val = Windows
 
-instance Known 'X32     where fromType = X32
-instance Known 'X64     where fromType = X64
+instance Type.Known 'X32     where val = X32
+instance Type.Known 'X64     where val = X64
 
 
 -- === Instances === --
 
 -- JSON
-instance ToJSON   System  where toEncoding = lensJSONToEncoding; toJSON = lensJSONToJSON
-instance ToJSON   SysArch where toEncoding = lensJSONToEncoding; toJSON = lensJSONToJSON
-instance ToJSON   SysDesc where toEncoding = lensJSONToEncoding; toJSON = lensJSONToJSON
-instance FromJSON System  where parseJSON  = lensJSONParse
-instance FromJSON SysArch where parseJSON  = lensJSONParse
-instance FromJSON SysDesc where parseJSON  = lensJSONParse
+instance ToJSON   System  where toEncoding = LensJSON.toEncodingDropUnary; toJSON = LensJSON.toJSONDropUnary
+instance ToJSON   SysArch where toEncoding = LensJSON.toEncodingDropUnary; toJSON = LensJSON.toJSONDropUnary
+instance ToJSON   SysDesc where toEncoding = LensJSON.toEncodingDropUnary; toJSON = LensJSON.toJSONDropUnary
+instance FromJSON System  where parseJSON  = LensJSON.parseDropUnary
+instance FromJSON SysArch where parseJSON  = LensJSON.parseDropUnary
+instance FromJSON SysDesc where parseJSON  = LensJSON.parseDropUnary
 instance FromJSONKey SysDesc where
-    fromJSONKey = JSON.FromJSONKeyTextParser $ either (fail . convert) return . readPretty
+    fromJSONKey = JSON.FromJSONKeyTextParser $ either (fail . convert) pure . readPretty
 instance ToJSONKey   SysDesc where
     toJSONKey = JSON.ToJSONKeyText f g
         where f = showPretty
@@ -128,15 +130,15 @@ type MonadHostConfig' cfg = MonadHostConfig cfg CurrentHost CurrentArch
 defHostConfig :: MonadHostConfig' cfg m => m cfg
 defHostConfig = defaultHostConfigFor @CurrentHost @CurrentArch
 
-evalDefHostConfig :: forall s m a. MonadHostConfig' s m => StateT s m a -> m a
-evalDefHostConfig p = evalStateT @s p =<< defHostConfig
+evalDefHostConfig :: forall s m a. MonadHostConfig' s m => State.StateT s m a -> m a
+evalDefHostConfig p = State.evalT @s p =<< defHostConfig
 
 
 -- === Multiple configs evaluator ===
 
 class MultiConfigRunner (cfgs :: [*]) m where
-    evalDefHostConfigs :: forall a. StatesT cfgs m a -> m a
+    evalDefHostConfigs :: forall a. State.StatesT cfgs m a -> m a
 
-instance (MultiConfigRunner ss m, MonadHostConfig' s (StatesT ss m))
+instance (MultiConfigRunner ss m, MonadHostConfig' s (State.StatesT ss m))
       => MultiConfigRunner (s ': ss) m where evalDefHostConfigs = evalDefHostConfigs @ss . evalDefHostConfig
 instance MultiConfigRunner '[]       m where evalDefHostConfigs = id

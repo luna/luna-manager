@@ -2,22 +2,23 @@
 
 module Luna.Manager.Logger where
 
-import           Control.Monad.Raise
-import           Control.Monad.State.Layered
-import           Data.Text                   (Text, pack, unpack)
+import qualified Control.Monad.State.Layered as State
 import qualified Data.Text.IO                as Text
-import           Filesystem.Path.CurrentOS   (FilePath, decodeString, (</>))
-import           Prologue                    hiding (FilePath, log)
-import           Shelly.Lifted               (MonadSh, MonadShControl)
 import qualified Shelly.Lifted               as Sh
-import           System.Directory            (getAppUserDataDirectory)
-import           System.IO                   (hFlush, stdout)
 import qualified System.Process.Typed        as Process
 
-import Data.Aeson (FromJSON, ToJSON, encode)
-
-import Luna.Manager.Command.Options
+import Control.Monad.Exception      (MonadException, throw)
+import Data.Aeson                   (FromJSON, ToJSON, encode)
+import Data.Text                    (Text, pack, unpack)
+import Filesystem.Path.CurrentOS    (FilePath, decodeString, (</>))
+import Luna.Manager.Command.Options (Options, globals, guiInstaller, verbose)
 import Luna.Manager.System.Env      (EnvConfig)
+import Prologue                     hiding (FilePath, log)
+import Shelly.Lifted                (MonadSh, MonadShControl)
+import System.Directory             (getAppUserDataDirectory)
+import System.IO                    (hFlush, stdout)
+
+
 
 
 data WarningMessage = WarningMessage { message :: Text
@@ -26,14 +27,14 @@ data WarningMessage = WarningMessage { message :: Text
 instance ToJSON   WarningMessage
 instance FromJSON WarningMessage
 
-type LoggerMonad m = (MonadIO m, MonadSh m, MonadShControl m, MonadGetters '[Options, EnvConfig] m)
+type LoggerMonad m = (MonadIO m, MonadSh m, MonadShControl m, State.Getters '[Options, EnvConfig] m)
 
 
 logFilePath :: LoggerMonad m => m FilePath
 logFilePath = do
     tmpDir <- decodeString <$> (liftIO $ getAppUserDataDirectory "luna_manager")
     Sh.mkdir_p tmpDir
-    return $ tmpDir </> "luna-manager.log"
+    pure $ tmpDir </> "luna-manager.log"
 
 logToStdout :: Text -> IO ()
 logToStdout msg = do
@@ -50,7 +51,7 @@ logToTmpFile msg = do
 
 info :: LoggerMonad m => Text -> m ()
 info msg = do
-    opts <- view globals <$> get @Options
+    opts <- view globals <$> State.get @Options
     let gui  = opts ^. guiInstaller
         msg' = msg <> "\n"
     if gui then logToTmpFile msg' else liftIO $ logToStdout msg'
@@ -58,7 +59,7 @@ info msg = do
 log :: LoggerMonad m => Text -> m ()
 log msg = do
     -- TODO[piotrMocz] we need a more robust logging solution in the long run
-    opts <- view globals <$> get @Options
+    opts <- view globals <$> State.get @Options
     let verb = opts ^. verbose
         gui  = opts ^. guiInstaller
         msg' = msg <> "\n"
@@ -77,7 +78,7 @@ logToJSON = liftIO . print . encode . WarningMessage
 
 warning :: LoggerMonad m => Text -> m ()
 warning msg = do
-    opts <- view globals <$> get @Options
+    opts <- view globals <$> State.get @Options
     let verb = opts ^. verbose
         gui  = opts ^. guiInstaller
         m    = "WARNING: " <> msg
@@ -93,5 +94,5 @@ logObject :: (LoggerMonad m, Show a) => Text -> a -> m ()
 logObject name obj = log $ name <> ": " <> (pack $ show obj)
 
 tryJustWithLog :: (LoggerMonad m, Show e, MonadException e m) => Text -> e -> Maybe a -> m a
-tryJustWithLog funName e (Just x) = return x
-tryJustWithLog funName e Nothing  = exception funName e >> raise e
+tryJustWithLog funName e (Just x) = pure x
+tryJustWithLog funName e Nothing  = exception funName e >> throw e

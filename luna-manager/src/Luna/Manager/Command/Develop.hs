@@ -2,30 +2,25 @@
 {-# LANGUAGE OverloadedStrings    #-}
 module Luna.Manager.Command.Develop where
 
-import           Control.Monad.Raise
-import           Control.Monad.State.Layered
-import           Data.Text                    (Text)
-import           Filesystem.Path.CurrentOS    (FilePath, parent, (</>))
-import qualified Luna.Manager.Archive         as Archive
-import           Luna.Manager.Command.Options
-import           Luna.Manager.Network
-import           Luna.Manager.Shell.Shelly    (MonadSh, MonadShControl)
-import qualified Luna.Manager.Shell.Shelly    as Shelly
-import           Luna.Manager.System.Env
-import           Prologue                     hiding (FilePath)
-import qualified System.Directory             as System
+import Prologue hiding (FilePath, fromJust)
 
-import Control.Monad.Trans.Resource         (MonadBaseControl)
+import qualified Control.Monad.State.Layered as State
+import qualified Luna.Manager.Archive        as Archive
+import qualified Luna.Manager.Shell.Shelly   as Shelly
+import qualified System.Directory            as System
+
+import Control.Monad.Exception              (MonadException, fromJust)
+import Data.Text                            (Text)
+import Filesystem.Path.CurrentOS            (FilePath, parent, (</>))
 import Luna.Manager.Command.CreatePackage
+import Luna.Manager.Command.Options
 import Luna.Manager.Component.PackageConfig
 import Luna.Manager.Component.Repository
+import Luna.Manager.Network
+import Luna.Manager.Shell.Shelly            (MonadSh, MonadShControl)
+import Luna.Manager.System.Env
 import Luna.Manager.System.Host
 import Luna.Manager.System.Path             (expand)
-
-import qualified Data.Text as T
-default (T.Text)
-
-
 
 data DevelopConfig = DevelopConfig { _stackPath      :: Text
                                    , _devPath        :: FilePath
@@ -36,11 +31,11 @@ data DevelopConfig = DevelopConfig { _stackPath      :: Text
                                     }
 makeLenses ''DevelopConfig
 
-type MonadDevelop m = (MonadGetter Options m, MonadStates '[EnvConfig, RepoConfig, PackageConfig, DevelopConfig] m, MonadIO m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m, MonadBaseControl IO m)
+type MonadDevelop m = (State.Getter Options m, State.MonadStates '[EnvConfig, RepoConfig, PackageConfig, DevelopConfig] m, MonadIO m, MonadException SomeException m, MonadSh m, MonadShControl m, MonadCatch m)
 
 
 instance Monad m => MonadHostConfig DevelopConfig 'Linux arch m where
-    defaultHostConfig = return $ DevelopConfig
+    defaultHostConfig = pure $ DevelopConfig
         { _stackPath      = "https://github.com/commercialhaskell/stack/releases/download/v1.9.1/stack-1.9.1-linux-x86_64-static.tar.gz"
         , _devPath        = "luna-develop"
         , _appsPath       = "apps"
@@ -66,7 +61,7 @@ downloadAndUnpackStack path = do
     if stackPresent
         then liftIO $ putStrLn "Stack is already installed, skipping"
         else do
-            developConfig <- get @DevelopConfig
+            developConfig <- State.get @DevelopConfig
             let stackURL           = developConfig ^. stackPath
                 totalProgress      = 1.0
                 progressFielsdName = ""
@@ -94,14 +89,14 @@ downloadDeps appName appPath = do
 
 run :: MonadDevelop m => DevelopOpts -> m ()
 run opts = do
-    developCfg <- get @DevelopConfig
+    developCfg <- State.get @DevelopConfig
     let appName  = opts ^. target
     if (opts ^. downloadDependencies) then do
-        path <- tryJust (toException PathException) (opts ^. repositoryPath)
+        path <- fromJust (toException PathException) (opts ^. repositoryPath)
         downloadDeps appName $ convert path
     else do
         workingPath <- case opts ^. repositoryPath of
-            Just wp -> return wp
+            Just wp -> pure wp
             Nothing -> convert <$> liftIO System.getHomeDirectory
         putStrLn $ "workingPath: " <> show workingPath
         let basePath = convert workingPath </> (developCfg ^. devPath)

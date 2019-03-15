@@ -1,35 +1,23 @@
-extra-deps: [directory-1.3.1.1, cond-0.4.1.1, aeson-1.2.1.0, optparse-applicative-0.14.0.0, base64-bytestring-1.0.0.1]
-ghc-options: {'*': -threaded}
+extra-deps: 
+- shelly-1.8.0
+ghc-options: {'$everything': -threaded}
 local-bin-path:
   ./executables
 packages:
 - location: ./luna-manager
 - extra-dep: true
-  location: {commit: 64179d2492e68016fb34d09b6faf966f3b9f91bd, git: 'https://github.com/luna/prologue.git'}
-- extra-dep: true
-  location: {commit: 4d4914483e7f207c94fcadf8f7f2736367165451, git: 'https://github.com/luna/container.git'}
-- extra-dep: true
-  location: {commit: 2371dec86a94f2e50ad8bdb8cad4e9afa2a9291a, git: 'https://github.com/luna/convert.git'}
-- extra-dep: true
-  location: {commit: 62aebd5ecb6ea873ce8db4cc230d156126cd82ee, git: 'https://github.com/luna/data-layer.git'}
-- extra-dep: true
-  location: {commit: 7a0eb39c82acb212a50c028143458ae7ce93745c, git: 'https://github.com/luna/functor-utils.git'}
-- extra-dep: true
-  location: {commit: 5dc5b731a4313e44d55677ed6b9f38456feb2d56, git: 'https://github.com/luna/impossible.git'}
-- extra-dep: true
-  location: {commit: 3bd224d169262af9f473e9b1bd691fd12caec8e2, git: 'https://github.com/luna/lens-utils.git'}
-- extra-dep: true
-  location: {commit: d5c2a68df9b34b8370c98a84f8bcaf311869daa9, git: 'https://github.com/luna/typelevel.git'}
-- extra-dep: true
-  location: {commit: fb0e46aacaa7060046f88d4c5a5f708fd443c8ae, git: 'https://github.com/luna/data-construction.git'}
-- extra-dep: true
-  location: {commit: c20f35c8e2f25fd84df385e8646b125d9fca8ac4, git: 'https://github.com/luna/data-repr.git'}
-- extra-dep: true
-  location: {commit: 0f86d4dff7192db7b4f4001f427126a889ff311f, git: 'https://github.com/luna/data-rtuple.git'}
-- extra-dep: true
-  location: {commit: adb894846d34ceaa005961bd8fe676023cf1b036, git: 'https://github.com/luna/data-prop.git'}
-- extra-dep: true
-  location: {commit: ffd97a6ec0eab065cebf06663a37362c1e13a05b, git: 'https://github.com/luna/monoid'}
-- extra-dep: true
-  location: {commit: 896f4472b64ab23e610db74991de0af3b1ec0e17, git: 'https://github.com/luna/dependent-state.git'}
-resolver: lts-8.16
+  location: {commit: 8183f96b5de3c3f8efbc8b8effe1ff251a86e90c, git: 'https://github.com/luna/luna.git'}
+  subdirs:
+    - lib/container
+    - lib/prologue
+    - lib/typelevel
+    - lib/convert
+    - lib/exception
+    - lib/layered-state
+    - lib/functor-utils
+    - lib/impossible
+    - lib/lens-utils
+    - lib/monoid
+    - lib/monad-branch
+    - lib/th-builder
+resolver: lts-12.26
