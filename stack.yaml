@@ -20,4 +20,4 @@ packages:
     - lib/monoid
     - lib/monad-branch
     - lib/th-builder
-resolver: lts-13.12
+resolver: lts-12.26
