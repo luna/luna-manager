@@ -36,14 +36,10 @@ instance MonadShControl m => MonadShControl (State.StateT s m) where
 
 
 mv :: (Logger.LoggerMonad m, MonadIO m, MonadSh m, MonadCatch m) => FilePath -> FilePath -> m ()
-mv src dst = case currentHost of
-    Linux   -> cmd "mv" src dst
-    Darwin  -> cmd "mv" src dst
-    Windows -> do
-        Logger.log "Shelly.mv"
-        Logger.logObject "src" src
-        Logger.logObject "dst" dst
-        Sh.mv src dst
+mv src dst = do
+    Logger.logObject "move src" src
+    Logger.logObject "move dst" dst
+    cmd "mv" src dst
 
 runCommand :: MonadIO m => String -> FilePath -> m ()
 runCommand cmd path = liftIO $ TypedProcess.runProcess_
