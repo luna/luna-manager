@@ -235,7 +235,7 @@ downloadExternalPkgs :: MonadCreatePackage m
                      -> MakePackageOpts -> m [FilePath]
 downloadExternalPkgs cfgFolderPath resolvedApp opts = do
     let repoPath = getRepoPath cfgFolderPath resolvedApp
-        tgtPath  = repoPath </> "env"
+        tgtPath  = repoPath </> "env/stdlib"
         pkgUrls = opts ^. Opts.extPkgUrls
 
     pkgs <- forM pkgUrls $ \pu -> do
