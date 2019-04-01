@@ -24,6 +24,7 @@ import           Luna.Manager.System                  (generateChecksum,
 import           Luna.Manager.System.Env
 import           Luna.Manager.System.Host
 import           Luna.Manager.System.Path
+import           System.Directory                     (createDirectoryIfMissing)
 import           System.Exit
 
 import qualified Control.Exception.Safe                 as Exception
@@ -38,6 +39,7 @@ import qualified Luna.Manager.Component.WindowsResource as WindowsResource
 import qualified Luna.Manager.Logger                    as Logger
 import qualified Luna.Manager.Shell.Shelly              as Shelly
 import qualified Safe
+import qualified System.FilePath                        as FilePath
 import qualified System.Process.Typed                   as Process
 
 default (Text.Text)
@@ -170,10 +172,19 @@ runPkgBuildScript repoPath s3GuiURL dryRun = do
     let guiUrlArgs = maybeToList $ ("--gui_url=" <>) <$> s3GuiURL
         dryRunArgs = if dryRun then ["--dry-run"] else []
         argList    = "--release" : (dryRunArgs <> guiUrlArgs)
-    Shelly.chdir (parent buildPath) $ Shelly.switchVerbosity $
-        case currentHost of
-            Windows -> Shelly.cmd "py" buildPath argList
-            _       -> Shelly.run_     buildPath argList
+    
+    case currentHost of
+        Windows -> do
+            let buildPathS = convert $ Shelly.toTextIgnore buildPath :: String
+            let buildPathParent = FilePath.takeDirectory buildPathS
+            liftIO $ createDirectoryIfMissing True buildPathParent
+            Process.runProcess_ 
+                $ Process.setWorkingDir buildPathParent 
+                $ Process.proc "py" $ buildPathS : (convert <$> argList)
+        _  -> 
+            Shelly.chdir (parent buildPath) 
+                $ Shelly.switchVerbosity 
+                $ Shelly.run_ buildPath argList
 
 removeGitFolders :: MonadCreatePackage m => FilePath -> m ()
 removeGitFolders path = do
