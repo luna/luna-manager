@@ -5,6 +5,13 @@ trigger:
   branches:
     include:
     - "*"
+  paths:
+    exclude:
+      - .github/*
+      - LICENSE
+      - README.md
+
+pr: none
 
 jobs:
 - job: Linux
